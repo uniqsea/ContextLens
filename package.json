@@ -1,0 +1,14 @@
+{
+  "name": "contextlens",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"agent,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev:agent\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev --prefix frontend -- --port ${FRONTEND_PORT:-3001}",
+    "dev:agent": "conda run -n contextlens --no-capture-output sh -c 'cd agent && set -a && source ./.env && set +a && langgraph dev --port ${LANGGRAPH_PORT:-2026}'",
+    "setup:agent": "conda run -n contextlens --no-capture-output python -m pip install -e ./agent",
+    "reset:memory-db": "rm -f ./agent/data/memory.sqlite3 && PYTHONPATH=./agent python3 -c \"from src.memory.repository import ensure_memory_store; ensure_memory_store()\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
