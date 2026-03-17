@@ -139,10 +139,10 @@ export function MemoryLibrary() {
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">
               Memory Library
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+            {/* <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
               Persistent memory records, context blocks, and trash state backed by
               the local SQLite store.
-            </p>
+            </p> */}
           </div>
           <Link
             href="/"
