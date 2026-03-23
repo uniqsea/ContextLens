@@ -174,16 +174,18 @@ export function ContextPanel({
       const targetItem = state.context_items.find((item) => item.id === itemId);
       if (!targetItem) return;
 
-      if (!targetItem.is_memory) {
-        const nextItems = state.context_items.map((item) =>
-          item.id === itemId ? { ...item, status: newStatus } : item,
-        );
+      // Non-memory items that don't need policy tracking (system, retrieval, user).
+      if (!targetItem.is_memory && targetItem.source_type !== "short_term") {
         onUpdateState({
-          context_items: nextItems,
+          context_items: state.context_items.map((item) =>
+            item.id === itemId ? { ...item, status: newStatus } : item,
+          ),
         });
         return;
       }
 
+      // Both persistent memories and short_term items use context_policies so the
+      // backend _status() picks up temporarily_ignored on the next prepare_context.
       if (newStatus === "temporarily_ignored") {
         const nextItems = state.context_items.map((item) =>
           item.id === itemId ? { ...item, status: newStatus } : item,
@@ -193,33 +195,26 @@ export function ContextPanel({
           { item_id: itemId, status: "temporarily_ignored" as const },
         ];
 
-        void fetch(`/api/memories/${itemId}/actions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "temporary_ignore",
-            threadId,
-          }),
-        });
+        if (targetItem.is_memory) {
+          void fetch(`/api/memories/${itemId}/actions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "temporary_ignore", threadId }),
+          });
+        }
 
-        onUpdateState({
-          context_items: nextItems,
-          context_policies: nextPolicies,
-        });
+        onUpdateState({ context_items: nextItems, context_policies: nextPolicies });
         return;
       }
 
       if (newStatus === "active" && targetItem.status === "temporarily_ignored") {
-        const nextItems = state.context_items.map((item) =>
-          item.id === itemId ? { ...item, status: "active" as const } : item,
-        );
-        const nextPolicies = state.context_policies.filter(
-          (policy) => policy.item_id !== itemId,
-        );
-
         onUpdateState({
-          context_items: nextItems,
-          context_policies: nextPolicies,
+          context_items: state.context_items.map((item) =>
+            item.id === itemId ? { ...item, status: "active" as const } : item,
+          ),
+          context_policies: state.context_policies.filter(
+            (policy) => policy.item_id !== itemId,
+          ),
         });
         return;
       }
@@ -322,10 +317,15 @@ export function ContextPanel({
   );
 
   const stats = useMemo(() => {
-    const items = state.context_items.filter((item) => item.layer === "memory");
-    const active = items.filter((item) => item.status === "active").length;
-    const disabled = items.filter((item) => item.status !== "active").length;
-    return { active, disabled, total: items.length };
+    let active = 0, activeTurns = 0, disabled = 0;
+    for (const item of state.context_items) {
+      if (item.layer === "memory") {
+        item.status === "active" ? active++ : disabled++;
+      } else if (item.layer === "short_term") {
+        item.status === "active" ? activeTurns++ : disabled++;
+      }
+    }
+    return { active, activeTurns, disabled };
   }, [state.context_items]);
 
   const isEmpty = state.context_items.length === 0;
@@ -684,7 +684,7 @@ export function ContextPanel({
         <div className="border-t border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95">
           <div className="flex items-center justify-between">
             <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              {stats.active} active memories
+              {stats.active} memories · {stats.activeTurns} turns
               {stats.disabled > 0 && (
                 <span className="text-amber-600 dark:text-amber-400">
                   {" "}

@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { type NodeProps, NodeResizer } from "@xyflow/react";
-import { Brain, Cpu, MessageSquare, Plus, Search } from "lucide-react";
+import { Brain, Clock, Cpu, MessageSquare, Plus, Search } from "lucide-react";
 import type { ContextLayer } from "@/lib/canvas-types";
 import { useCanvasActions } from "./canvas-actions-context";
 
@@ -26,6 +26,7 @@ const LAYER_ICON: Record<ContextLayer, React.ReactNode> = {
   memory: <Brain className="h-3.5 w-3.5" />,
   retrieval: <Search className="h-3.5 w-3.5" />,
   user: <MessageSquare className="h-3.5 w-3.5" />,
+  short_term: <Clock className="h-3.5 w-3.5" />,
 };
 
 const LAYER_BORDER: Record<ContextLayer, string> = {
@@ -33,6 +34,7 @@ const LAYER_BORDER: Record<ContextLayer, string> = {
   memory: "border-amber-300/60 dark:border-amber-700/60",
   retrieval: "border-blue-300/60 dark:border-blue-700/60",
   user: "border-emerald-300/60 dark:border-emerald-700/60",
+  short_term: "border-violet-300/60 dark:border-violet-700/60",
 };
 
 const LAYER_BG: Record<ContextLayer, string> = {
@@ -40,6 +42,7 @@ const LAYER_BG: Record<ContextLayer, string> = {
   memory: "bg-amber-50/40 dark:bg-amber-950/20",
   retrieval: "bg-blue-50/40 dark:bg-blue-950/20",
   user: "bg-emerald-50/40 dark:bg-emerald-950/20",
+  short_term: "bg-violet-50/40 dark:bg-violet-950/20",
 };
 
 const LAYER_TEXT: Record<ContextLayer, string> = {
@@ -47,6 +50,7 @@ const LAYER_TEXT: Record<ContextLayer, string> = {
   memory: "text-amber-600 dark:text-amber-400",
   retrieval: "text-blue-600 dark:text-blue-400",
   user: "text-emerald-600 dark:text-emerald-400",
+  short_term: "text-violet-600 dark:text-violet-400",
 };
 
 // ---------------------------------------------------------------------------

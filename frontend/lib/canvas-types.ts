@@ -5,7 +5,7 @@ import type {
   SessionContextMode,
 } from "@/lib/memory-types";
 
-export type ContextLayer = "system" | "memory" | "retrieval" | "user";
+export type ContextLayer = "system" | "memory" | "retrieval" | "user" | "short_term";
 export type ContextStatus =
   | "active"
   | "temporarily_ignored"
@@ -96,4 +96,5 @@ export const LAYER_CONFIG: Record<
   memory: { label: "Memory", color: "#d97706", icon: "Brain" },
   retrieval: { label: "Retrieval", color: "#2563eb", icon: "Search" },
   user: { label: "User Query", color: "#059669", icon: "MessageSquare" },
+  short_term: { label: "Short-term", color: "#7c3aed", icon: "Clock" },
 };

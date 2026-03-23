@@ -37,7 +37,7 @@ export function memoryRecordToContextItem(
 }
 
 export function buildPromptLayers(items: ContextItem[]): PromptLayer[] {
-  const orderedLayers = ["system", "memory", "retrieval", "user"] as const;
+  const orderedLayers = ["system", "short_term", "memory", "retrieval", "user"] as const;
   return orderedLayers.flatMap((layer) => {
     const itemIds = items
       .filter((item) => item.layer === layer)

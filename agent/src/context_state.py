@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Annotated, Literal, NotRequired, TypedDict
 
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
 from src.memory import SessionContextMode, list_memories_by_ids, list_memories_for_context
+
+if TYPE_CHECKING:
+    from langchain_openai import ChatOpenAI
 
 # ---------------------------------------------------------------------------
 # Type definitions shared with the frontend canvas
 # ---------------------------------------------------------------------------
 
-ContextLayer = Literal["system", "memory", "retrieval", "user"]
+ContextLayer = Literal["system", "memory", "retrieval", "user", "short_term"]
 ContextStatus = Literal[
     "active",
     "temporarily_ignored",
@@ -76,6 +79,14 @@ class ContextPolicy(TypedDict):
     status: ThreadPolicyStatus
 
 
+class ConversationTurn(TypedDict):
+    turn_index: int
+    human: str
+    ai: str
+    is_summary: bool
+    summarizes_turns: NotRequired[list[int]]
+
+
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     context_items: NotRequired[list[ContextItem]]
@@ -87,6 +98,7 @@ class AgentState(TypedDict):
     awaiting_approval: NotRequired[bool]
     session_context_mode: NotRequired[SessionContextMode]
     manual_memory_ids: NotRequired[list[str]]
+    short_term_turns: NotRequired[list[ConversationTurn]]
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +139,10 @@ RETRIEVAL_LIBRARY = [
 ]
 
 
+SHORT_TERM_MAX_TURNS = 20
+SHORT_TERM_KEEP_RECENT = 6
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -141,6 +157,84 @@ def _retrieve(query: str, top_k: int = 2) -> list[dict]:
             scored.append((score, doc))
     scored.sort(key=lambda x: -x[0])
     return [doc for _, doc in scored[:top_k]]
+
+
+def _parse_turns_from_messages(messages: list[AnyMessage]) -> list[tuple[str, str]]:
+    """Extract complete Human/AI turn pairs from a message list."""
+    turns: list[tuple[str, str]] = []
+    pending_human: str | None = None
+    for msg in messages:
+        if isinstance(msg, HumanMessage):
+            pending_human = str(msg.content)
+        elif isinstance(msg, AIMessage) and pending_human is not None:
+            turns.append((pending_human, str(msg.content)))
+            pending_human = None
+    return turns
+
+
+def _compress_turns(turns: list[ConversationTurn], llm: "ChatOpenAI") -> str:
+    """Call LLM to produce a concise summary of the given turns."""
+    lines = []
+    for t in turns:
+        if t["is_summary"]:
+            lines.append(f"[Summary] {t['ai']}")
+        else:
+            lines.append(f"Human: {t['human']}\nAssistant: {t['ai']}")
+    body = "\n\n---\n\n".join(lines)
+    prompt = (
+        "Summarize the following conversation turns concisely in 2-4 sentences. "
+        "Focus on key topics, decisions, and information useful for continuing the conversation.\n\n"
+        f"{body}\n\nSummary:"
+    )
+    response = llm.invoke(prompt)
+    return str(response.content).strip()
+
+
+def update_short_term_memory(
+    state: AgentState,
+    llm: "ChatOpenAI",
+) -> list[ConversationTurn]:
+    """Sync short_term_turns with messages, compressing when over the threshold."""
+    existing_turns: list[ConversationTurn] = list(state.get("short_term_turns") or [])
+
+    # Derive next turn index from the highest recorded turn_index (avoids separate counter state).
+    next_index = (max(t["turn_index"] for t in existing_turns) + 1) if existing_turns else 0
+
+    # Only parse messages that haven't been recorded yet (incremental, not full re-parse).
+    all_parsed = _parse_turns_from_messages(state.get("messages") or [])
+    new_raw = all_parsed[next_index:]
+
+    for human, ai in new_raw:
+        existing_turns.append(
+            ConversationTurn(
+                turn_index=next_index,
+                human=human,
+                ai=ai,
+                is_summary=False,
+            )
+        )
+        next_index += 1
+
+    # Count only non-summary (raw) turns
+    raw_turns = [t for t in existing_turns if not t["is_summary"]]
+    if len(raw_turns) > SHORT_TERM_MAX_TURNS:
+        to_compress = raw_turns[: len(raw_turns) - SHORT_TERM_KEEP_RECENT]
+        keep_raw = raw_turns[len(raw_turns) - SHORT_TERM_KEEP_RECENT :]
+        # Merge any existing summaries into the new compression batch
+        existing_summaries = [t for t in existing_turns if t["is_summary"]]
+        all_to_compress = existing_summaries + to_compress
+        summary_text = _compress_turns(all_to_compress, llm)
+        summarizes = [t["turn_index"] for t in all_to_compress]
+        summary_turn = ConversationTurn(
+            turn_index=summarizes[0],
+            human="",
+            ai=summary_text,
+            is_summary=True,
+            summarizes_turns=summarizes,
+        )
+        existing_turns = [summary_turn] + keep_raw
+
+    return existing_turns
 
 
 def build_context_items(state: AgentState) -> list[ContextItem]:
@@ -223,6 +317,36 @@ def build_context_items(state: AgentState) -> list[ContextItem]:
             )
         )
 
+    short_term_turns: list[ConversationTurn] = state.get("short_term_turns") or []
+    for turn in short_term_turns:
+        st_id = f"st-{turn['turn_index']:04d}"
+        if turn["is_summary"]:
+            s_range = turn.get("summarizes_turns") or []
+            title = (
+                f"Conversation Summary (turns {s_range[0]}–{s_range[-1]})"
+                if s_range
+                else "Conversation Summary"
+            )
+            content = turn["ai"]
+            source_label = "Auto-summary"
+        else:
+            title = f"Turn {turn['turn_index'] + 1}"
+            content = f"You: {turn['human']}\n\nAssistant: {turn['ai']}"
+            source_label = f"Turn {turn['turn_index'] + 1}"
+        items.append(
+            ContextItem(
+                id=st_id,
+                layer="short_term",
+                title=title,
+                content=content,
+                source_label=source_label,
+                source_type="short_term",
+                created_at=now,
+                status=_status(st_id),
+                is_memory=False,
+            )
+        )
+
     if user_query:
         items.append(
             ContextItem(
@@ -243,7 +367,7 @@ def build_context_items(state: AgentState) -> list[ContextItem]:
 
 def build_active_prompt(items: list[ContextItem]) -> str:
     """Construct the system prompt string from active context items only."""
-    layer_order: list[ContextLayer] = ["system", "memory", "retrieval"]
+    layer_order: list[ContextLayer] = ["system", "short_term", "memory", "retrieval"]
     sections: list[str] = []
 
     for layer in layer_order:
@@ -253,6 +377,9 @@ def build_active_prompt(items: list[ContextItem]) -> str:
 
         if layer == "system":
             sections.append(layer_items[0]["content"])
+        elif layer == "short_term":
+            parts = [f"[{it['source_label']}]\n{it['content']}" for it in layer_items]
+            sections.append("## Recent conversation\n\n" + "\n\n---\n\n".join(parts))
         elif layer == "memory":
             lines = [
                 f"- [{it['memory_type']}/{it['context_scope']}] {it['title']}: {it['content']}"
@@ -267,7 +394,7 @@ def build_active_prompt(items: list[ContextItem]) -> str:
 
 
 def build_prompt_layers(items: list[ContextItem]) -> list[PromptLayer]:
-    layer_order: list[ContextLayer] = ["system", "memory", "retrieval", "user"]
+    layer_order: list[ContextLayer] = ["system", "short_term", "memory", "retrieval", "user"]
     layers: list[PromptLayer] = []
     for layer in layer_order:
         ids = [it["id"] for it in items if it["layer"] == layer]
@@ -313,13 +440,15 @@ def build_layout(
         "memory": [],
         "retrieval": [],
         "user": [],
+        "short_term": [],
     }
     for item in items:
         items_by_layer[item["layer"]].append(item)
 
     sys_height = _group_height(len(items_by_layer["system"]))
     mem_height = _group_height(len(items_by_layer["memory"]))
-    row0_max_height = max(sys_height, mem_height)
+    st_height = _group_height(len(items_by_layer["short_term"]))
+    row0_max_height = max(sys_height, mem_height, st_height)
 
     groups.append(
         ContextGroup(
@@ -364,6 +493,28 @@ def build_layout(
             )
         )
 
+    st_x = 2 * (GROUP_WIDTH + GROUP_GAP_X)
+    groups.append(
+        ContextGroup(
+            id="group-short-term",
+            layer="short_term",
+            title="Short-term",
+            x=st_x,
+            y=0,
+            width=GROUP_WIDTH,
+            height=st_height,
+        )
+    )
+    for idx, item in enumerate(items_by_layer["short_term"]):
+        layouts.append(
+            ContextNoteLayout(
+                item_id=item["id"],
+                group_id="group-short-term",
+                x=CARD_OFFSET_LEFT,
+                y=CARD_OFFSET_TOP + idx * (CARD_HEIGHT + CARD_GAP),
+            )
+        )
+
     ret_y = row0_max_height + GROUP_GAP_Y
     ret_height = _group_height(len(items_by_layer["retrieval"]))
     groups.append(
@@ -387,7 +538,7 @@ def build_layout(
             )
         )
 
-    user_x = 2 * (GROUP_WIDTH + GROUP_GAP_X)
+    user_x = 3 * (GROUP_WIDTH + GROUP_GAP_X)
     for item in items_by_layer["user"]:
         layouts.append(
             ContextNoteLayout(

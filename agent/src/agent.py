@@ -25,18 +25,17 @@ from src.context_state import (
     build_context_items,
     build_layout,
     build_prompt_layers,
+    update_short_term_memory,
 )
 from src.memory import ensure_memory_store
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 ensure_memory_store()
 
-
-def get_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=os.environ.get("OPENAI_MODEL", "gpt-5-nano"),
-        temperature=0.3,
-    )
+_llm = ChatOpenAI(
+    model=os.environ.get("OPENAI_MODEL", "gpt-5-nano"),
+    temperature=0.3,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -46,8 +45,10 @@ def get_llm() -> ChatOpenAI:
 
 def prepare_context(state: AgentState) -> dict:
     """Build the context snapshot and sync it to the frontend canvas."""
-    items = build_context_items(state)
-    groups, layouts, view = build_layout(items, state)
+    updated_turns = update_short_term_memory(state, _llm)
+    working_state = {**state, "short_term_turns": updated_turns}
+    items = build_context_items(working_state)
+    groups, layouts, view = build_layout(items, working_state)
 
     return {
         "context_items": items,
@@ -56,6 +57,7 @@ def prepare_context(state: AgentState) -> dict:
         "context_canvas_view": view,
         "prompt_layers": build_prompt_layers(items),
         "awaiting_approval": True,
+        "short_term_turns": updated_turns,
     }
 
 
@@ -70,7 +72,7 @@ def call_llm(state: AgentState) -> dict:
     items = state.get("context_items") or []
     system_prompt = build_active_prompt(items)
     messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
-    response = get_llm().invoke(messages)
+    response = _llm.invoke(messages)
     return {"messages": [response]}
 
 
