@@ -1,3 +1,54 @@
+# ContextLens
+
+## Start the Project
+
+Install dependencies if this is the first run:
+
+```bash
+npm install
+npm install --prefix frontend
+```
+
+Set up the agent package in the `contextlens` conda environment:
+
+```bash
+conda create -n contextlens python=3.11
+npm run setup:agent
+```
+
+Create or update the environment files:
+
+- `agent/.env`
+- `frontend/.env.local`
+
+The frontend can use the local LangGraph server:
+
+```bash
+LANGGRAPH_API_URL=http://localhost:2026
+NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=context_agent
+```
+
+Start both the LangGraph agent and the Next.js frontend:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3001](http://localhost:3001) in your browser.
+
+Default local services:
+
+- Agent: [http://localhost:2026](http://localhost:2026)
+- Frontend: [http://localhost:3001](http://localhost:3001)
+
+You can override ports when starting:
+
+```bash
+LANGGRAPH_PORT=2027 FRONTEND_PORT=3002 npm run dev
+```
+
+## Original Starter Notes
+
 This is the [assistant-ui](https://github.com/Yonom/assistant-ui) starter project for langgraph.
 
 ## Getting Started

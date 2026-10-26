@@ -40,3 +40,6 @@ agent/data/*.sqlite3
 .idea/
 .vscode/
 .claude/
+# local-only notes and research
+docs/
+reports/

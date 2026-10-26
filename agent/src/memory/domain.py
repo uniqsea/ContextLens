@@ -13,6 +13,7 @@ MemoryEventType = Literal["temporary_ignore", "context_block", "delete_forever"]
 
 
 class MemoryRecord(TypedDict):
+    revision: int
     id: str
     title: str
     content: str

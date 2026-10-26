@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import cast
 
 from .domain import MemoryRecord, SessionContextMode
 
-DB_PATH = Path(__file__).resolve().parents[2] / "data" / "memory.sqlite3"
-SEED_PATH = Path(__file__).resolve().parents[3] / "shared" / "memory-seeds.json"
+DB_PATH = Path(os.environ.get("CONTEXTLENS_DB_PATH", Path(__file__).resolve().parents[2] / "data" / "memory.sqlite3")).resolve()
+SEED_PATH = Path(os.environ.get("CONTEXTLENS_SEED_PATH", Path(__file__).resolve().parents[3] / "shared" / "memory-seeds.json")).resolve()
 
 
 def ensure_memory_store() -> None:
@@ -95,9 +96,8 @@ def list_memories_for_context(
         params: list[str] = []
         filters = ["m.lifecycle_state = 'active'"]
 
-        if mode != "general":
-            filters.append("(m.context_scope = ? OR m.context_scope = 'general')")
-            params.append(mode)
+        filters.append("(m.context_scope = ? OR m.context_scope = 'general')")
+        params.append(mode)
 
         if not include_blocked:
             filters.append(
@@ -169,6 +169,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(memories)")}
+    if "revision" not in columns:
+        conn.execute("ALTER TABLE memories ADD COLUMN revision INTEGER NOT NULL DEFAULT 1")
+    conn.executescript((Path(__file__).resolve().parents[3] / "shared" / "memory-revisions.sql").read_text())
     conn.commit()
 
 
@@ -185,6 +189,7 @@ def _row_to_memory(conn: sqlite3.Connection, memory_id: str) -> MemoryRecord:
     ).fetchall()
     return MemoryRecord(
         id=row["id"],
+        revision=row["revision"],
         title=row["title"],
         content=row["content"],
         memory_type=row["memory_type"],

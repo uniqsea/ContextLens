@@ -10,10 +10,12 @@ export type SessionContextMode =
 export type MemoryEventType =
   | "temporary_ignore"
   | "context_block"
-  | "delete_forever"
-  | "restore";
+  | "trash"
+  | "restore"
+  | "context_unblock";
 
 export interface MemoryRecord {
+  revision: number;
   id: string;
   title: string;
   content: string;

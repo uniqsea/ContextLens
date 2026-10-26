@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MemoryEditor } from "./editor";
 import {
   type ReactNode,
   useEffect,
@@ -33,7 +34,7 @@ const FILTERS: Array<{ label: string; value: SessionContextMode | "all" | "trash
   { label: "Trash", value: "trashed" },
 ];
 
-const BLOCKABLE_MODES: SessionContextMode[] = ["study", "work", "personal", "life"];
+const BLOCKABLE_MODES: SessionContextMode[] = ["study", "work", "personal", "life", "general"];
 const MODE_META: Record<SessionContextMode, { label: string; icon: LucideIcon }> = {
   study: { label: "Study", icon: GraduationCap },
   work: { label: "Work", icon: Briefcase },
@@ -43,6 +44,8 @@ const MODE_META: Record<SessionContextMode, { label: string; icon: LucideIcon }>
 };
 
 export function MemoryLibrary() {
+  const [editing, setEditing] = useState<MemoryRecord | "new" | null>(null);
+  const [error, setError] = useState("");
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
   const [openBlockMenuId, setOpenBlockMenuId] = useState<string | null>(null);
@@ -53,12 +56,7 @@ export function MemoryLibrary() {
     let cancelled = false;
 
     startTransition(() => {
-      const url =
-        filter === "all"
-          ? "/api/memories?includeTrashed=true"
-          : filter === "trashed"
-            ? "/api/memories?includeTrashed=true"
-            : `/api/memories?mode=${filter}&includeBlocked=true`;
+      const url = "/api/memories?includeTrashed=true";
 
       fetch(url)
         .then((res) => res.json())
@@ -104,7 +102,7 @@ export function MemoryLibrary() {
     if (filter === "trashed") {
       return memories.filter((memory) => memory.lifecycle_state === "trashed");
     }
-    return memories;
+    return filter === "all" ? memories : memories.filter(memory => memory.context_scope === filter && memory.lifecycle_state === "active");
   }, [filter, memories]);
 
   const refreshMemories = async () => {
@@ -115,15 +113,17 @@ export function MemoryLibrary() {
 
   const runAction = async (
     memoryId: string,
-    action: "context_block" | "delete_forever" | "restore",
+    action: "context_block" | "context_unblock" | "trash" | "restore",
     contextMode?: SessionContextMode,
   ) => {
-    await fetch(`/api/memories/${memoryId}/actions`, {
+    const res = await fetch(`/api/memories/${memoryId}/actions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, contextMode }),
     });
 
+    if (!res.ok) {setError("Action failed. Please refresh and try again."); return;}
+    setError("");
     setOpenBlockMenuId(null);
     await refreshMemories();
   };
@@ -152,6 +152,9 @@ export function MemoryLibrary() {
           </Link>
         </div>
 
+        <button type="button" className="mb-4 rounded-full border px-4 py-2" onClick={() => setEditing("new")}>Add memory</button>
+        {error && <p role="alert">{error}</p>}
+        {editing && <MemoryEditor key={editing === "new" ? "new" : editing.id} memory={editing === "new" ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => {setEditing(null); void refreshMemories();}}/>}
         <div className="mb-6 flex flex-wrap gap-2">
           {FILTERS.map((item) => (
             <button
@@ -183,7 +186,7 @@ export function MemoryLibrary() {
                       {memory.content}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <Badge>{memory.memory_type}</Badge>
+                      <Badge>{memory.memory_type}</Badge><Badge>v{memory.revision}</Badge><Badge>Source: {memory.source_kind}</Badge>
                       <Badge>{memory.context_scope}</Badge>
                       <Badge>{memory.lifecycle_state}</Badge>
                       {memory.blocked_context_modes.map((mode) => (
@@ -193,7 +196,7 @@ export function MemoryLibrary() {
                   </div>
 
                   {memory.lifecycle_state !== "trashed" ? (
-                    <div className="flex min-w-[220px] flex-col items-end gap-2">
+                    <div className="flex min-w-[220px] flex-col items-end gap-2"><button type="button" onClick={() => setEditing(memory)}>Edit memory</button>
                       <div
                         className="relative"
                         ref={(node) => {
@@ -239,14 +242,14 @@ export function MemoryLibrary() {
                                     key={mode}
                                     type="button"
                                     onClick={() =>
-                                      runAction(memory.id, "context_block", mode)
+                                      runAction(memory.id, memory.blocked_context_modes.includes(mode) ? "context_unblock" : "context_block", mode)
                                     }
                                     className="flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-1.5 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100"
                                   >
                                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-600">
                                       <Icon className="h-3 w-3" />
                                     </span>
-                                    <span className="text-sm">{meta.label}</span>
+                                    <span className="text-sm">{memory.blocked_context_modes.includes(mode) ? "Unblock " : "Block "}{meta.label}</span>
                                   </button>
                                 );
                               })}
@@ -257,7 +260,7 @@ export function MemoryLibrary() {
 
                       <button
                         type="button"
-                        onClick={() => runAction(memory.id, "delete_forever")}
+                        onClick={() => runAction(memory.id, "trash")}
                         className="w-full rounded-full border border-rose-300 px-3 py-1.5 text-xs text-rose-700 transition-colors hover:bg-rose-50"
                       >
                         Move to Trash

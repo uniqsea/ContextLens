@@ -19,13 +19,15 @@ export function memoryRecordToContextItem(
 ): ContextItem {
   return {
     id: record.id,
+    revision: record.revision,
+    selection_reason: record.blocked_context_modes.includes(currentMode) ? "Blocked in this context" : "Current context or explicit addition",
     layer: "memory",
     title: record.title,
     content: record.content,
     source_label: "Memory",
     source_type: "memory",
     created_at: record.created_at,
-    status: record.lifecycle_state === "trashed" ? "trashed" : "active",
+    status: record.lifecycle_state === "trashed" ? "trashed" : record.blocked_context_modes.includes(currentMode) ? "context_blocked" : "active",
     is_memory: true,
     memory_type: record.memory_type,
     memory_confidence: record.confidence,

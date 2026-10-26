@@ -88,6 +88,11 @@ class ConversationTurn(TypedDict):
 
 
 class AgentState(TypedDict):
+    context_snapshot: NotRequired[dict]
+    last_request: NotRequired[dict]
+    history_lineage: NotRequired[dict]
+    approval_valid: NotRequired[bool]
+    approval_notice: NotRequired[str]
     messages: Annotated[list[AnyMessage], add_messages]
     context_items: NotRequired[list[ContextItem]]
     context_groups: NotRequired[list[ContextGroup]]

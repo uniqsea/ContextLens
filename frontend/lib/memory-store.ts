@@ -10,8 +10,8 @@ import type {
   SessionContextMode,
 } from "@/lib/memory-types";
 
-const DB_PATH = resolve(process.cwd(), "..", "agent", "data", "memory.sqlite3");
-const SEED_PATH = resolve(process.cwd(), "..", "shared", "memory-seeds.json");
+const DB_PATH = process.env.CONTEXTLENS_DB_PATH || resolve(process.cwd(), "..", "agent", "data", "memory.sqlite3");
+const SEED_PATH = process.env.CONTEXTLENS_SEED_PATH || resolve(process.cwd(), "..", "shared", "memory-seeds.json");
 
 function openDatabase(): DatabaseSync {
   mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -54,6 +54,9 @@ function initSchema(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  const columns = db.prepare("PRAGMA table_info(memories)").all() as Array<{name: string}>;
+  if (!columns.some(c => c.name === "revision")) db.exec("ALTER TABLE memories ADD COLUMN revision INTEGER NOT NULL DEFAULT 1");
+  db.exec(readFileSync(resolve(process.cwd(), "..", "shared", "memory-revisions.sql"), "utf8"));
 }
 
 function seedMemoriesIfEmpty(db: DatabaseSync) {
@@ -124,10 +127,8 @@ export function listMemoriesForContext(
     const filters = ["m.lifecycle_state = 'active'"];
     const params: Array<string> = [];
 
-    if (mode !== "general") {
-      filters.push("(m.context_scope = ? OR m.context_scope = 'general')");
-      params.push(mode);
-    }
+    filters.push("(m.context_scope = ? OR m.context_scope = 'general')");
+    params.push(mode);
 
     if (!includeBlocked) {
       filters.push(`
@@ -185,11 +186,12 @@ export function trashMemory(memoryId: string, threadId?: string) {
       UPDATE memories
       SET lifecycle_state = 'trashed',
           deleted_at = CURRENT_TIMESTAMP,
+          revision = revision + 1,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
       `,
     ).run(memoryId);
-    logMemoryEvent("delete_forever", memoryId, null, threadId, db);
+    logMemoryEvent("trash", memoryId, null, threadId, db);
     return getMemoryById(db, memoryId);
   } finally {
     db.close();
@@ -204,6 +206,7 @@ export function restoreMemory(memoryId: string, threadId?: string) {
       UPDATE memories
       SET lifecycle_state = 'active',
           deleted_at = NULL,
+          revision = revision + 1,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
       `,
@@ -258,4 +261,30 @@ function getMemoryById(db: DatabaseSync, id: string): MemoryRecord {
     ...row,
     blocked_context_modes: blockedRows.map((blockedRow) => blockedRow.context_mode),
   };
+}
+
+export function unblockMemoryInContext(memoryId: string, mode: SessionContextMode) {
+  const db = openDatabase();
+  try {
+    db.prepare("DELETE FROM memory_context_rules WHERE memory_id = ? AND context_mode = ? AND rule_type = 'block'").run(memoryId, mode);
+    logMemoryEvent("context_unblock", memoryId, mode, undefined, db);
+    return getMemoryById(db, memoryId);
+  } finally { db.close(); }
+}
+
+export function saveMemory(input: { id?: string; revision?: number; title: string; content: string; context_scope: SessionContextMode; source_kind: string }): MemoryRecord {
+  const db = openDatabase();
+  try {
+    if (input.id) {
+      const result = db.prepare("UPDATE memories SET title=?, content=?, context_scope=?, source_kind=?, revision=revision+1, updated_at=? WHERE id=? AND revision=? AND lifecycle_state='active'")
+        .run(input.title, input.content, input.context_scope, input.source_kind, new Date().toISOString(), input.id, input.revision ?? -1);
+      if (result.changes !== 1) throw new Error("Memory changed or unavailable; refresh before editing");
+    } else {
+      input.id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      db.prepare("INSERT INTO memories (id,title,content,memory_type,confidence,context_scope,created_at,updated_at,source_kind,revision) VALUES (?,?,?,'semantic','high',?,?,?,?,1)")
+        .run(input.id, input.title, input.content, input.context_scope, now, now, input.source_kind);
+    }
+    return getMemoryById(db, input.id);
+  } finally { db.close(); }
 }

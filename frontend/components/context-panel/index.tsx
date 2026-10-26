@@ -244,6 +244,10 @@ export function ContextPanel({
 
   const handleEditItem = useCallback(
     (itemId: string, newContent: string) => {
+      if (state.context_items.find(item => item.id === itemId)?.is_memory) {
+        window.alert("Edit persistent memory in Memory Library. The next confirmation will refresh this preview.");
+        return;
+      }
       const nextItems = state.context_items.map((item) =>
         item.id === itemId ? { ...item, content: newContent } : item,
       );
@@ -295,20 +299,11 @@ export function ContextPanel({
           ? { ...item, status: "temporarily_ignored" as const }
           : item;
       });
-      const manualMemoryItems = state.context_items.filter(
-        (item) =>
-          item.layer === "memory" &&
-          manualMemoryIds.includes(item.id) &&
-          item.memory_lifecycle_state !== "trashed",
-      );
-      const nextMemoryItems = mergeMemoryItems(
-        automaticMemoryItems,
-        manualMemoryItems,
-      );
+      const nextMemoryItems = automaticMemoryItems;
 
       onUpdateState({
         session_context_mode: mode,
-        manual_memory_ids: manualMemoryIds,
+        manual_memory_ids: [],
         ...applyMemoryItemsToCanvas(state, nextMemoryItems),
       });
       setIsModeMenuOpen(false);
@@ -351,7 +346,7 @@ export function ContextPanel({
 
   const handleAddMemory = useCallback(
     (memory: MemoryRecord) => {
-      if (memory.lifecycle_state === "trashed") {
+      if (memory.lifecycle_state === "trashed" || memory.blocked_context_modes.includes(state.session_context_mode)) {
         return;
       }
 
@@ -414,7 +409,7 @@ export function ContextPanel({
               threadId,
             }
           : {
-              action: "delete_forever" as const,
+              action: "trash" as const,
               threadId,
             };
 
@@ -445,6 +440,13 @@ export function ContextPanel({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+      {state.approval_notice && <p role="status" className="bg-amber-50 p-3 text-sm text-amber-900">{state.approval_notice}</p>}
+      <details className="max-h-64 overflow-auto border-b bg-white p-3 text-xs">
+        <summary>Selection evidence &amp; submitted request</summary>
+        <p className="my-2">Changes require a fresh server preview before sending. Blocked memories must be unblocked in Memory Library.</p>
+        {state.context_snapshot?.candidates.map(item => <p key={item.id} className="my-1"><b>{item.title}</b> {item.revision ? `v${item.revision}` : ""} · {item.status} · {item.selection_reason}</p>)}
+        {state.last_request && <><h3 className="mt-3 font-semibold">Last submitted request · {state.last_request.mode}</h3><pre className="whitespace-pre-wrap break-words">{JSON.stringify(state.last_request.messages, null, 2)}</pre></>}
+      </details>
       <div className="flex-1 min-h-0">
         {isEmpty ? (
           <EmptyState />
@@ -697,7 +699,7 @@ export function ContextPanel({
               onClick={handleApprove}
               className="rounded-xl bg-neutral-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              Confirm &amp; Send
+              Review &amp; Confirm
             </button>
           </div>
         </div>

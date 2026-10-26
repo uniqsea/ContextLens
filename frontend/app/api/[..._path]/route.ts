@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 function getCorsHeaders() {
   return {
@@ -30,6 +30,7 @@ async function handleRequest(req: NextRequest, method: string) {
 
     if (["POST", "PUT", "PATCH"].includes(method)) {
       options.body = await req.text();
+      options.headers = {...options.headers, "Content-Type": "application/json"};
     }
 
     const res = await fetch(

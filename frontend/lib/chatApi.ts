@@ -6,7 +6,6 @@ import {
 
 const createClient = () => {
   const apiUrl =
-    process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"] ||
     new URL("/api", window.location.href).href;
   return new Client({
     apiUrl,
@@ -29,6 +28,7 @@ export const sendMessage = async (params: {
   threadId: string;
   messages?: LangChainMessage[];
   command?: LangGraphCommand | undefined;
+  context?: Record<string, unknown>;
 }) => {
   const client = createClient();
   return client.runs.stream(
@@ -37,6 +37,7 @@ export const sendMessage = async (params: {
     {
       input: params.messages?.length
         ? {
+            ...params.context,
             messages: params.messages,
           }
         : null,

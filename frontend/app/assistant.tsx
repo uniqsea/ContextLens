@@ -17,7 +17,6 @@ import { EMPTY_CANVAS_STATE, type CanvasState } from "@/lib/canvas-types";
 
 const lgClient = new Client({
   apiUrl:
-    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
     new URL("/api", typeof window !== "undefined" ? window.location.href : "http://localhost:3000").href,
 });
 
@@ -27,6 +26,8 @@ const lgClient = new Client({
 
 export function Assistant() {
   const [canvasState, setCanvasState] = useState<CanvasState>(EMPTY_CANVAS_STATE);
+  const canvasRef = useRef(canvasState);
+  canvasRef.current = canvasState;
   const [isAwaitingApproval, setIsAwaitingApproval] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const threadIdRef = useRef<string | null>(null);
@@ -42,6 +43,7 @@ export function Assistant() {
       threadIdRef.current = externalId;
       setThreadId(externalId);
 
+      const canvasState = canvasRef.current;
       // If this is a resume call, first write canvas edits to thread state
       if (command?.resume) {
         // Check if user query was edited on the canvas
@@ -91,6 +93,7 @@ export function Assistant() {
         threadId: externalId,
         messages,
         command,
+        context: !command?.resume ? {session_context_mode: canvasState.session_context_mode, context_items: [], context_policies: [], manual_memory_ids: []} : undefined,
       });
 
       // Intercept stream chunks — extract canvas state from "updates" events
@@ -121,11 +124,13 @@ export function Assistant() {
       const { thread_id } = await createThread();
       threadIdRef.current = thread_id;
       setThreadId(thread_id);
+
       return { externalId: thread_id };
     },
 
     load: async (externalId) => {
       setThreadId(externalId);
+      threadIdRef.current = externalId;
       const state = await getThreadState(externalId);
       const values = state.values as Record<string, unknown>;
       if (values?.context_items) {
@@ -144,12 +149,8 @@ export function Assistant() {
     (patch: Partial<CanvasState>) => {
       setCanvasState((prev) => ({ ...prev, ...patch }));
 
-      // Fire-and-forget write to LangGraph thread state
-      if (threadIdRef.current) {
-        lgClient.threads
-          .updateState(threadIdRef.current, { values: patch })
-          .catch(console.error);
-      }
+      canvasRef.current = { ...canvasRef.current, ...patch };
+
     },
     [],
   );
@@ -199,6 +200,9 @@ function mergeCanvasState(
   values: Record<string, unknown>,
 ): CanvasState {
   return {
+    context_snapshot: (values.context_snapshot as CanvasState["context_snapshot"]) ?? prev.context_snapshot,
+    last_request: (values.last_request as CanvasState["last_request"]) ?? prev.last_request,
+    approval_notice: (values.approval_notice as string) ?? prev.approval_notice,
     context_items:
       (values.context_items as CanvasState["context_items"]) ??
       prev.context_items,

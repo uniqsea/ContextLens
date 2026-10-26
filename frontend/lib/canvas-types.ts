@@ -14,6 +14,8 @@ export type ContextStatus =
 export type ThreadPolicyStatus = "temporarily_ignored";
 
 export interface ContextItem {
+  revision?: number;
+  selection_reason?: string;
   id: string;
   layer: ContextLayer;
   title: string;
@@ -64,7 +66,18 @@ export interface ContextPolicy {
   status: ThreadPolicyStatus;
 }
 
+export interface ContextSnapshot {
+  fingerprint: string;
+  mode: string;
+  selected_ids: string[];
+  candidates: Array<{id: string; title: string; revision?: number; status: string; selection_reason: string}>;
+  messages: Array<{role: string; content: string}>;
+}
+
 export interface CanvasState {
+  context_snapshot?: ContextSnapshot;
+  last_request?: ContextSnapshot;
+  approval_notice?: string;
   context_items: ContextItem[];
   context_groups: ContextGroup[];
   context_note_layouts: ContextNoteLayout[];
