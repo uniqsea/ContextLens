@@ -1,0 +1,50 @@
+name: 需求 / 用户故事
+description: 新功能或改进，进入迭代前需满足就绪标准（DoR）
+labels: ["feat"]
+body:
+  - type: input
+    id: prd
+    attributes:
+      label: 关联 PRD 条目
+      placeholder: "例：docs/product/03-prd-mvp.md P0-2"
+  - type: textarea
+    id: story
+    attributes:
+      label: 用户故事
+      placeholder: 作为……，我想……，以便……
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 每条都必须可以测试
+      placeholder: "- [ ] ……"
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: 设计稿 / 交互说明
+      placeholder: 链接，或写明"不需要设计"
+  - type: textarea
+    id: tracking
+    attributes:
+      label: 埋点
+      placeholder: 事件名与属性；不涉及则写"无"
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 不在本条范围内
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      options: [P0, P1, P2, P3]
+    validations:
+      required: true
+  - type: input
+    id: estimate
+    attributes:
+      label: 估算（由开发填写）
+      placeholder: 人天；超过 3 天请拆分

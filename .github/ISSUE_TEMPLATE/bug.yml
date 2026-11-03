@@ -1,0 +1,41 @@
+name: 缺陷
+description: 与预期行为不符的问题
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 级别
+      description: 见 docs/process/team-and-workflow.md 第 2.4 节
+      options:
+        - P0 违反治理保证或数据丢失
+        - P1 核心流程不可用
+        - P2 可用但体验差
+        - P3 小问题
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 运行 npm run dev:demo\n2. ……"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 附截图、录屏或回答背面的原始请求
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      placeholder: "例：demo（Mock）/ live；浏览器；commit"
