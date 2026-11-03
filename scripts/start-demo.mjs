@@ -1,4 +1,4 @@
-// Run the app on the bundled demo memories instead of the personal store.
+// Run the app on a separate demo store, with optional local demo memories.
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 

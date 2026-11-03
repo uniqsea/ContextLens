@@ -33,9 +33,11 @@ NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=context_agent
 然后：
 
 ```bash
-npm run dev:demo   # 中文示例记忆，数据库在 agent/data/lens-demo-memories.sqlite3
+npm run dev:demo   # 独立演示数据库，位于 agent/data/lens-demo-memories.sqlite3
 npm run dev        # 你自己的记忆，数据库在 agent/data/contextlens.sqlite3
 ```
+
+新数据库默认从空记忆开始。本地可选的初始化文件为 `shared/memory-seeds.json`（普通模式）和 `shared/lens-demo-seeds.json`（演示模式）；两者均不纳入版本控制，已有本地文件仍会用于初始化新数据库。缺少文件时应用正常启动，不导入示例记忆。
 
 打开 [http://localhost:3001](http://localhost:3001)。端口可用 `LANGGRAPH_PORT`、`FRONTEND_PORT` 覆盖。两个服务都只监听本机。
 
@@ -54,13 +56,14 @@ npm run dev        # 你自己的记忆，数据库在 agent/data/contextlens.sq
 | `agent/contextlens/models/` | 模型目录（models.dev 缓存）、本地设置与密钥、按角色构建模型、测试连接 |
 | `frontend/components/model-settings/` | 输入框旁的模型选择器（[assistant-ui](https://www.assistant-ui.com/elements/model-selector) 的 ModelSelector）与服务商设置弹窗 |
 | `agent/contextlens/api.py` | `/lens/preview`（每次按键预览下一次请求，不调用对话模型）、`/lens/settings`、`/lens/memories` 与 `/lens/memory-events`（记忆库与改动历史）；拒绝一切来自浏览器的直接请求 |
-| `agent/spikes/` | 选型验证原型（见 `docs/adr/0002`） |
 | `frontend/components/lens/` | 记忆场引擎、取景条、可翻面的回答、页面编排 |
 | `frontend/app/memories/`、`frontend/components/memory-library/` | 记忆库：记忆列表与版本历史、全部改动的时间线（看前后对比、逐条撤销）、回收站与永久删除 |
 | `frontend/proxy.ts`、`frontend/app/api/` | 只接受同源请求；代理只放行界面用到的 agent 接口 |
 | `frontend/messages/`、`frontend/i18n/` | 中英文文案（next-intl） |
 
 ## 测试
+
+仓库只允许公开明确的模拟数据，不提交个人信息、真实记忆、对话导出、密钥或运行数据库。个人数据、内部研究资料及来源不明确的数据保留本地。
 
 ```bash
 npm run test:agent

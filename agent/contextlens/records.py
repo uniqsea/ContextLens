@@ -140,10 +140,14 @@ def _snapshot(row: dict | None) -> dict | None:
 
 
 def _seed_if_new() -> None:
-    """A store that has never seen a change starts from the seed file."""
+    """A store that has never seen a change may start from a local seed file."""
     if memory.list_events(limit=1):
         return
-    for seed in json.loads(config.seed_path().read_text()):
+    try:
+        seeds = json.loads(config.seed_path().read_text())
+    except FileNotFoundError:
+        return
+    for seed in seeds:
         scene = _SEED_SCENES.get(seed["context_scope"])
         operations.add_memory(seed["content"], memory.Source("seed"), situation=seed["title"],
                               scenes=[scene] if scene else [])

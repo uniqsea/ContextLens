@@ -53,6 +53,11 @@ class RecordsTests(StoreTestCase):
         self.assertEqual([r["content"] for r in records.records()], ["团队在上海"])
         self.assertEqual(len(records.records()), 1)
 
+    def test_a_new_store_without_local_seeds_starts_empty(self):
+        Path(os.environ["CONTEXTLENS_SEED_PATH"]).unlink()
+        self.assertEqual(records.records(), [])
+        self.assertEqual(memory.list_events(limit=1), [])
+
 
 class LibraryRouteTests(StoreTestCase):
     def setUp(self):

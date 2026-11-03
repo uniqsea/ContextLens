@@ -1,8 +1,13 @@
-# ===== 通用 =====
+# ===== 本地环境与凭据 =====
 .DS_Store
 *.pem
+*.key
+*.p12
+*.pfx
 .env*
+# 只允许明确用于公开的示例配置；提交前仍需检查内容
 !.env.example
+.contextlens/
 
 # ===== Node / JS =====
 node_modules/
@@ -33,17 +38,59 @@ __pycache__/
 *.pyo
 *.pckl
 .venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
 .langgraph_api/
-agent/data/*.sqlite3
+# 运行数据包含个人记忆、对话及数据库日志，不进入版本控制
+/agent/data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
 
-# editor
+# ===== 本地编辑器与 agent 工具 =====
 .idea/
 .vscode/
 .claude/
-# local-only notes and research
-docs/
-reports/
+.codex/
+.agents/
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+GEMINI.md
+/.impeccable/
 
-# probe output and local spikes
-agent/spikes/evidence/
-*.egg-info/
+# ===== 内部研究、设计与生成产物（保留本地） =====
+/docs/
+/reports/
+/DESIGN.md
+/PRODUCT.md
+/output/
+/prototypes/
+# 数据默认留在本地，仅明确列出的模拟数据允许跟踪。
+# 新增公开数据前必须检查来源和内容。
+/data/*
+!/data/synthetic/
+/shared/*
+/exports/
+/backups/
+/logs/
+
+# ===== 内部评估资料与工具 =====
+/evaluation/
+/scripts/evaluate*.py
+# 内部选型原型及其历史路径下的请求记录均仅保留本地
+/agent/spikes/
