@@ -1,9 +1,5 @@
-import { Assistant } from "./assistant";
+import { LensApp } from "@/components/lens/lens-app";
 
 export default function Home() {
-  return (
-    <main className="h-dvh">
-      <Assistant />
-    </main>
-  );
+	return <LensApp />;
 }

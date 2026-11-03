@@ -1,345 +1,251 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
-import {
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
-import {
-  Ban,
-  Briefcase,
-  ChevronDown,
-  GraduationCap,
-  Heart,
-  RotateCcw,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
-
-import type { MemoryRecord, SessionContextMode } from "@/lib/memory-types";
-import { cn } from "@/lib/utils";
-
-const FILTERS: Array<{ label: string; value: SessionContextMode | "all" | "trashed" }> = [
-  { label: "All", value: "all" },
-  { label: "Study", value: "study" },
-  { label: "Work", value: "work" },
-  { label: "Personal", value: "personal" },
-  { label: "Life", value: "life" },
-  { label: "General", value: "general" },
-  { label: "Trash", value: "trashed" },
-];
-
-const BLOCKABLE_MODES: SessionContextMode[] = ["study", "work", "personal", "life"];
-const MODE_META: Record<SessionContextMode, { label: string; icon: LucideIcon }> = {
-  study: { label: "Study", icon: GraduationCap },
-  work: { label: "Work", icon: Briefcase },
-  personal: { label: "Personal", icon: UserRound },
-  life: { label: "Life", icon: Heart },
-  general: { label: "General", icon: Ban },
-};
+import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { ScopeBar } from "@/components/lens/scope-bar";
+import { useOverview } from "@/components/lens/use-overview";
+import { useScope } from "@/components/lens/use-scope";
+import { LocaleSwitch } from "@/components/locale-switch";
+import { memoryApi } from "@/lib/memory-api";
+import type { MemoryRecord } from "@/lib/memory-types";
+import { ConceptBar } from "./concept-bar";
+import { MemoryCard } from "./memory-card";
+import { MemoryDetail } from "./memory-detail";
+import { Timeline } from "./timeline";
 
 export function MemoryLibrary() {
-  const [memories, setMemories] = useState<MemoryRecord[]>([]);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
-  const [openBlockMenuId, setOpenBlockMenuId] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+	const t = useTranslations("library");
+	const { scope, chooseScope } = useScope();
+	const overview = useOverview(scope);
+	const [view, setView] = useState<"memories" | "timeline">("memories");
+	const [version, setVersion] = useState(0);
+	// The memory whose details are open, or "new" for the form that adds one.
+	const [opened, setOpened] = useState<string | null>(null);
+	const [error, setError] = useState("");
+	const [memories, setMemories] = useState<MemoryRecord[]>([]);
+	// "all", "trashed", or the name of a scene.
+	const [filter, setFilter] = useState("all");
+	const [concept, setConcept] = useState<string | null>(null);
+	const [picking, setPicking] = useState(false);
+	const [picked, setPicked] = useState<string[]>([]);
+	const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    let cancelled = false;
+	useEffect(() => {
+		let cancelled = false;
 
-    startTransition(() => {
-      const url =
-        filter === "all"
-          ? "/api/memories?includeTrashed=true"
-          : filter === "trashed"
-            ? "/api/memories?includeTrashed=true"
-            : `/api/memories?mode=${filter}&includeBlocked=true`;
+		startTransition(() => {
+			memoryApi
+				.list(scope)
+				.then((list) => {
+					if (!cancelled) setMemories(list);
+				})
+				.catch(() => setError(t("actionFailed")));
+		});
 
-      fetch(url)
-        .then((res) => res.json())
-        .then((data) => {
-          if (!cancelled) {
-            setMemories(data.memories ?? []);
-          }
-        })
-        .catch(console.error);
-    });
+		return () => {
+			cancelled = true;
+		};
+	}, [t, scope]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [filter]);
+	const visibleMemories = useMemo(() => {
+		if (filter === "trashed") {
+			return memories.filter((memory) => memory.lifecycle_state === "trashed");
+		}
+		const active = memories.filter(
+			(m) =>
+				m.lifecycle_state === "active" &&
+				(!concept || m.concepts.some((c) => c.id === concept)),
+		);
+		return filter === "all"
+			? active
+			: active.filter((memory) => memory.scenes.includes(filter));
+	}, [filter, concept, memories]);
+	const openedMemory = memories.find((m) => m.id === opened);
+	const filters = [
+		{ id: "all", label: t("all") },
+		...(overview.data?.scenes ?? []).map((s) => ({
+			id: s.name,
+			label: s.name,
+		})),
+		{ id: "trashed", label: t("trash") },
+	];
 
-  useEffect(() => {
-    if (!openBlockMenuId) return;
+	// Every change reloads the list and any history on screen, which now include it.
+	const refreshMemories = async () => {
+		setMemories(await memoryApi.list(scope));
+		setVersion((v) => v + 1);
+		overview.reload();
+	};
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const currentMenu = menuRefs.current[openBlockMenuId];
-      if (currentMenu && !currentMenu.contains(event.target as Node)) {
-        setOpenBlockMenuId(null);
-      }
-    };
+	const runAction = async (change: () => Promise<unknown>) => {
+		try {
+			await change();
+		} catch {
+			setError(t("actionFailed"));
+			return;
+		}
+		setError("");
+		await refreshMemories();
+	};
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenBlockMenuId(null);
-      }
-    };
+	return (
+		<main className="lens-theme lens-page">
+			<div className="lib">
+				<header className="lib-top">
+					<Link href="/" className="lens-mark">
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.8"
+							aria-hidden="true"
+						>
+							<circle cx="10" cy="10" r="6.5" />
+							<path d="M15 15l5.5 5.5" />
+							<path d="M7 10a3 3 0 0 1 3-3" />
+						</svg>
+						ContextLens
+					</Link>
+					{overview.data && (
+						<ScopeBar
+							projects={overview.data.projects}
+							scope={scope}
+							onScope={(next) => {
+								chooseScope(next);
+								setConcept(null);
+								setFilter("all");
+							}}
+							onChanged={overview.reload}
+						/>
+					)}
+					<div className="lib-top-right">
+						<LocaleSwitch className="lens-seg" />
+						<Link href="/" className="lens-btn outline">
+							{t("backToAssistant")}
+						</Link>
+					</div>
+				</header>
 
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [openBlockMenuId]);
-
-  const visibleMemories = useMemo(() => {
-    if (filter === "trashed") {
-      return memories.filter((memory) => memory.lifecycle_state === "trashed");
-    }
-    return memories;
-  }, [filter, memories]);
-
-  const refreshMemories = async () => {
-    const res = await fetch("/api/memories?includeTrashed=true");
-    const data = await res.json();
-    setMemories(data.memories ?? []);
-  };
-
-  const runAction = async (
-    memoryId: string,
-    action: "context_block" | "delete_forever" | "restore",
-    contextMode?: SessionContextMode,
-  ) => {
-    await fetch(`/api/memories/${memoryId}/actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, contextMode }),
-    });
-
-    setOpenBlockMenuId(null);
-    await refreshMemories();
-  };
-
-  return (
-    <main className="min-h-dvh bg-stone-50 px-6 py-10 text-stone-900">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-stone-500">
-              ContextLens
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight">
-              Memory Library
-            </h1>
-            {/* <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-              Persistent memory records, context blocks, and trash state backed by
-              the local SQLite store.
-            </p> */}
-          </div>
-          <Link
-            href="/"
-            className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm text-stone-700 transition-colors hover:bg-stone-100"
-          >
-            Back to Assistant
-          </Link>
-        </div>
-
-        <div className="mb-6 flex flex-wrap gap-2">
-          {FILTERS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setFilter(item.value)}
-              className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-                filter === item.value
-                  ? "border-stone-900 bg-stone-900 text-white"
-                  : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="rounded-3xl border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 px-6 py-4 text-sm text-stone-500">
-            {isPending ? "Loading..." : `${visibleMemories.length} memories`}
-          </div>
-          <div className="divide-y divide-stone-200">
-            {visibleMemories.map((memory) => (
-              <article key={memory.id} className="px-6 py-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-medium">{memory.title}</h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-                      {memory.content}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <Badge>{memory.memory_type}</Badge>
-                      <Badge>{memory.context_scope}</Badge>
-                      <Badge>{memory.lifecycle_state}</Badge>
-                      {memory.blocked_context_modes.map((mode) => (
-                        <Badge key={mode}>blocked:{mode}</Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {memory.lifecycle_state !== "trashed" ? (
-                    <div className="flex min-w-[220px] flex-col items-end gap-2">
-                      <div
-                        className="relative"
-                        ref={(node) => {
-                          menuRefs.current[memory.id] = node;
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenBlockMenuId((current) =>
-                              current === memory.id ? null : memory.id,
-                            )
-                          }
-                          className="flex items-center gap-1.5 rounded-full border border-amber-300 px-2.5 py-1.5 text-xs text-amber-700 transition-colors hover:bg-amber-50"
-                        >
-                          <Ban className="h-3 w-3" />
-                          <span>Block</span>
-                          <ChevronDown
-                            className={`h-3 w-3 transition-transform ${
-                              openBlockMenuId === memory.id ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-
-                        {openBlockMenuId === memory.id && (
-                          <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-[22px] border border-white/70 bg-white/92 p-2 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
-                            <div className="px-2.5 pb-2 pt-1">
-                              <p className="text-xs font-semibold text-stone-900">
-                                Block Context
-                              </p>
-                              <p className="text-[11px] text-stone-500">
-                                Choose where this memory should not apply.
-                              </p>
-                            </div>
-                            <div className="h-px bg-stone-200/80" />
-                            <div className="py-1.5">
-                              {BLOCKABLE_MODES.map((mode) => {
-                                const meta = MODE_META[mode];
-                                const Icon = meta.icon;
-
-                                return (
-                                  <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() =>
-                                      runAction(memory.id, "context_block", mode)
-                                    }
-                                    className="flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-1.5 text-left text-sm text-stone-700 transition-colors hover:bg-stone-100"
-                                  >
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-600">
-                                      <Icon className="h-3 w-3" />
-                                    </span>
-                                    <span className="text-sm">{meta.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => runAction(memory.id, "delete_forever")}
-                        className="w-full rounded-full border border-rose-300 px-3 py-1.5 text-xs text-rose-700 transition-colors hover:bg-rose-50"
-                      >
-                        Move to Trash
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex min-w-[220px] flex-col items-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => runAction(memory.id, "restore")}
-                        className="flex items-center gap-1.5 rounded-full border border-emerald-300 px-3 py-1.5 text-xs text-emerald-700 transition-colors hover:bg-emerald-50"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>Restore</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
-            {visibleMemories.length === 0 && (
-              <div className="px-6 py-12 text-center text-sm text-stone-500">
-                No memories for this filter.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function Badge({ children }: { children: ReactNode }) {
-  const label = String(children);
-  return (
-    <span
-      className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium",
-        getBadgeClasses(label),
-      )}
-    >
-      {formatBadgeLabel(label)}
-    </span>
-  );
-}
-
-function formatBadgeLabel(label: string) {
-  return label.replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function getBadgeClasses(label: string) {
-  const normalized = label.toLowerCase();
-
-  if (
-    normalized === "semantic" ||
-    normalized === "episodic" ||
-    normalized === "procedural"
-  ) {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-
-  if (
-    normalized === "study" ||
-    normalized === "work" ||
-    normalized === "personal" ||
-    normalized === "life" ||
-    normalized === "general"
-  ) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (normalized === "active") {
-    return "border-stone-300 bg-stone-50 text-stone-600";
-  }
-
-  if (normalized === "trashed") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  if (normalized.startsWith("blocked:")) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  return "border-stone-300 bg-stone-50 text-stone-600";
+				<div className="lib-hero">
+					<h1>
+						{t("title")}
+						{view === "memories" && (
+							<small aria-live="polite">
+								{isPending
+									? t("loading")
+									: t("count", { count: visibleMemories.length })}
+							</small>
+						)}
+					</h1>
+					<div className="lib-hero-tools">
+						<div role="tablist" className="lens-seg">
+							{(["memories", "timeline"] as const).map((v) => (
+								<button
+									key={v}
+									type="button"
+									role="tab"
+									aria-selected={view === v}
+									onClick={() => setView(v)}
+								>
+									{t(v === "memories" ? "tabMemories" : "tabTimeline")}
+								</button>
+							))}
+						</div>
+						{view === "memories" && (
+							<button
+								type="button"
+								className="lens-btn primary"
+								onClick={() => setOpened("new")}
+							>
+								<Plus aria-hidden="true" />
+								{t("add")}
+							</button>
+						)}
+					</div>
+				</div>
+				{error && (
+					<p role="alert" className="lens-alert">
+						{error}
+					</p>
+				)}
+				{view === "timeline" ? (
+					<div className="lens-sheet-panel lib-timeline">
+						<Timeline
+							refreshKey={version}
+							onChanged={() => void refreshMemories()}
+						/>
+					</div>
+				) : (
+					<>
+						{/* biome-ignore lint/a11y/useSemanticElements: a filter strip, not a form section */}
+						<div className="lib-filters" role="group" aria-label={t("title")}>
+							{filters.map(({ id: item, label }) => (
+								<button
+									key={item}
+									type="button"
+									className="lens-chip"
+									aria-pressed={filter === item}
+									onClick={() => setFilter(item)}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+						<ConceptBar
+							concepts={overview.data?.concepts ?? []}
+							selected={concept}
+							onSelect={(id) => {
+								setConcept(id);
+								setPicking(false);
+							}}
+							picking={picking}
+							picked={picked}
+							onPicking={(on) => {
+								setPicking(on);
+								setPicked([]);
+							}}
+							onChange={(change) => void runAction(change)}
+						/>
+						{visibleMemories.length === 0 ? (
+							<div className="lib-empty">{t("empty")}</div>
+						) : (
+							<div className="lib-grid">
+								{visibleMemories.map((memory) => (
+									<MemoryCard
+										key={memory.id}
+										memory={memory}
+										onOpen={() => setOpened(memory.id)}
+										picking={picking}
+										picked={picked.includes(memory.id)}
+										onPick={() =>
+											setPicked(
+												picked.includes(memory.id)
+													? picked.filter((id) => id !== memory.id)
+													: [...picked, memory.id],
+											)
+										}
+									/>
+								))}
+							</div>
+						)}
+					</>
+				)}
+			</div>
+			{(opened === "new" || openedMemory) && (
+				<MemoryDetail
+					key={opened}
+					memory={openedMemory}
+					scope={scope}
+					sceneOptions={overview.data?.scenes ?? []}
+					refreshKey={version}
+					error={error}
+					onClose={() => setOpened(null)}
+					onChange={(change) => void runAction(change)}
+					onChanged={() => void refreshMemories()}
+				/>
+			)}
+		</main>
+	);
 }

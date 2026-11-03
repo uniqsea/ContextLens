@@ -2,11 +2,14 @@
   "name": "contextlens",
   "private": true,
   "scripts": {
+    "setup": "uv sync --directory agent && npm install --prefix frontend && npm run fetch:embedding",
+    "fetch:embedding": "uv run --directory agent python -W ignore -c \"from contextlens.models import local_embedding; local_embedding.fetch()\"",
     "dev": "concurrently --names \"agent,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev:agent\" \"npm run dev:frontend\"",
-    "dev:frontend": "npm run dev --prefix frontend -- --port ${FRONTEND_PORT:-3001}",
-    "dev:agent": "conda run -n contextlens --no-capture-output sh -c 'cd agent && set -a && source ./.env && set +a && langgraph dev --port ${LANGGRAPH_PORT:-2026}'",
-    "setup:agent": "conda run -n contextlens --no-capture-output python -m pip install -e ./agent",
-    "reset:memory-db": "rm -f ./agent/data/memory.sqlite3 && PYTHONPATH=./agent python3 -c \"from src.memory.repository import ensure_memory_store; ensure_memory_store()\""
+    "dev:agent": "uv run --directory agent langgraph dev --port ${LANGGRAPH_PORT:-2026} --no-browser",
+    "dev:frontend": "npm run dev --prefix frontend -- --hostname 127.0.0.1 --port ${FRONTEND_PORT:-3001}",
+    "dev:demo": "node scripts/start-demo.mjs",
+    "reset:memory-db": "rm -f ./agent/data/contextlens.sqlite3",
+    "test:agent": "uv run --directory agent python -m unittest discover -s tests -t ."
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
