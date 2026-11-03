@@ -36,6 +36,11 @@
   --l-glow: rgba(146, 156, 255, .2);
   --l-lift: 0 0 0 1px rgba(255, 255, 255, .08), 0 12px 32px rgba(0, 0, 0, .5);
 }
+/* One stack for both languages: Inter sets Latin and digits, PingFang the Han characters. Tracking tuned
+   tight for Latin crowds Han, so Chinese sets it back to zero; and where Han meets Latin or digits with no
+   space between (memories are often written that way), the browser adds a hair of one. */
+.lens-root, .lens-page, .lens-theme { text-autospace: normal; }
+:lang(zh) :is(.lib-hero h1, .lens-empty b, .lens-card .t, .lib-card h2, .lens-btn, .lens-provider-row, .lens-answer) { letter-spacing: 0; }
 /* :where keeps this reset at zero weight, so any component rule overrides it. */
 :where(.lens-root) button { font: inherit; color: inherit; }
 .lens-root :focus-visible, .lens-theme :focus-visible { outline: 2px solid var(--l-ink); outline-offset: 2px; }
@@ -105,7 +110,7 @@
 .lens-fieldbar { position: absolute; z-index: 4; top: 12px; left: 0; height: 36px; display: flex; align-items: center; gap: 10px; }
 .lens-field-note { padding-left: 14px; font-size: 13px; font-weight: 500; color: var(--l-muted); white-space: nowrap; pointer-events: none; }
 .lens-seg { display: inline-flex; border-radius: 999px; padding: 2px; background: var(--l-fill); gap: 2px; }
-.lens-seg button, .lens-seg a { border: 0; background: none; border-radius: 999px; padding: 0 12px; cursor: pointer; font-size: 12.5px; font-weight: 500; min-height: 28px; color: var(--l-muted); text-decoration: none; display: inline-flex; align-items: center; transition: background .18s, color .18s; }
+.lens-seg button, .lens-seg a { border: 0; background: none; border-radius: 999px; padding: 0 12px; cursor: pointer; font-size: 12.5px; font-weight: 500; min-height: 28px; color: var(--l-muted); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; transition: background .18s, color .18s; }
 .lens-seg button:hover { color: var(--l-ink); }
 .lens-seg button[aria-pressed="true"], .lens-seg button[aria-selected="true"] { background: var(--l-card); color: var(--l-ink); }
 .lens-shelf { position: absolute; z-index: 4; left: 0; top: 0; height: 36px; border: 0; border-radius: 999px; background: var(--l-fill);
@@ -114,13 +119,21 @@
 .lens-shelf[aria-expanded="true"] { background: var(--l-card); color: var(--l-ink); }
 
 /* ---------- sheet ---------- */
-.lens-sheet { position: absolute; z-index: 3; left: 12px; top: 12px; bottom: 12px; width: min(540px, 44vw);
+.lens-sheet { position: absolute; z-index: 3; left: 12px; top: 12px; bottom: 12px; width: clamp(400px, 44vw, 560px); container: sheet / inline-size;
   display: flex; flex-direction: column; background: var(--l-glass); -webkit-backdrop-filter: blur(3px) saturate(1.2); backdrop-filter: blur(3px) saturate(1.2); border-radius: 26px; overflow: hidden; }
 /* Who we are, where this conversation belongs; then where to go and what to do.
-   A narrow sheet lets the actions wrap onto their own row. */
+   A narrow sheet folds the actions to icons first, and wraps them onto their own row only as a last resort. */
 .lens-head { padding: 18px 20px 12px; }
-.lens-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
-.lens-head-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.lens-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.lens-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.lens-head-row .lens-scope { min-width: 0; }
+/* When the row would wrap (useFold), text buttons fold to icons, then the wordmark to its mark. */
+.lens-fold-btn svg { display: none; flex: none; width: 16px; height: 16px; }
+.lens-head-row[data-fold] .lens-fold-btn { width: 32px; padding: 0; justify-content: center; }
+.lens-head-row[data-fold] .lens-fold-btn svg { display: block; }
+.lens-head-row[data-fold] .lens-fold-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lens-head-row[data-fold="2"] { flex-wrap: nowrap; }
+.lens-head-row[data-fold="2"] .lens-mark { width: 23px; overflow: hidden; }
 /* Quiet text buttons and icon buttons for navigation and actions. */
 .lens-text-btn { display: inline-flex; align-items: center; min-height: 32px; padding: 0 11px; border: 0; border-radius: 999px; background: none; color: var(--l-muted); font: inherit; font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap; transition: background .18s, color .18s; }
 .lens-text-btn:hover { background: var(--l-fill); color: var(--l-ink); }
@@ -129,8 +142,9 @@
 .lens-icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: var(--l-muted); cursor: pointer; transition: background .18s, color .18s; }
 .lens-icon-btn:hover, .lens-icon-btn[data-state="open"] { background: var(--l-fill); color: var(--l-ink); }
 .lens-icon-btn svg { width: 16px; height: 16px; }
-.lens-menu { width: 240px; padding: 6px; display: grid; gap: 2px; background: var(--l-card); color: var(--l-ink); border: 0; border-radius: 18px; box-shadow: var(--l-lift); font-family: var(--l-ui); font-size: 13px; }
-.lens-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 4px 10px; color: var(--l-muted); }
+.lens-menu { width: max-content; min-width: 240px; max-width: min(340px, calc(100vw - 24px)); padding: 6px; display: grid; gap: 2px; background: var(--l-card); color: var(--l-ink); border: 0; border-radius: 18px; box-shadow: var(--l-lift); font-family: var(--l-ui); font-size: 13px; }
+.lens-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 4px 4px 10px; color: var(--l-muted); }
+.lens-menu-row > span { white-space: nowrap; }
 .lens-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; border: 0; background: none; border-radius: 12px; padding: 7px 10px; font: inherit; color: var(--l-ink); cursor: pointer; transition: background .18s; }
 .lens-menu-item:hover { background: var(--l-fill); }
 /* Inside a scrolling list an outer ring would be clipped. */
@@ -147,7 +161,8 @@
 .lens-empty { margin: auto; max-width: 38ch; text-align: center; color: var(--l-muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-wrap: balance; }
 .lens-empty b { color: var(--l-ink); font-size: 24px; font-weight: 500; letter-spacing: -.02em; line-height: 1.25; }
 .lens-empty .lens-chips { justify-content: center; margin-top: 12px; }
-.lens-q { align-self: flex-end; max-width: 85%; background: var(--l-fill); color: var(--l-ink); border-radius: 18px; padding: 8px 14px; font-size: 14.5px; white-space: pre-wrap; }
+.lens-empty .lens-chip { max-width: 100%; padding: 6px 14px; border-radius: 16px; line-height: 1.45; text-wrap: balance; }
+.lens-q { align-self: flex-end; max-width: 85%; overflow-wrap: break-word; background: var(--l-fill); color: var(--l-ink); border-radius: 18px; padding: 8px 14px; font-size: 14.5px; white-space: pre-wrap; }
 .lens-error { color: var(--l-risk); font-size: 13px; }
 
 .lens-a { position: relative; perspective: 1400px; }
@@ -167,7 +182,7 @@
 .lens-a .flip-tab:hover { background: var(--l-fill-2); }
 .lens-a .flip-tab svg { width: 13px; height: 13px; }
 .lens-a .busy { font-weight: 500; color: var(--l-ink); }
-.lens-answer { font-family: var(--l-read); font-size: 15px; line-height: 1.75; letter-spacing: -.003em; margin: 0; white-space: pre-wrap; }
+.lens-answer { font-family: var(--l-read); font-size: 15px; line-height: 1.75; letter-spacing: -.003em; margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
 .lens-answer strong { font-weight: 600; }
 .lens-answer code { font-family: var(--l-code); font-size: .9em; padding: 1px 5px; border-radius: 6px; background: var(--l-fill); }
 .lens-answer .seg { border-radius: 4px; transition: background .18s; cursor: pointer; }
@@ -246,6 +261,10 @@
 .lens-a .item .acts button:hover { background: var(--l-fill-2); }
 .lens-a .item .acts button[aria-pressed="true"] { background: var(--l-ink); color: var(--l-card); }
 .lens-a .item.off { opacity: .62; }
+@container sheet (max-width: 460px) {
+  .lens-a .item { grid-template-columns: 8px minmax(0, 1fr); }
+  .lens-a .item .acts { grid-column: 2; justify-content: flex-start; }
+}
 .lens-a .item.hl { box-shadow: 0 0 0 2px var(--c); }
 .lens-a .back-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lens-a .back-foot button { border: 1px solid var(--l-line); background: none; color: var(--l-ink-2); border-radius: 999px; padding: 0 14px; cursor: pointer; font-size: 13px; font-weight: 500; min-height: 34px; transition: background .18s; }
@@ -477,7 +496,7 @@ textarea.lens-input { resize: vertical; }
 .lib-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; margin: 36px 0 20px; }
 .lib-hero h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; font-size: 34px; font-weight: 500; line-height: 1.15; letter-spacing: -.03em; }
 .lib-hero h1 small { font-size: 14px; font-weight: 400; letter-spacing: 0; color: var(--l-muted); }
-.lib-hero-tools { display: flex; align-items: center; gap: 8px; }
+.lib-hero-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .lib-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .lib-filters .lens-chip { min-height: 36px; padding: 0 14px; font-size: 13.5px; }
 .lib-filters .lens-chip[aria-pressed="true"] { background: var(--l-ink); color: var(--l-card); }
@@ -621,7 +640,7 @@ textarea.lens-input { resize: vertical; }
 .lib-concepts small { margin-left: 5px; font-size: 11.5px; font-weight: 400; color: var(--l-muted); }
 .lib-concept-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; font-size: 13px; color: var(--l-muted); }
 .lib-concept-tools form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.lib-concept-tools .lens-input { width: 220px; min-height: 32px; padding-block: 4px; background: var(--l-card); }
+.lib-concept-tools .lens-input { width: min(220px, 100%); min-height: 32px; padding-block: 4px; background: var(--l-card); }
 .lib-concept-tools .lens-select { min-height: 28px; font-size: 12.5px; padding-left: 12px; }
 
 /* ---------- situations in settings ---------- */

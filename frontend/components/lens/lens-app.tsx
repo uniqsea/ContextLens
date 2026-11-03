@@ -1,6 +1,7 @@
 "use client";
 
 import { useStream } from "@langchain/langgraph-sdk/react";
+import { Library, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,6 +36,7 @@ import { Inbox } from "./inbox";
 import { ScopeBar } from "./scope-bar";
 import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
+import { useFold } from "./use-fold";
 import { useOverview } from "./use-overview";
 import { useScope } from "./use-scope";
 
@@ -653,6 +655,10 @@ export function LensApp() {
 		composing && (input.trim() || draft.pinned.length),
 	);
 	const pending = turns.length > 0 && stream.isLoading && regenTurn === null;
+	// The scope picker joins the row once the overview arrives, and shows a situation's name.
+	const headRef = useFold<HTMLDivElement>(
+		JSON.stringify([locale, scope, overview.data?.projects.map((p) => p.name)]),
+	);
 
 	return (
 		<div
@@ -685,7 +691,7 @@ export function LensApp() {
 				aria-label={t("lens.conversation")}
 			>
 				<div className="lens-head">
-					<div className="lens-head-row">
+					<div className="lens-head-row" ref={headRef}>
 						<div className="lens-mark">
 							<BrandLogo />
 						</div>
@@ -704,12 +710,18 @@ export function LensApp() {
 							className="lens-head-actions"
 							aria-label={t("lens.navigation")}
 						>
-							<Link href="/memories" className="lens-text-btn">
-								{t("lens.library")}
+							<Link
+								href="/memories"
+								className="lens-text-btn lens-fold-btn"
+								title={t("lens.library")}
+							>
+								<Library aria-hidden="true" />
+								<span>{t("lens.library")}</span>
 							</Link>
 							<button
 								type="button"
-								className="lens-text-btn"
+								className="lens-text-btn lens-fold-btn"
+								title={t("lens.newChat")}
 								onClick={() => {
 									rememberThread(scope, null);
 									setThreadId(null);
@@ -717,7 +729,8 @@ export function LensApp() {
 									setDraft(EMPTY);
 								}}
 							>
-								{t("lens.newChat")}
+								<SquarePen aria-hidden="true" />
+								<span>{t("lens.newChat")}</span>
 							</button>
 							<SettingsMenu
 								onManageModels={() => setManagingModels(true)}
