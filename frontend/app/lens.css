@@ -3,7 +3,7 @@
    objects separate from the stage by tone alone. */
 /* Tokens: the stage itself, and any other page that shares its look (.lens-theme). */
 .lens-root, .lens-theme {
-  --l-bg: #EFEFEE; --l-panel: #F6F6F5; --l-card: #FFFFFF; --l-sheet: #FFFFFF; --l-glass: rgba(255, 255, 255, .66);
+  --l-bg: #EFEFEE; --l-grid: rgba(23, 24, 26, .16); --l-panel: #F6F6F5; --l-card: #FFFFFF; --l-sheet: #FFFFFF; --l-glass: rgba(255, 255, 255, .66);
   --l-ink: #17181A; --l-ink-2: #3C3B37; --l-muted: #66655F;
   --l-line: rgba(23, 24, 26, .13); --l-fill: rgba(23, 24, 26, .06); --l-fill-2: rgba(23, 24, 26, .1);
   --l-mem: #4251C4; --l-doc: #9A5A0E; --l-hist: #10776A; --l-sys: #8A8984; --l-risk: #B52F5B;
@@ -25,9 +25,11 @@
   font-family: var(--l-ui); font-size: 14px; line-height: 1.6; font-variant-numeric: tabular-nums;
 }
 .lens-root { position: fixed; inset: 0; overflow: hidden; }
+/* The field is a canvas even when nothing is on it: a dot grid, which the glass sheet lets through. */
+.lens-root { background-image: radial-gradient(var(--l-grid) 1px, transparent 1.2px); background-size: 22px 22px; background-position: 11px 11px; }
 .lens-page { min-height: 100dvh; }
 .dark .lens-root, .dark .lens-theme {
-  --l-bg: #101012; --l-panel: #1F1F22; --l-card: #232326; --l-sheet: #19191C; --l-glass: rgba(30, 30, 33, .66);
+  --l-bg: #101012; --l-grid: rgba(255, 255, 255, .1); --l-panel: #1F1F22; --l-card: #232326; --l-sheet: #19191C; --l-glass: rgba(30, 30, 33, .66);
   --l-ink: #EDEDEB; --l-ink-2: #CFCEC9; --l-muted: #A09F99;
   --l-line: rgba(255, 255, 255, .13); --l-fill: rgba(255, 255, 255, .07); --l-fill-2: rgba(255, 255, 255, .12);
   --l-mem: #929CFF; --l-doc: #E2A452; --l-hist: #4FC9B2; --l-sys: #8E8D88; --l-risk: #F27FA4;
@@ -213,8 +215,9 @@
 .lens-meter-total { display: flex; flex: 1; min-width: 0; justify-content: flex-end; gap: 6px; padding-right: 6px; white-space: nowrap; }
 .lens-meter-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--l-ink); }
 /* the odometer: each digit a wheel, a window one line tall */
-.lens-roll > span[aria-hidden] { display: inline-flex; vertical-align: -.2em; line-height: 1.15em; }
-.lens-wheel { position: relative; display: inline-block; height: 1.15em; overflow: hidden; }
+.lens-roll > span[aria-hidden] { display: inline-flex; line-height: 1.15em; }
+/* clip-path, not overflow: an inline-block that hides overflow takes its bottom edge as its baseline and sinks below the text. */
+.lens-wheel { position: relative; display: inline-block; height: 1.15em; clip-path: inset(0); }
 .lens-wheel > span { display: block; line-height: 1.15em; }
 /* The whole meter, on the back of an answer. */
 .lens-meter-card { display: grid; gap: 14px; padding: 14px; border-radius: 16px; background: var(--l-card); user-select: none; -webkit-user-select: none; }
