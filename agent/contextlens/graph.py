@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
-from contextlens import engine, memory, records
+from contextlens import engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
 from contextlens.provenance import parse_segments
 
@@ -32,9 +32,13 @@ class LensState(TypedDict):
     turn_records: NotRequired[dict]
     # Rewrite (or undo) one earlier answer instead of answering a new message.
     regen_request: NotRequired[dict | None]
+    # The interface language the turn was sent from; memories follow it unless the user chose one.
+    locale: NotRequired[str | None]
 
 
 def answer_turn(state: LensState, config: RunnableConfig) -> dict:
+    if state.get("locale") in models.settings.LANGUAGES:
+        memory.language.choose(interface=state["locale"])
     situation = memory.identify(_conversation(state["messages"]), _scope(state))
     earlier = [{"situation": r["versions"][-1].get("situation", {})} for r in state.get("turn_records", {}).values()]
     memory.propose_if_unfit(earlier, situation, memory.Source("after_turn", reason=situation["doing"]))

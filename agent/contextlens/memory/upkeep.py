@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from . import llm, operations
+from . import language, llm, operations
 from .store import get, memories_in, session
 from .types import ORDINARY, MemoryError, Project, Source
 
@@ -21,7 +21,7 @@ _SHOWN = 150
 _lock = threading.Lock()
 
 _INSTRUCTIONS = """You tidy the long-term memory of a personal assistant. List only the changes that are
-clearly needed; often there are none. Each needs a short reason, in the language of the memories.
+clearly needed; often there are none. Each needs a short reason. Write every reason and text in {language}.
 - merge: two concepts are one thing under two names. keep_id, drop_id.
 - supersede: the world changed: a memory was true, and a later one replaces it. memory_id, by_id.
 - correct: a memory is wrong and the others prove it. memory_id, text.
@@ -81,7 +81,7 @@ def run(scope: str) -> list[dict]:
     names = "\n".join(f"[{c['id']}] {' / '.join([c['name'], *c['aliases']])}" for c in concepts)
     prompt = (f"Today: {today}\nDistilling is {'allowed' if may_distill else 'not allowed'}.\n\n"
               f"Concepts:\n{names or 'none'}\n\nMemories:\n{listing}")
-    plan = llm.structured(Plan, _INSTRUCTIONS, prompt)
+    plan = llm.structured(Plan, _INSTRUCTIONS.format(language=language.name()), prompt)
     shown, shown_concepts = {m.id for m in memories}, {c["id"] for c in concepts}
     events = []
     for step in plan.steps:

@@ -43,14 +43,15 @@ def visible_memory(memory_id: str, scope: str) -> Memory:
 
 def add_memory(learned: str, source: Source, *, scope: str = ORDINARY, situation: str = "", origin: str = "said",
                concepts: list[str] | None = None, scenes: list[str] | None = None, check_at: str | None = None,
-               always_on: bool = False, replaces: str | None = None) -> list[dict]:
-    """A new memory. With `replaces`, a real change: the older fact stays on the timeline."""
+               always_on: bool = False, replaces: str | None = None, noted: str | None = None) -> list[dict]:
+    """A new memory. With `replaces`, a real change: the older fact stays on the timeline. `noted` is
+    when it was learned, if that was before now (an imported fact keeps its own date)."""
     if not learned.strip():
         raise MemoryError("A memory needs something learned.")
     links = _resolve_concepts(concepts or [], source)
     memory = Memory(id=_id("m"), scope=scope, learned=learned.strip(), situation=situation.strip(), source=origin,
                     concepts=[c.id for c in links], scenes=scenes or [], check_at=check_at, always_on=always_on,
-                    created_at=_now())
+                    created_at=f"{noted}T00:00:00+00:00" if noted else _now())
     older = []
     if replaces:
         previous = get(Memory, replaces)
@@ -118,7 +119,7 @@ def _resolve_concepts(names: list[str], source: Source) -> list[Concept]:
             created.append(concept)
         found[concept.id] = concept
     if created:
-        ledger.commit(source, "created", *created)
+        ledger.commit(source, "created", *created, alone=True)
     return list(found.values())
 
 

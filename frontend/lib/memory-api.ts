@@ -1,6 +1,7 @@
 /** Client for the agent's memory library (/lens/memories, reached through the same-origin proxy).
  * Every change goes through the agent's governance and comes back as an event that can be undone. */
 import type {
+	ImportCandidate,
 	MemoryEvent,
 	MemoryRecord,
 	MemoryType,
@@ -96,6 +97,23 @@ export const memoryApi = {
 		);
 	},
 	revert: (eventId: number) => post(`/memory-events/${eventId}/revert`),
+	/** Pasted text read into candidates; nothing is written. */
+	importPreview: (scope: string, text: string) =>
+		call<{ candidates: ImportCandidate[]; degraded: boolean }>(
+			`/import/preview?${scoped(scope)}`,
+			{ method: "POST", body: JSON.stringify({ text }) },
+		),
+	/** The kept candidates, written as one batch: reverting any of its events undoes them all. */
+	importCommit: (scope: string, items: ImportCandidate[]) =>
+		call<{ events: MemoryEvent[] }>(`/import?${scoped(scope)}`, {
+			method: "POST",
+			body: JSON.stringify({
+				items: items.map((c) => ({
+					...c,
+					replaces: c.relation === "replaces" ? c.existing?.id : null,
+				})),
+			}),
+		}).then((r) => r.events),
 	overview: (scope: string) => call<Overview>(`/overview?${scoped(scope)}`),
 	saveScenes: (scenes: { id?: string; name: string; definition: string }[]) =>
 		post("/scenes", { scenes }),

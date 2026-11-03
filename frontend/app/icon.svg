@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="520" viewBox="34 119 520 520" version="1.1" role="img" aria-labelledby="title desc">
+  <style>@media (prefers-color-scheme: dark) { [stroke="#292725"] { stroke: #EDEDEB; } [fill="#292725"] { fill: #EDEDEB; } }</style>
+  <title id="title">ContextLens symbol</title>
+  <desc id="desc">Graphite magnifying glass containing three context lines, with the middle line highlighted in vermilion.</desc>
+  <g id="contextlens-symbol" fill="none">
+    <path id="handle" d="M 432 517 L 488 573" stroke="#292725" stroke-width="42" stroke-linecap="round" />
+    <circle id="lens-rim" cx="294" cy="379" r="193" stroke="#292725" stroke-width="42" />
+    <rect id="context-before" x="208" y="289" width="174" height="45" rx="22.5" fill="#292725" />
+    <rect id="context-focus" x="164" y="360" width="260" height="48" rx="24" fill="#E45C40" />
+    <rect id="context-after" x="208" y="432" width="174" height="45" rx="22.5" fill="#292725" />
+  </g>
+</svg>

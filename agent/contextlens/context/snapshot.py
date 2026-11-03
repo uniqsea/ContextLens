@@ -36,7 +36,8 @@ def prepare_snapshot(state: dict) -> dict:
     records = memory_records.records(scope, include_trashed=True)
     by_id = {r["id"]: r for r in records}
 
-    items = [_item("sys-001", "system", "System prompt", SYSTEM_PROMPT, "Built-in", ignored)]
+    system = f"{SYSTEM_PROMPT} Write memories in {memory.language.name()}, whatever language the user writes in."
+    items = [_item("sys-001", "system", "System prompt", system, "Built-in", ignored)]
     items += [_item(d["id"], "retrieval", d["title"], d["content"], d["source_label"], ignored)
               for d in search_documents(question)]
     turns, rejected = _history(messages, state.get("history_lineage", {}), by_id, ignored)

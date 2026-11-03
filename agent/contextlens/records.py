@@ -12,7 +12,7 @@ from datetime import date
 from contextlens import config, memory
 from contextlens.memory import operations
 
-_ACTORS = {"after_turn": "consolidation", "upkeep": "consolidation", "seed": "import"}
+_ACTORS = {"after_turn": "consolidation", "upkeep": "consolidation", "seed": "import", "import": "import"}
 _SEED_SCENES = {"work": "工作", "study": "学习", "personal": "生活", "life": "生活"}
 _TITLE_FROM_LEARNED = 20
 _SOURCE_LABELS = {"said": "你说的", "inferred": "推断", "read": "读到的"}

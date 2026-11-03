@@ -36,6 +36,15 @@ export interface ModelInfo {
 	cost_output: number | null;
 }
 
+/** The language memories are written in: the user's pick, or "follow" for the interface language. */
+export interface MemoryLanguage {
+	choice: "follow" | "zh" | "en";
+	interface: "zh" | "en";
+	current: "zh" | "en";
+	/** Existing memories are being rewritten in the current language. */
+	rewriting: boolean;
+}
+
 export type TestResult =
 	| { ok: true; latency_ms: number }
 	| { ok: false; error: string };
@@ -53,6 +62,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const settingsApi = {
 	overview: () => call<Overview>(""),
+	memoryLanguage: () => call<MemoryLanguage>("/memory-language"),
+	setMemoryLanguage: (choice: MemoryLanguage["choice"]) =>
+		call<MemoryLanguage>("/memory-language", {
+			method: "PUT",
+			body: JSON.stringify({ choice }),
+		}),
 	models: (provider: string) =>
 		call<{ models: ModelInfo[] }>(`/providers/${provider}/models`).then(
 			(r) => r.models,

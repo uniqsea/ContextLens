@@ -4,6 +4,7 @@ import { useStream } from "@langchain/langgraph-sdk/react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { ModelPicker } from "@/components/model-settings/model-picker";
 import { SettingsDialog } from "@/components/model-settings/settings-dialog";
 import { useModelSettings } from "@/components/model-settings/use-model-settings";
@@ -686,18 +687,7 @@ export function LensApp() {
 				<div className="lens-head">
 					<div className="lens-head-row">
 						<div className="lens-mark">
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.8"
-								aria-hidden="true"
-							>
-								<circle cx="10" cy="10" r="6.5" />
-								<path d="M15 15l5.5 5.5" />
-								<path d="M7 10a3 3 0 0 1 3-3" />
-							</svg>
-							ContextLens
+							<BrandLogo />
 						</div>
 						{overview.data && (
 							<ScopeBar

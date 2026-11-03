@@ -2,9 +2,12 @@
 
 - /lens/preview: the composer previews the next request on every keystroke, so it calls context
   assembly directly instead of going through a graph run.
-- /lens/settings: providers, keys and the model for each role. Keys go in, never out.
+- /lens/settings: providers, keys and the model for each role. Keys go in, never out. Also the
+  language memories are written in.
 - /lens/memories, /lens/memory-events: the memory library and its history. Every change made here
   is recorded as the user's and can be undone like any other.
+- /lens/import: pasted text read into candidate memories, then the ones the user kept written as
+  one batch.
 - /lens/overview, /lens/scenes, /lens/projects, /lens/concepts, /lens/questions: what surrounds the
   memories: where they can be looked at from, and what waits on the user.
 
@@ -100,6 +103,14 @@ async def save_efforts(request: Request) -> JSONResponse:
     return JSONResponse(await asyncio.to_thread(models.overview))
 
 
+async def memory_language(request: Request) -> JSONResponse:
+    body = await request.json() if request.method == "PUT" else {}
+    try:
+        return JSONResponse(await asyncio.to_thread(memory.language.choose, body.get("choice"), body.get("interface")))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
 async def test_model(request: Request) -> JSONResponse:
     body = await request.json()
     return JSONResponse(await asyncio.to_thread(models.test, body["provider"], body["model"], body.get("kind", "chat")))
@@ -137,6 +148,21 @@ async def memory_action(request: Request) -> JSONResponse:
 
 async def memory_timeline(request: Request) -> JSONResponse:
     return await _read(lambda: {"timeline": records.timeline(request.path_params["memory_id"])})
+
+
+async def import_preview(request: Request) -> JSONResponse:
+    body = await request.json()
+    try:
+        return JSONResponse(await asyncio.to_thread(memory.importing.propose, str(body.get("text", "")), _scope(request)))
+    except memory.MemoryError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:  # a provider failure; the user needs to see what kind
+        return JSONResponse({"error": type(e).__name__}, status_code=502)
+
+
+async def import_commit(request: Request) -> JSONResponse:
+    body = await request.json()
+    return await _read(lambda: {"events": records.changes(memory.importing.commit(body.get("items", []), _scope(request)))})
 
 
 async def overview(request: Request) -> JSONResponse:
@@ -249,6 +275,7 @@ app = Starlette(
         Route("/lens/settings/roles", save_roles, methods=["PUT"]),
         Route("/lens/settings/efforts", save_efforts, methods=["PUT"]),
         Route("/lens/settings/test", test_model, methods=["POST"]),
+        Route("/lens/settings/memory-language", memory_language, methods=["GET", "PUT"]),
         Route("/lens/overview", overview, methods=["GET"]),
         Route("/lens/concepts/merge", concept_merge, methods=["POST"]),
         Route("/lens/concepts/{id}", concept_item, methods=["PATCH"]),
@@ -265,6 +292,8 @@ app = Starlette(
         Route("/lens/memories/{memory_id}/timeline", memory_timeline, methods=["GET"]),
         Route("/lens/memories/{memory_id}/{action}", memory_action, methods=["POST"]),
         Route("/lens/memory-events", memory_events, methods=["GET"]),
+        Route("/lens/import/preview", import_preview, methods=["POST"]),
+        Route("/lens/import", import_commit, methods=["POST"]),
         Route("/lens/memory-events/{event_id:int}/revert", revert_event, methods=["POST"]),
     ],
     middleware=[Middleware(RefuseBrowsers)],

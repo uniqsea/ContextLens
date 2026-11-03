@@ -120,3 +120,18 @@ export interface SuggestedSituation {
 	definition: string;
 	reason: string;
 }
+
+/** A memory read from pasted text, not yet written; `existing` is what it repeats, updates or contradicts. */
+export interface ImportCandidate {
+	key: number;
+	learned: string;
+	evidence: string;
+	source: "said" | "inferred";
+	concepts: string[];
+	scenes: string[];
+	/** When it was true or learned, if before today; empty means the day it is imported. */
+	noted: string | null;
+	check_at: string | null;
+	relation: "new" | "same" | "replaces" | "conflicts";
+	existing: { id: string; learned: string } | null;
+}

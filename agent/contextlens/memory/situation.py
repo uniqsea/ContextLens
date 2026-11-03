@@ -9,7 +9,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
-from . import llm, operations
+from . import language, llm, operations
 from .types import Source
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ message, in light of the recent ones, say:
   by each scene's definition. Only from the list, the main one first. One; a second only if it truly spans
   two; none is fine.
 - doing: one short sentence on what the user is doing right now, specific enough to tell this moment
-  from another about the same people or things. In the user's language, starting from the verb, with no
+  from another about the same people or things. In {language}, starting from the verb, with no
   subject. Say what they are doing, not what they asked for: "revising chapter two of the thesis", not
   "the user asks about a word".
 - concepts: the independently standing things actually named or plainly meant in these messages: people,
@@ -35,7 +35,7 @@ message, in light of the recent ones, say:
   named in a word or two. Usually empty.
 - new_scene_definition: with new_scene, one sentence on what it is for and what it takes in.
 
-Example, with scenes Work, Study, Life and known concepts 周老师, 晴川:
+Example (the language of doing aside), with scenes Work, Study, Life and known concepts 周老师, 晴川:
 "我在改毕业论文第二章，周老师会在意什么？" -> scenes ["Study"], doing "修改毕业论文第二章",
 concepts ["周老师"]; not Work or Life, and not 晴川, which nothing here mentions."""
 
@@ -94,7 +94,7 @@ def identify(messages: list[tuple[str, str]], scope: str) -> dict:
     listed = _listed([{"name": s.name, "definition": s.definition} for s in active])
     prompt = f"Scenes:\n{listed}\nKnown concepts: {known or 'none yet'}\n\nConversation:\n{recent}"
     try:
-        reading = llm.structured(Reading, _INSTRUCTIONS, prompt)
+        reading = llm.structured(Reading, _INSTRUCTIONS.format(language=language.name()), prompt)
     except Exception as e:
         log.warning("reading the moment failed: %s: %s", type(e).__name__, str(e)[:300])
         return {"scenes": [], "doing": question[:80], "concepts": [], "new_scene": None, "degraded": True}

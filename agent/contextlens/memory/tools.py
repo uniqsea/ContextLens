@@ -62,7 +62,8 @@ def open_concept(name: str, runtime: Runtime) -> tuple[str, dict]:
 def remember(learned: str, reason: str, runtime: Runtime, concepts: list[str] | None = None,
              check_at: str | None = None, replaces: str | None = None) -> tuple[str, dict]:
     """Write something down now: when the user asks you to remember it, or you have just learned
-    something that later work will need. One sentence in the user's language. concepts: at most three
+    something that later work will need. One sentence, in the language your instructions say memories
+    are written in. concepts: at most three
     things it is about that you could point at (a person, a project, a work; "我" for the user), never
     a topic. check_at: ISO date to look at a time-bound fact again. replaces: the id of the memory it
     takes over from, when the world changed."""

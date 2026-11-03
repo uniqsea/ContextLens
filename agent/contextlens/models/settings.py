@@ -11,6 +11,9 @@ import os
 from contextlens import config
 
 ROLES = ("agent", "memory", "embedding")
+LANGUAGES = ("zh", "en")
+# "follow" writes memories in the interface language last seen.
+_LANGUAGE = {"choice": "follow", "interface": "zh"}
 
 
 def _path():
@@ -21,7 +24,8 @@ def read() -> dict:
     path = _path()
     data = json.loads(path.read_text()) if path.exists() else {}
     return {"providers": data.get("providers", {}), "roles": data.get("roles", {}),
-            "efforts": data.get("efforts", {}), "shown": data.get("shown", {})}
+            "efforts": data.get("efforts", {}), "shown": data.get("shown", {}),
+            "memory_language": {**_LANGUAGE, **data.get("memory_language", {})}}
 
 
 def write(data: dict) -> None:
@@ -85,6 +89,18 @@ def set_shown(provider_id: str, model_ids: list[str] | None) -> None:
     else:
         data["shown"][provider_id] = list(dict.fromkeys(model_ids))
     write(data)
+
+
+def set_memory_language(choice: str | None = None, interface: str | None = None) -> None:
+    data = read()
+    if choice is not None and choice not in ("follow", *LANGUAGES):
+        raise ValueError(f"Unknown memory language: {choice}")
+    if interface is not None and interface not in LANGUAGES:
+        raise ValueError(f"Unknown interface language: {interface}")
+    saved = data["memory_language"]
+    changed = {**saved, **{k: v for k, v in (("choice", choice), ("interface", interface)) if v is not None}}
+    if changed != saved:
+        write({**data, "memory_language": changed})
 
 
 def credentials(provider: dict) -> tuple[str | None, str | None]:

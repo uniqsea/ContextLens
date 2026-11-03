@@ -1,5 +1,5 @@
 """The memory system. Other packages use only what is exported here."""
-from . import operations, search, store, upkeep
+from . import importing, language, operations, search, store, upkeep
 from .ledger import commit, purge, revert
 from .recall import note, recall, render
 from .remember import remember_turn
@@ -10,5 +10,5 @@ from .tools import TOOLS, TurnContext
 from .types import ORDINARY, Concept, Memory, MemoryError, Project, Question, Scene, Source
 
 __all__ = ["ORDINARY", "TOOLS", "Concept", "Embedder", "Memory", "MemoryError", "Project", "Question", "Scene", "Source",
-           "TurnContext", "all_of", "commit", "get", "identify", "list_events", "memories_in", "memory_activity", "note", "operations",
+           "TurnContext", "all_of", "commit", "get", "identify", "importing", "language", "list_events", "memories_in", "memory_activity", "note", "operations",
            "propose_if_unfit", "purge", "read_plainly", "recall", "remember_turn", "render", "revert", "search", "store", "suggest_situations", "upkeep"]

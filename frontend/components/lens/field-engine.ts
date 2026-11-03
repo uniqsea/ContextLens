@@ -388,6 +388,8 @@ export class FieldEngine {
 			if (Math.abs(this.stage.offsetHeight - need) > 6)
 				this.stage.style.height = need + "px";
 		} else {
+			// Back from a phone width: the stage fills the window again.
+			if (this.stage.style.height) this.stage.style.height = "";
 			const colX = m.sheet.x + m.sheet.w + 48;
 			const right = this.W - 18;
 			const gap = 16;

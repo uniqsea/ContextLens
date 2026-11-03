@@ -1,9 +1,10 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Import, Plus } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { ScopeBar } from "@/components/lens/scope-bar";
 import { useOverview } from "@/components/lens/use-overview";
 import { useScope } from "@/components/lens/use-scope";
@@ -11,6 +12,7 @@ import { LocaleSwitch } from "@/components/locale-switch";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord } from "@/lib/memory-types";
 import { ConceptBar } from "./concept-bar";
+import { ImportDialog } from "./import-dialog";
 import { MemoryCard } from "./memory-card";
 import { MemoryDetail } from "./memory-detail";
 import { Timeline } from "./timeline";
@@ -30,6 +32,7 @@ export function MemoryLibrary() {
 	const [concept, setConcept] = useState<string | null>(null);
 	const [picking, setPicking] = useState(false);
 	const [picked, setPicked] = useState<string[]>([]);
+	const [importing, setImporting] = useState(false);
 	const [isPending, startTransition] = useTransition();
 
 	useEffect(() => {
@@ -95,18 +98,7 @@ export function MemoryLibrary() {
 			<div className="lib">
 				<header className="lib-top">
 					<Link href="/" className="lens-mark">
-						<svg
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.8"
-							aria-hidden="true"
-						>
-							<circle cx="10" cy="10" r="6.5" />
-							<path d="M15 15l5.5 5.5" />
-							<path d="M7 10a3 3 0 0 1 3-3" />
-						</svg>
-						ContextLens
+						<BrandLogo />
 					</Link>
 					{overview.data && (
 						<ScopeBar
@@ -154,14 +146,24 @@ export function MemoryLibrary() {
 							))}
 						</div>
 						{view === "memories" && (
-							<button
-								type="button"
-								className="lens-btn primary"
-								onClick={() => setOpened("new")}
-							>
-								<Plus aria-hidden="true" />
-								{t("add")}
-							</button>
+							<>
+								<button
+									type="button"
+									className="lens-btn outline"
+									onClick={() => setImporting(true)}
+								>
+									<Import aria-hidden="true" />
+									{t("import")}
+								</button>
+								<button
+									type="button"
+									className="lens-btn primary"
+									onClick={() => setOpened("new")}
+								>
+									<Plus aria-hidden="true" />
+									{t("add")}
+								</button>
+							</>
 						)}
 					</div>
 				</div>
@@ -233,6 +235,13 @@ export function MemoryLibrary() {
 					</>
 				)}
 			</div>
+			{importing && (
+				<ImportDialog
+					scope={scope}
+					onClose={() => setImporting(false)}
+					onChanged={() => void refreshMemories()}
+				/>
+			)}
 			{(opened === "new" || openedMemory) && (
 				<MemoryDetail
 					key={opened}

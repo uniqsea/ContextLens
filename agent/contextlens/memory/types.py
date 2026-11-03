@@ -70,7 +70,7 @@ Entity = Memory | Concept | Scene | Project | Question
 @dataclass(frozen=True)
 class Source:
     """Who makes a change, where it came from and why, so it can be traced and undone."""
-    actor: Literal["user", "agent", "after_turn", "upkeep", "seed"]
+    actor: Literal["user", "agent", "after_turn", "upkeep", "seed", "import"]
     thread_id: str | None = None
     turn: int | None = None
     reason: str | None = None

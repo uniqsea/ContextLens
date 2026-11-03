@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -15,12 +17,26 @@ from .store import EVENT_ROW, TABLES, event_dict, from_row, session, to_row
 from .types import Entity, Memory, MemoryError, Source
 
 _BY_NAME = {table: cls for cls, table in TABLES.items()}
+_batch: ContextVar[str | None] = ContextVar("batch", default=None)
 
 
-def commit(source: Source, action: str, *entities: Entity) -> list[dict]:
-    """Write these entities as they now should be; ones that did not change are left out."""
+@contextmanager
+def together():
+    """Changes committed inside form one batch, undone in one go."""
+    token = _batch.set(uuid.uuid4().hex)
+    try:
+        yield
+    finally:
+        _batch.reset(token)
+
+
+def commit(source: Source, action: str, *entities: Entity, alone: bool = False) -> list[dict]:
+    """Write these entities as they now should be; ones that did not change are left out. `alone` keeps
+    them out of any batch being gathered."""
+    batch = None if alone else _batch.get()
     with session() as conn:
-        return _apply(conn, source, action, uuid.uuid4().hex, [(TABLES[type(e)], e.id, to_row(e)) for e in entities])
+        return _apply(conn, source, action, batch or uuid.uuid4().hex,
+                      [(TABLES[type(e)], e.id, to_row(e)) for e in entities])
 
 
 def revert(event_id: int, source: Source) -> list[dict]:
