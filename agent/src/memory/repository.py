@@ -29,7 +29,10 @@ def seed_memories_if_empty(conn: sqlite3.Connection | None = None) -> None:
     if count > 0:
         return
 
-    seeds = json.loads(SEED_PATH.read_text())
+    try:
+        seeds = json.loads(SEED_PATH.read_text())
+    except FileNotFoundError:
+        return
     for seed in seeds:
         conn.execute(
             """

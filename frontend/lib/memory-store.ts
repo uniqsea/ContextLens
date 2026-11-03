@@ -1,6 +1,6 @@
 import "server-only";
 
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -61,7 +61,7 @@ function seedMemoriesIfEmpty(db: DatabaseSync) {
     .prepare("SELECT COUNT(*) AS count FROM memories")
     .get() as { count?: number } | undefined;
   const count = Number(countRow?.count ?? 0);
-  if (count > 0) return;
+  if (count > 0 || !existsSync(SEED_PATH)) return;
 
   const seeds = JSON.parse(readFileSync(SEED_PATH, "utf8")) as Array<{
     id: string;
