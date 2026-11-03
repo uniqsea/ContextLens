@@ -1,6 +1,12 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "context_agent": "./src/agent.py:graph"
+    "context_agent": "./contextlens/graph.py:graph"
+  },
+  "http": {
+    "app": "./contextlens/api.py:app",
+    "cors": {
+      "allow_origins": []
+    }
   }
 }

@@ -43,3 +43,7 @@ agent/data/*.sqlite3
 # local-only notes and research
 docs/
 reports/
+
+# probe output and local spikes
+agent/spikes/evidence/
+*.egg-info/

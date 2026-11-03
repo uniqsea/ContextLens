@@ -1,32 +1,177 @@
 "use client";
-import { useState } from "react";
-import type { MemoryRecord, SessionContextMode } from "@/lib/memory-types";
-import { CONTEXT_MODES } from "@/lib/memory-validation";
 
-export function MemoryEditor({memory, onSaved, onCancel}: {memory?: MemoryRecord; onSaved: () => void; onCancel: () => void}) {
-  const [title, setTitle] = useState(memory?.title ?? "");
-  const [content, setContent] = useState(memory?.content ?? "");
-  const [source, setSource] = useState(memory?.source_kind ?? "User supplied");
-  const [mode, setMode] = useState<SessionContextMode>(memory?.context_scope ?? "general");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  return <form className="my-4 grid gap-3 rounded-xl border bg-white p-5" onSubmit={async e => {
-    e.preventDefault(); setBusy(true); setError("");
-    try {
-      const res = await fetch("/api/memories", {method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({id: memory?.id, revision: memory?.revision, title, content, source_kind: source, context_scope: mode})});
-      const data = await res.json(); if (!res.ok) throw new Error(data.error);
-      onSaved();
-    } catch(e) { setError(e instanceof Error ? e.message : "Save failed"); }
-    finally {setBusy(false);}
-  }}>
-    <h2 className="font-semibold">{memory ? "Edit memory" : "Add memory"}</h2>
-    <label>Title<input required className="block w-full rounded border p-2" value={title} onChange={e => setTitle(e.target.value)}/></label>
-    <label>Content<textarea required maxLength={20000} className="block w-full rounded border p-2" value={content} onChange={e => setContent(e.target.value)}/></label>
-    <label>Source<input required className="block w-full rounded border p-2" value={source} onChange={e => setSource(e.target.value)}/></label>
-    <label>Applies in<select className="ml-3 rounded border p-2" value={mode} onChange={e => setMode(e.target.value as SessionContextMode)}>{CONTEXT_MODES.map(m => <option key={m}>{m}</option>)}</select></label>
-    <p className="text-sm text-stone-500">Changes are persistent. An open conversation will require a refreshed preview before sending.</p>
-    {error && <p role="alert" className="text-red-700">{error}</p>}
-    <div className="flex gap-4"><button disabled={busy} type="submit">{busy ? "Saving…" : "Save memory"}</button><button disabled={busy} type="button" onClick={onCancel}>Cancel</button></div>
-  </form>;
+import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { MemoryApiError, memoryApi } from "@/lib/memory-api";
+import type { MemoryRecord, MemoryType, Scene } from "@/lib/memory-types";
+
+const TYPES: MemoryType[] = ["semantic", "episodic", "procedural"];
+
+/** Add a memory or edit one. An edit is a new version; the old one stays in the history. */
+export function MemoryEditor({
+	memory,
+	scope,
+	sceneOptions,
+	onSaved,
+	onCancel,
+}: {
+	memory?: MemoryRecord;
+	scope: string;
+	sceneOptions: Scene[];
+	onSaved: () => void;
+	onCancel: () => void;
+}) {
+	const t = useTranslations("editor");
+	const tl = useTranslations("library");
+	const [title, setTitle] = useState(memory?.title ?? "");
+	const [content, setContent] = useState(memory?.content ?? "");
+	const [type, setType] = useState<MemoryType>(
+		memory?.memory_type ?? "semantic",
+	);
+	const [scenes, setScenes] = useState<string[]>(memory?.scenes ?? []);
+	const [concepts, setConcepts] = useState(
+		memory?.concepts.map((c) => c.name).join(", ") ?? "",
+	);
+	const [error, setError] = useState("");
+	const [busy, setBusy] = useState(false);
+
+	const save = async () => {
+		setBusy(true);
+		setError("");
+		const fields = {
+			title,
+			content,
+			memory_type: type,
+			scenes,
+			concepts: concepts
+				.split(/[,，、]/)
+				.map((c) => c.trim())
+				.filter(Boolean),
+		};
+		try {
+			if (memory) await memoryApi.revise(memory.id, memory.revision, fields);
+			else await memoryApi.create(scope, fields);
+			onSaved();
+		} catch (e) {
+			setError(
+				e instanceof MemoryApiError && e.status === 409
+					? t("conflict")
+					: e instanceof MemoryApiError && e.message
+						? e.message
+						: t("saveFailed"),
+			);
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<form
+			className="lib-editor"
+			onSubmit={(e) => {
+				e.preventDefault();
+				void save();
+			}}
+		>
+			<div className="lib-detail-scroll">
+				<div className="lib-editor-fields">
+					<label className="lens-field">
+						{t("title")}
+						<input
+							required
+							className="lens-input"
+							value={title}
+							onChange={(e) => setTitle(e.target.value)}
+						/>
+					</label>
+					<label className="lens-field">
+						{t("content")}
+						<textarea
+							required
+							maxLength={20000}
+							rows={5}
+							className="lens-input"
+							value={content}
+							onChange={(e) => setContent(e.target.value)}
+						/>
+					</label>
+					{/* biome-ignore lint/a11y/useSemanticElements: a segmented control, not a form section */}
+					<div className="lens-field" role="group" aria-label={t("type")}>
+						{t("type")}
+						<div>
+							<div className="lens-seg">
+								{TYPES.map((m) => (
+									<button
+										key={m}
+										type="button"
+										aria-pressed={type === m}
+										onClick={() => setType(m)}
+									>
+										{tl(`memoryTypes.${m}`)}
+									</button>
+								))}
+							</div>
+						</div>
+					</div>
+					{sceneOptions.length > 0 && (
+						// biome-ignore lint/a11y/useSemanticElements: a set of toggles, not a form section
+						<div className="lens-field" role="group" aria-label={t("scenes")}>
+							{t("scenes")}
+							<div className="lens-chips">
+								{sceneOptions.map((s) => (
+									<button
+										key={s.id}
+										type="button"
+										aria-pressed={scenes.includes(s.name)}
+										className="lens-chip lib-toggle"
+										onClick={() =>
+											setScenes(
+												scenes.includes(s.name)
+													? scenes.filter((x) => x !== s.name)
+													: [...scenes, s.name],
+											)
+										}
+									>
+										{s.name}
+									</button>
+								))}
+							</div>
+						</div>
+					)}
+					<label className="lens-field">
+						{t("concepts")}
+						<input
+							className="lens-input"
+							value={concepts}
+							placeholder={t("conceptsHint")}
+							onChange={(e) => setConcepts(e.target.value)}
+						/>
+					</label>
+					<p className="lib-hint">{t("hint")}</p>
+					{error && (
+						<p role="alert" className="lens-alert">
+							{error}
+						</p>
+					)}
+				</div>
+			</div>
+			<div className="lib-detail-foot">
+				<button
+					disabled={busy}
+					type="button"
+					onClick={onCancel}
+					className="lens-btn outline block"
+				>
+					{t("cancel")}
+				</button>
+				<button
+					disabled={busy}
+					type="submit"
+					className="lens-btn primary block"
+				>
+					{busy ? t("saving") : t("save")}
+				</button>
+			</div>
+		</form>
+	);
 }

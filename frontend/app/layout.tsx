@@ -1,39 +1,40 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Geist_Mono, Inter } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ThemeProvider } from "@/hooks/use-theme";
-import "@xyflow/react/dist/style.css";
+import { htmlLang } from "@/i18n/config";
 import "./globals.css";
+import "./lens.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const inter = Inter({
+	variable: "--font-inter",
+	subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+	variable: "--font-geist-mono",
+	subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "ContextLens",
-  description: "AI conversation context visualizer and editor",
-};
+export async function generateMetadata(): Promise<Metadata> {
+	const t = await getTranslations("meta");
+	return { title: "ContextLens", description: t("description") };
+}
 
-export default function RootLayout({
-  children,
+export default async function RootLayout({
+	children,
 }: Readonly<{
-  children: React.ReactNode;
+	children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  );
+	const locale = await getLocale();
+	return (
+		<html lang={htmlLang(locale)} suppressHydrationWarning>
+			<body className={`${inter.variable} ${geistMono.variable} antialiased`}>
+				<NextIntlClientProvider>
+					<ThemeProvider>{children}</ThemeProvider>
+				</NextIntlClientProvider>
+			</body>
+		</html>
+	);
 }

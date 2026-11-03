@@ -1,78 +1,69 @@
 # ContextLens
 
-## Start the Project
+看见模型真正看到的。ContextLens 让 AI 助手的上下文与记忆可见、可改、可追溯：
 
-Install dependencies if this is the first run:
+- **取景条**：输入框上方的分段横条就是下一次请求的完整上下文，每段宽度对应它的 token 数。打字时相关记忆滑进来；把一段上下拖出就是不带它。
+- **句子级来源**：模型回答时标注每句话依据的上下文，记忆场里的卡片用连线直接连到那句话。悬停一句话，它的依据被"对焦"，其余卡片虚化。
+- **翻面**：每条回答都有背面，列出模型实际看到的每一项、入选或落选的原因，以及原始请求。在背面改完翻回来，回答原地重写，保留版本，可以撤销。
+- **情境**：每轮用记忆前自动判断主要属于哪个情境（真的横跨时最多两个）、此刻在做什么、提到了什么，显示在回答下方；判断错了可以直接改、调亮或调暗概念，回答会原地重写。默认有工作、学习、生活三个大情境并带定义，可在设置里修改，也可以描述你的使用习惯让 AI 帮你选或生成，只用来浏览和轻微参考；项目才是边界，默认隔离。
+- **记忆场**：卡片可以拖进回答（加入）、拖进输入框（带进下一次请求），或者甩开（本轮不使用）。
+
+## 快速开始
+
+需要 Node.js 22+ 和 [uv](https://docs.astral.sh/uv/)。
 
 ```bash
 npm install
-npm install --prefix frontend
+npm run setup
 ```
 
-Set up the agent package in the `contextlens` conda environment:
+模型在输入框旁边选择：第一次点 **连接模型**，连接一家服务商（DeepSeek、OpenAI、Kimi、通义、智谱等，目录来自 [models.dev](https://models.dev)，均通过兼容 OpenAI 的接口调用）；之后在同一个弹窗里换模型、调推理强度，或从底部的“添加或管理模型”进入服务商设置。密钥只保存在本机 `~/.contextlens/settings.json`（仅本人可读），不会发回浏览器。
 
-```bash
-conda create -n contextlens python=3.11
-npm run setup:agent
-```
+这是密钥和模型选择的唯一来源，不读环境变量。
 
-Create or update the environment files:
+**向量检索不用配置**：`npm run setup` 会下载约 2.4 GB 的 `Qwen3-Embedding-0.6B`，运行时常驻约 2 GB 内存，全程在本机计算。记忆检索会在关键词之外按意思匹配，跨语言也能找到（用中文问能找到英文写的记忆）。没有模型文件时只按关键词检索。也可以在“添加或管理模型 → 高级”里换成服务商的 embedding 模型，这时记忆内容会发给该服务商，相似度阈值也要重新核对。
 
-- `agent/.env`
-- `frontend/.env.local`
-
-The frontend can use the local LangGraph server:
+在 `frontend/.env.local` 写入：
 
 ```bash
 LANGGRAPH_API_URL=http://localhost:2026
 NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=context_agent
 ```
 
-Start both the LangGraph agent and the Next.js frontend:
+然后：
 
 ```bash
-npm run dev
+npm run dev:demo   # 中文示例记忆，数据库在 agent/data/lens-demo-memories.sqlite3
+npm run dev        # 你自己的记忆，数据库在 agent/data/contextlens.sqlite3
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser.
+打开 [http://localhost:3001](http://localhost:3001)。端口可用 `LANGGRAPH_PORT`、`FRONTEND_PORT` 覆盖。两个服务都只监听本机。
 
-Default local services:
+## 结构
 
-- Agent: [http://localhost:2026](http://localhost:2026)
-- Frontend: [http://localhost:3001](http://localhost:3001)
+后端依赖只从外层指向内层：`graph`、`api` → `engine`、`context`、`provenance` → `records` → `memory` → `models` → `config`。
 
-You can override ports when starting:
+| 位置 | 作用 |
+|---|---|
+| `agent/contextlens/graph.py` | 应用图：一轮 = 组装上下文快照 → 引擎回答 → 记录版本；可重写或撤销任意一轮 |
+| `agent/contextlens/engine.py` | 引擎：[Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) 跑模型与工具循环；只有这里依赖 deepagents。关闭了子 agent 和自动摘要，上下文只能经由快照进入 |
+| `agent/contextlens/context/` | 选择上下文：想起的记忆、文档与历史、历史依赖失效，输出带原因的快照和指纹 |
+| `agent/contextlens/provenance/` | 句子级来源：提示模型标注，再把回答解析成"句子 + 来源" |
+| `agent/contextlens/memory/` | 记忆系统：记忆与概念、只追加的事件账本（改动都能撤销）、用记忆前的情境识别、想起（按概念、当时情况、内容排序）、每轮写入、后台整理、agent 记忆工具；项目默认隔离 |
+| `agent/contextlens/records.py` | 记忆系统和界面、上下文之间的转换 |
+| `agent/contextlens/models/` | 模型目录（models.dev 缓存）、本地设置与密钥、按角色构建模型、测试连接 |
+| `frontend/components/model-settings/` | 输入框旁的模型选择器（[assistant-ui](https://www.assistant-ui.com/elements/model-selector) 的 ModelSelector）与服务商设置弹窗 |
+| `agent/contextlens/api.py` | `/lens/preview`（每次按键预览下一次请求，不调用对话模型）、`/lens/settings`、`/lens/memories` 与 `/lens/memory-events`（记忆库与改动历史）；拒绝一切来自浏览器的直接请求 |
+| `agent/spikes/` | 选型验证原型（见 `docs/adr/0002`） |
+| `frontend/components/lens/` | 记忆场引擎、取景条、可翻面的回答、页面编排 |
+| `frontend/app/memories/`、`frontend/components/memory-library/` | 记忆库：记忆列表与版本历史、全部改动的时间线（看前后对比、逐条撤销）、回收站与永久删除 |
+| `frontend/proxy.ts`、`frontend/app/api/` | 只接受同源请求；代理只放行界面用到的 agent 接口 |
+| `frontend/messages/`、`frontend/i18n/` | 中英文文案（next-intl） |
+
+## 测试
 
 ```bash
-LANGGRAPH_PORT=2027 FRONTEND_PORT=3002 npm run dev
+npm run test:agent
 ```
 
-## Original Starter Notes
-
-This is the [assistant-ui](https://github.com/Yonom/assistant-ui) starter project for langgraph.
-
-## Getting Started
-
-First, add your langgraph API url and assistant id to `.env.local` file:
-
-```
-LANGCHAIN_API_KEY=your_langchain_api_key
-LANGGRAPH_API_URL=your_langgraph_api_url
-NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID=your_assistant_id_or_graph_id
-```
-
-Then, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+依赖版本锁定在 `agent/uv.lock`，并且只解析发布满两周的版本（`agent/pyproject.toml` 中的 `exclude-newer`）。
