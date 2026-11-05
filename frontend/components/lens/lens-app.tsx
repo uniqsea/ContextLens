@@ -219,7 +219,7 @@ export function LensApp({
 				.catch(() => {
 					if (live) setPreviewError(true);
 				});
-		}, 220);
+		}, input.trim() ? 220 : 0);
 		return () => {
 			live = false;
 			clearTimeout(t);

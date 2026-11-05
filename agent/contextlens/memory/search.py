@@ -14,6 +14,8 @@ import re
 import sqlite3
 from collections import Counter
 from collections.abc import Iterable
+from functools import cache
+from threading import Lock
 from typing import Literal, NamedTuple
 
 import jieba
@@ -44,8 +46,23 @@ class Embedder(NamedTuple):
     embeddings: Embeddings
 
 
+_vector_lock = Lock()
+
+
+@cache
+def tokenizer():
+    # Each caller holds its tokenizer until the current operation finishes.
+    return jieba.Tokenizer()
+
+
+def release_caches():
+    tokenizer.cache_clear()
+    with _vector_lock:
+        _query_vectors.clear()
+
+
 def tokens(text: str) -> list[str]:
-    return [t for t in jieba.cut_for_search(text.lower())
+    return [t for t in tokenizer().cut_for_search(text.lower())
             if _WORD.search(t) and t not in _STOP and not (len(t) == 1 and t.isascii())]
 
 
@@ -117,8 +134,12 @@ def _embed_missing(conn, field: Field, memories: list[Memory], embedder: Embedde
 
 def _query_vector(query: str, embedder: Embedder) -> list[float]:
     key = (embedder.model, query)
-    if key not in _query_vectors:
-        _query_vectors[key] = embedder.embeddings.embed_query(query)
-        if len(_query_vectors) > 512:
-            del _query_vectors[next(iter(_query_vectors))]
-    return _query_vectors[key]
+    with _vector_lock:
+        vector = _query_vectors.get(key)
+    if vector is None:
+        vector = embedder.embeddings.embed_query(query)
+        with _vector_lock:
+            _query_vectors[key] = vector
+            if len(_query_vectors) > 512:
+                del _query_vectors[next(iter(_query_vectors))]
+    return vector

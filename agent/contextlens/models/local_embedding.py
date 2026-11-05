@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import logging
 from functools import cache
+from threading import Lock
 
 from langchain_core.embeddings import Embeddings
 
 from contextlens import config
 
 log = logging.getLogger(__name__)
+_load_lock = Lock()
 MODEL = "Qwen/Qwen3-Embedding-0.6B"
 # The model's own prompt for a query; documents go in bare.
 _QUERY = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
@@ -41,8 +43,18 @@ def fetch() -> None:
     _load(local_files_only=False)
 
 
-@cache
+def release_cache():
+    with _load_lock:
+        _cached_model.cache_clear()
+
+
 def _model():
+    with _load_lock:
+        return _cached_model()
+
+
+@cache
+def _cached_model():
     return _load(local_files_only=True)
 
 

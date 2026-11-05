@@ -18,19 +18,23 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextlib import contextmanager
 from dataclasses import asdict
 
 from setproctitle import setproctitle
 from langchain_core.messages import convert_to_messages
 from starlette.applications import Starlette
+from starlette.background import BackgroundTask
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from contextlens import memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
+from contextlens.memory import search
+from contextlens.models import local_embedding
 
 # The reload supervisor starts a separate worker that imports this ASGI app.
 if process_title := os.environ.get("CONTEXTLENS_AGENT_TITLE"):
@@ -46,6 +50,52 @@ class RefuseBrowsers(BaseHTTPMiddleware):
 
 # No docstrings on handlers: the API server parses route docstrings as OpenAPI YAML.
 # Settings and SQLite touch the disk synchronously; every such call runs off the event loop.
+_search_users = 0
+_release_timer = None
+
+
+def _release_search():
+    search.release_caches()
+    local_embedding.release_cache()
+
+
+@contextmanager
+def _using_search():
+    global _search_users, _release_timer
+    if _release_timer:
+        _release_timer.cancel()
+    _search_users += 1
+    try:
+        yield
+    finally:
+        _search_users -= 1
+        if not _search_users:
+            # A refresh or a rapid close/reopen should keep the warm instance.
+            _release_timer = asyncio.get_running_loop().call_later(5, _release_search)
+
+
+async def chat_presence(request: Request):
+    async def heartbeat():
+        with _using_search():
+            yield ": connected\n\n"
+            while True:
+                await asyncio.sleep(15)
+                yield ": heartbeat\n\n"
+
+    return StreamingResponse(heartbeat(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+async def _warm_preview_search(has_memories: bool):
+    def warm():
+        search.tokenizer().initialize()
+        if has_memories and not models.role_spec("embedding"):
+            models.embedding_model()
+
+    with _using_search():
+        await asyncio.to_thread(warm)
+
+
 async def preview(request: Request) -> JSONResponse:
     body = await request.json()
     state = {
@@ -59,7 +109,14 @@ async def preview(request: Request) -> JSONResponse:
     }
     try:
         # SQLite reads are synchronous; keep them off the event loop.
-        return JSONResponse(await asyncio.to_thread(prepare_snapshot, state))
+        with _using_search():
+            snapshot = await asyncio.to_thread(prepare_snapshot, state)
+        warmup = None
+        if not state["messages"] or not state["messages"][-1].content:
+            has_memories = any(c["layer"] == "memory" and not c["always_on"]
+                               and c["status"] not in {"trashed", "temporarily_ignored"} for c in snapshot["candidates"])
+            warmup = BackgroundTask(_warm_preview_search, has_memories)
+        return JSONResponse(snapshot, background=warmup)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -321,6 +378,7 @@ async def _change(apply, request: Request) -> JSONResponse:
 
 app = Starlette(
     routes=[
+        Route("/lens/chat-presence", chat_presence, methods=["GET"]),
         Route("/lens/preview", preview, methods=["POST"]),
         Route("/lens/settings", settings_overview, methods=["GET"]),
         Route("/lens/settings/providers/{provider}/models", provider_models, methods=["GET"]),

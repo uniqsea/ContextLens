@@ -49,6 +49,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		} catch {}
 	}
 	const [tabs, setTabs] = useState<Tab[]>([]);
+	const hasChats = tabs.length > 0;
+	useEffect(() => {
+		if (!hasChats) return;
+		const source = new EventSource("/api/lens/chat-presence");
+		return () => source.close();
+	}, [hasChats]);
 	const projectWorkspace = path === "/" || /^\/projects\/[^/]+\/?$/.test(path);
 	const showTabs =
 		!projectWorkspace &&

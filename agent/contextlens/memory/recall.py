@@ -35,7 +35,7 @@ def recall(question: str, situation: dict, scope: str, *, brighten: list[str] | 
                    and (allowed_ids is None or m.id in allowed_ids)]
         always_on = [m for m in visible if m.always_on]
         pool = [m for m in visible if not m.always_on]
-        embedder = llm.embedder(local_only=local_only)
+        embedder = llm.embedder(local_only=local_only) if pool else None
         moment = search.similarity(conn, situation.get("doing", ""), "situation", pool, embedder)
         content = search.similarity(conn, question, "learned", pool, embedder)
     weight = _concept_weights(visible)
