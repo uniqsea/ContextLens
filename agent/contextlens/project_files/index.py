@@ -87,8 +87,9 @@ def _active_folders(scope: str) -> list[str]:
     return active
 
 
-def search(scope: str, question: str) -> list[dict]:
-    active = _active_folders(scope) if question.strip() else []
+def search(scope: str, question: str, *, inventory: bool = False, selected=()) -> list[dict]:
+    """In field mode include all readable files. Ranking and passages come from the same FTS query."""
+    active = _active_folders(scope) if question.strip() or inventory else []
     if not active:
         return []
     marks = ",".join("?" for _ in active)
@@ -97,29 +98,51 @@ def search(scope: str, question: str) -> list[dict]:
     params = (scope, *active)
     words = list(dict.fromkeys(re.findall(r"\w+", _terms(question).lower())))[:48]
     with session() as conn:
-        matches = list(conn.execute(f"""
+        # A nested folder may also be linked on its own. Keep the same source id when a query
+        # matches the two bindings differently, so a chosen file keeps its place in the input.
+        catalog = {}
+        if inventory:
+            rows = conn.execute(f"""SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.excerpt,
+                MIN(p.rowid) AS first_page {source}
+                JOIN project_passages p ON p.document_id = d.id
+                WHERE {scope_filter} GROUP BY d.id ORDER BY f.path, d.path""", params)
+            for row in rows:
+                if row["excerpt"]:
+                    catalog.setdefault(os.path.join(row["root"], row["path"]), row)
+        limit = "" if inventory else "LIMIT 24"
+        matches = conn.execute(f"""
             SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.excerpt {source}
             JOIN project_passages p ON p.document_id = d.id
             WHERE {scope_filter} AND project_passages MATCH ?
-            ORDER BY bm25(project_passages, 0, 6, 1, 0), d.path, p.rowid LIMIT 24
-        """, (*params, " OR ".join(f'"{word}"' for word in words)))) if words else []
+            ORDER BY bm25(project_passages, 0, 6, 1, 0), d.path, p.rowid {limit}
+        """, (*params, " OR ".join(f'"{word}"' for word in words))) if words else []
         hits = []
         seen = set()
+
+        def card(row, excerpt, rank=None):
+            label = f'{Path(row["root"]).name}/{row["path"]}'
+            source_id = _id(scope, row["root"], row["path"])
+            return {"id": source_id, "title": label, "source_label": label, "rank": rank,
+                    "content": excerpt if not inventory or source_id in (selected or ()) or (selected is None and rank is not None and rank <= 4) else excerpt[:200],
+                    "files": [_dependency(row)]}
+
         for row in matches:
             absolute = os.path.join(row["root"], row["path"])
             if absolute in seen:
                 continue
             seen.add(absolute)
-            label = f'{Path(row["root"]).name}/{row["path"]}'
-            hits.append({"id": _id(scope, row["root"], row["path"]), "title": label, "source_label": label,
-                         "content": row["excerpt"], "files": [_dependency(row)]})
-            if len(hits) == 4:
+            hits.append(card(catalog.get(absolute, row), row["excerpt"], len(hits) + 1))
+            if not inventory and len(hits) == 4:
                 break
+        hits.extend(card(row, row["excerpt"]) for path, row in catalog.items() if path not in seen)
         return hits
 
 
-def browse(scope: str, name: str, file_id: str, offset: int, excluded: set[str]) -> tuple[str, dict]:
+def browse(scope: str, name: str, file_id: str, offset: int, excluded: set[str],
+           allowed: set[str] | None = None) -> tuple[str, dict]:
     """Search file names or read a page from one file. Resolve ids only inside active bindings."""
+    if allowed is not None and (not allowed or (file_id and file_id not in allowed)):
+        return "No matching files.", {}
     active = _active_folders(scope)
     if not active:
         return "No accessible project folders.", {}
@@ -137,7 +160,7 @@ def browse(scope: str, name: str, file_id: str, offset: int, excluded: set[str])
         matched = 0
         for row in rows:
             source_id = _id(scope, row["root"], row["path"])
-            if source_id in excluded:
+            if source_id in excluded or (allowed is not None and source_id not in allowed):
                 continue
             label = f'{Path(row["root"]).name}/{row["path"]}'
             if file_id:

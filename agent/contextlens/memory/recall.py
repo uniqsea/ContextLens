@@ -24,21 +24,24 @@ _BRIGHTENED = 2.0
 
 
 def recall(question: str, situation: dict, scope: str, *, brighten: list[str] | None = None,
-           dim: list[str] | None = None, limit: int = LIMIT, leave_out: set[str] | None = None) -> dict:
+           dim: list[str] | None = None, limit: int = LIMIT, leave_out: set[str] | None = None,
+           allowed_ids: set[str] | None = None, local_only: bool = False) -> dict:
     """{"always_on": [...], "memories": [...], "crowded": [ids]}, each memory saying why it came up.
     Crowded memories were relevant enough but did not fit the count or the budget."""
     bright, dark = set(brighten or []), set(dim or [])
     named = {c.id: c.name for c in operations.concepts_named(situation.get("concepts", []))}
     with session() as conn:
-        visible = [m for m in memories_in(operations.visible_scopes(scope), conn) if m.id not in (leave_out or ())]
+        visible = [m for m in memories_in(operations.visible_scopes(scope), conn) if m.id not in (leave_out or ())
+                   and (allowed_ids is None or m.id in allowed_ids)]
         always_on = [m for m in visible if m.always_on]
         pool = [m for m in visible if not m.always_on]
-        embedder = llm.embedder()
+        embedder = llm.embedder(local_only=local_only)
         moment = search.similarity(conn, situation.get("doing", ""), "situation", pool, embedder)
         content = search.similarity(conn, question, "learned", pool, embedder)
     weight = _concept_weights(visible)
     scenes = set(situation.get("scenes", []))
     ranked = []
+    scores = {}
     for memory in pool:
         lit = [c for c in memory.concepts if (c in named or c in bright) and c not in dark]
         concepts = min(1.0, sum(weight[c] * (_BRIGHTENED if c in bright else 1.0) for c in lit))
@@ -49,6 +52,7 @@ def recall(question: str, situation: dict, scope: str, *, brighten: list[str] | 
         score = sum(WEIGHTS[k] * v for k, v in parts.items()) + (WEIGHTS["scene"] if shared else 0.0)
         if dark & set(memory.concepts):
             score *= _DIMMED
+        scores[memory.id] = round(score, 3)
         if score >= THRESHOLD:
             ranked.append((score, memory, parts, shared, lit))
     ranked.sort(key=lambda r: (-r[0], r[1].id))
@@ -62,7 +66,7 @@ def recall(question: str, situation: dict, scope: str, *, brighten: list[str] | 
         chosen.append(_brief(memory) | {"score": round(score, 3), "why": {
             "concepts": sorted(filter(None, names)), "moment": round(parts["moment"], 3),
             "content": round(parts["content"], 3), "scenes": shared}})
-    return {"always_on": [_brief(m) for m in always_on], "memories": chosen, "crowded": crowded}
+    return {"always_on": [_brief(m) for m in always_on], "memories": chosen, "crowded": crowded, "scores": scores}
 
 
 def render(memories: list[dict]) -> str:

@@ -11,7 +11,7 @@ export function apiUrl(): string {
 
 export interface Draft {
 	excluded: string[];
-	pinned: string[];
+	inputOrder: string[] | null;
 }
 
 /** What the next request would carry, computed by the agent without calling a model. */
@@ -32,7 +32,7 @@ export async function previewContext(
 				item_id: id,
 				status: "temporarily_ignored",
 			})),
-			manual_memory_ids: draft.pinned,
+			input_order: draft.inputOrder,
 		}),
 	});
 	if (!res.ok) throw new Error(`Preview failed (${res.status})`);

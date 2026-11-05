@@ -5,7 +5,6 @@ import { Library } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BrandLogo } from "@/components/brand-logo";
 import { ModelPicker } from "@/components/model-settings/model-picker";
 import { SettingsDialog } from "@/components/model-settings/settings-dialog";
 import { useModelSettings } from "@/components/model-settings/use-model-settings";
@@ -24,8 +23,11 @@ import type {
 	TurnRecord,
 } from "@/lib/lens/types";
 import { cardState, FIELD_LAYERS, stripMarkers } from "@/lib/lens/types";
+import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { AnswerCard, type Rewrite } from "./answer-card";
+import { ContextField, callable, OrderedInput } from "./context-field";
 import { ContextMeter, stripItems } from "./context-meter";
+import { ConversationTitle } from "./conversation-title";
 import {
 	type DropTarget,
 	FieldEngine,
@@ -33,13 +35,14 @@ import {
 	type Rect,
 } from "./field-engine";
 import { Inbox } from "./inbox";
-import { NewChat } from "@/components/projects/new-chat";
-import { ORDINARY, projectPath } from "@/lib/projects/types";
+import { SessionProgress, useHistoryLoading, useSessions } from "./session-tabs";
 import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
 import { useFold } from "./use-fold";
 import { useOverview } from "./use-overview";
-const EMPTY: Draft = { excluded: [], pinned: [] };
+
+const EMPTY: Draft = { excluded: [], inputOrder: null };
+type RewriteChoice = Pick<Rewrite, "excluded" | "pinned">;
 const without = (xs: string[], id: string) => xs.filter((x) => x !== id);
 
 type View =
@@ -61,10 +64,12 @@ export function LensApp({
 	scope,
 	name,
 	threadId,
+	initialTitle,
 }: {
 	scope: string;
 	name: string | null;
 	threadId: string;
+	initialTitle: string;
 }) {
 	const text = useLensText();
 	const { t } = text;
@@ -79,11 +84,26 @@ export function LensApp({
 		messagesKey: "messages",
 	});
 
-	const [input, setInput] = useState("");
+	const { register, drafts } = useSessions();
+	const href = `${projectPath(scope)}/chat/${encodeURIComponent(threadId)}`;
+	const [input, updateInput] = useState(() => drafts.get(href) ?? "");
+	function setInput(value: string) {
+		if (value) drafts.set(href, value);
+		else drafts.delete(href);
+		updateInput(value);
+	}
 	const [draft, setDraft] = useState<Draft>(EMPTY);
 	const [preview, setPreview] = useState<Snapshot | null>(null);
 	const [previewNonce, setPreviewNonce] = useState(0);
 	const [regenTurn, setRegenTurn] = useState<number | null>(null);
+	const [stepView, setStepView] = useState<number | "latest">("latest");
+	const [sentenceFocus, setSentenceFocus] = useState<{
+		turn: number;
+		ids: string[];
+	} | null>(null);
+	const [stepsHost, setStepsHost] = useState<HTMLDivElement | null>(null);
+	const [inspecting, setInspecting] = useState(true);
+	const [previewError, setPreviewError] = useState(false);
 	const [shelfOpen, setShelfOpen] = useState(false);
 	const [placed, setPlaced] = useState(0);
 	const modelSettings = useModelSettings();
@@ -105,11 +125,70 @@ export function LensApp({
 		}
 		return out;
 	}, [stream.messages]);
-	const composing =
-		input.trim() !== "" ||
-		draft.pinned.length > 0 ||
-		draft.excluded.length > 0 ||
-		turns.length === 0;
+	const sessionTitle = initialTitle || turns[0]?.q.trim().slice(0, 100) || t("lens.newChat");
+	useEffect(() => {
+		register({ href, scope, projectName: name, title: sessionTitle });
+	}, [register, href, scope, name, sessionTitle]);
+	const stepsIndex = stepView === "latest" ? turns.length - 1 : stepView;
+	const stepsRecord = records[stepsIndex];
+	const composing = !inspecting;
+	const available = useMemo(
+		() =>
+			new Map(
+				(preview?.candidates ?? []).filter(callable).map((c) => [c.id, c]),
+			),
+		[preview],
+	);
+	const effectiveOrder =
+		draft.inputOrder ??
+		(preview?.selected_ids ?? []).filter((id) => available.has(id));
+
+	const sceneVersion = inspecting
+		? (sentenceFocus
+				? records[sentenceFocus.turn]
+				: records[turns.length - 1]
+			)?.versions.at(-1)
+		: undefined;
+	const sceneCandidates = useMemo(() => {
+		const map = new Map((preview?.candidates ?? []).map((c) => [c.id, c]));
+		for (const c of sceneVersion?.candidates ?? []) map.set(c.id, c);
+		return [...map.values()];
+	}, [preview, sceneVersion]);
+	const sceneSelected =
+		sceneVersion?.selected_ids ?? preview?.selected_ids ?? [];
+	const extracted = useMemo(() => {
+		const ids = new Set(sceneSelected);
+		const relevant = sceneCandidates
+			.filter(
+				(c) =>
+					callable(c) &&
+					!ids.has(c.id) &&
+					((c.relevance ?? 0) > 0 || c.retrieval_rank),
+			)
+			.sort(
+				(a, b) =>
+					(b.relevance ?? (b.retrieval_rank ? 1 / b.retrieval_rank : 0)) -
+					(a.relevance ?? (a.retrieval_rank ? 1 / a.retrieval_rank : 0)),
+			)
+			.slice(0, 6);
+		for (const c of relevant) ids.add(c.id);
+		return ids;
+	}, [sceneCandidates, sceneSelected]);
+
+	const addToInput = useCallback(
+		(id: string, before?: string) => {
+			if (!available.has(id) || before === id) return;
+			setInspecting(false);
+
+			setDraft((d) => {
+				const order = without(d.inputOrder ?? effectiveOrder, id);
+				const at = before ? order.indexOf(before) : -1;
+				order.splice(at < 0 ? order.length : at, 0, id);
+				return { excluded: without(d.excluded, id), inputOrder: order };
+			});
+		},
+		[available, effectiveOrder],
+	);
 
 	const reloadOverview = overview.reload;
 	useEffect(() => {
@@ -130,10 +209,13 @@ export function LensApp({
 		const t = setTimeout(() => {
 			previewContext(valuesRef.current, input.trim(), projectId, draft)
 				.then((s) => {
-					if (live) setPreview(s);
+					if (live) {
+						setPreview(s);
+						setPreviewError(false);
+					}
 				})
 				.catch(() => {
-					/* keep the last preview; the agent may still be starting */
+					if (live) setPreviewError(true);
 				});
 		}, 220);
 		return () => {
@@ -166,6 +248,8 @@ export function LensApp({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const noteRef = useRef<HTMLDivElement>(null);
 	const shelfRef = useRef<HTMLButtonElement>(null);
+	const resourcesRef = useRef<HTMLDivElement>(null);
+	const stepsPanelRef = useRef<HTMLElement>(null);
 	const toolsRef = useRef<HTMLDivElement>(null);
 	const engineRef = useRef<FieldEngine | null>(null);
 	const viewRef = useRef<View>({ kind: "draft", snapshot: null });
@@ -178,8 +262,19 @@ export function LensApp({
 		draft,
 		text,
 		shelfOpen,
+		sentenceFocus,
+		extracted,
 	});
-	ctx.current = { composing, preview, records, draft, text, shelfOpen };
+	ctx.current = {
+		composing,
+		preview,
+		records,
+		draft,
+		text,
+		shelfOpen,
+		sentenceFocus,
+		extracted,
+	};
 
 	const viewTurn = useCallback((): number | null => {
 		const msgs = msgsRef.current;
@@ -213,14 +308,21 @@ export function LensApp({
 			};
 		};
 		const sheet = rel(sheetRef.current) ?? { x: 0, y: 0, w: 0, h: 0 };
-		const form = rel(formRef.current) ?? { x: 0, y: 0, w: 0, h: 0 };
+		const form = rel(formRef.current?.querySelector("[data-input-zone]")) ?? {
+			x: 0,
+			y: 0,
+			w: 0,
+			h: 0,
+		};
 		const {
 			composing: drafting,
 			preview: snap,
 			records: recs,
 			text: tx,
 		} = ctx.current;
-		const vt = drafting ? null : viewTurn();
+		const vt = drafting
+			? null
+			: (ctx.current.sentenceFocus?.turn ?? viewTurn());
 		const rec = vt !== null ? recs[String(vt)] : undefined;
 		const view: View =
 			rec && vt !== null
@@ -242,11 +344,16 @@ export function LensApp({
 				? (view.snapshot?.selected_ids ?? [])
 				: [];
 		const visible = candidates.filter(
-			(c) => FIELD_LAYERS.includes(c.layer) && c.status !== "trashed",
+			(c) =>
+				FIELD_LAYERS.includes(c.layer) &&
+				c.status !== "trashed" &&
+				ctx.current.extracted.has(c.id),
 		);
 		const state: Record<string, CardState> = {};
 		visible.forEach((c) => {
 			state[c.id] = cardState(c, selected);
+			if (state[c.id] === "idle" && ctx.current.extracted.has(c.id))
+				state[c.id] = "near";
 		});
 
 		const anchors: FieldModel["anchors"] = {};
@@ -278,19 +385,15 @@ export function LensApp({
 			};
 			if (el) {
 				answer = rel(el);
-				if (el.classList.contains("flipped"))
-					for (const e of el.querySelectorAll<HTMLElement>("[data-iid]"))
-						place(e.dataset.iid!, rel(e)!.y + 14);
-				else
-					el.querySelectorAll<HTMLElement>(".seg[data-src]").forEach((e) => {
-						const y = rel(e)!.y + 12;
-						e.dataset
-							.src!.split(" ")
-							.filter(Boolean)
-							.forEach((id) => {
-								place(id, y);
-							});
-					});
+				el.querySelectorAll<HTMLElement>(".seg[data-src]").forEach((e) => {
+					const y = rel(e)!.y + 12;
+					e.dataset
+						.src!.split(" ")
+						.filter(Boolean)
+						.forEach((id) => {
+							place(id, y);
+						});
+				});
 				if (answer)
 					for (const id of Object.keys(state))
 						place(id, answer.y + answer.h / 2);
@@ -318,6 +421,8 @@ export function LensApp({
 					? ""
 					: (c.scenes ?? []).join(" · ");
 		return {
+			fieldRight: rel(resourcesRef.current)?.x,
+			fieldBottom: rel(stepsPanelRef.current)?.y,
 			cards: visible.map((c) => {
 				const title = tx.title(c);
 				return {
@@ -325,6 +430,11 @@ export function LensApp({
 					layer: c.layer,
 					title,
 					content: c.content,
+					previewUrl:
+						c.layer === "retrieval" && projectId && c.id.startsWith("doc-")
+							? `/api/lens/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(c.id)}/thumbnail`
+							: undefined,
+					previewLabel: tx.t("field.preview", { title }),
 					stale: !!c.stale,
 					scope: scopeLabel(c),
 					kind: tx.layer(c.layer),
@@ -338,7 +448,7 @@ export function LensApp({
 				};
 			}),
 			state,
-			pinned: new Set(v ? v.pinned : ctx.current.draft.pinned),
+			pinned: new Set(v ? v.pinned : (ctx.current.draft.inputOrder ?? [])),
 			anchors,
 			sheet,
 			form,
@@ -349,17 +459,22 @@ export function LensApp({
 			})(),
 			shelf: ctx.current.shelfOpen,
 		};
-	}, [viewTurn]);
+	}, [viewTurn, projectId]);
 
 	// ---------- focus (depth of field) ----------
 	const focus = useCallback((ids: string[] | null, turn?: number) => {
 		engineRef.current?.highlight(ids);
 		const root = stageRef.current;
 		if (!root) return;
-		root.querySelectorAll(".seg.hl, .sg.hl, .item.hl").forEach((e) => {
-			e.classList.remove("hl");
-		});
+		root
+			.querySelectorAll(".seg.hl, .sg.hl, .item.hl, [data-field-id].hl")
+			.forEach((e) => {
+				e.classList.remove("hl");
+			});
 		if (!ids) return;
+		root.querySelectorAll<HTMLElement>("[data-field-id]").forEach((el) => {
+			if (ids.includes(el.dataset.fieldId!)) el.classList.add("hl");
+		});
 		const view = viewRef.current;
 		const t = turn ?? (view.kind === "turn" ? view.turn : null);
 		const el = t !== null ? root.querySelector(`[data-turn="${t}"]`) : null;
@@ -383,6 +498,7 @@ export function LensApp({
 	const pin = useCallback(
 		(ids: string[] | null, turn?: number) => {
 			sticky.current = ids;
+			setSentenceFocus(ids && turn !== undefined ? { turn, ids } : null);
 			focus(ids, turn);
 		},
 		[focus],
@@ -412,14 +528,20 @@ export function LensApp({
 	);
 
 	const changeView = useCallback(
-		(note: Change, fn: (d: Draft) => Draft) => {
+		(note: Change, fn: (d: RewriteChoice) => RewriteChoice) => {
 			const view = viewRef.current;
 			if (stream.isLoading) {
 				toast(t("toast.waitForAnswer"));
 				return;
 			}
 			if (view.kind === "draft") {
-				setDraft((d) => fn(d));
+				setDraft((d) => {
+					const next = fn({
+						excluded: d.excluded,
+						pinned: d.inputOrder ?? effectiveOrder,
+					});
+					return { excluded: next.excluded, inputOrder: next.pinned };
+				});
 				setPreviewNonce((n) => n + 1);
 				return;
 			}
@@ -427,21 +549,9 @@ export function LensApp({
 			const next = fn({ excluded: v.excluded, pinned: v.pinned });
 			void rewrite(view.turn, { ...next, note: [note] });
 		},
-		[rewrite, stream.isLoading, toast, t],
+		[rewrite, stream.isLoading, toast, t, effectiveOrder],
 	);
 
-	const titleOf = useCallback(
-		(id: string) => {
-			const view = viewRef.current;
-			const list =
-				view.kind === "turn"
-					? view.record.versions[view.record.versions.length - 1].candidates
-					: (view.snapshot?.candidates ?? []);
-			const c = list.find((x) => x.id === id);
-			return c ? text.title(c) : id;
-		},
-		[text],
-	);
 	const exclude = useCallback(
 		(id: string, op: Change["op"] = "exclude") =>
 			changeView({ op, id }, (d) => ({
@@ -455,31 +565,12 @@ export function LensApp({
 		(id: string, target: DropTarget, s: CardState) => {
 			const view = viewRef.current;
 			if (target === "composer") {
-				setDraft((d) => ({
-					excluded: without(d.excluded, id),
-					pinned: [...without(d.pinned, id), id],
-				}));
-				toast(t("toast.pinnedNext", { title: titleOf(id) }));
+				addToInput(id);
 				return;
 			}
-			if (target === "answer" && view.kind === "turn") {
-				changeView({ op: "pin", id }, (d) => ({
-					excluded: without(d.excluded, id),
-					pinned: [...without(d.pinned, id), id],
-				}));
-				return;
-			}
-			if ((target === "tray" || target === "fling") && s !== "ex") {
-				exclude(id, target === "fling" ? "remove" : "exclude");
-				return;
-			}
-			if (target === "none" && s === "ex")
-				changeView({ op: "restore", id }, (d) => ({
-					...d,
-					excluded: without(d.excluded, id),
-				}));
+			if (target === "tray" && s !== "ex" && view.kind === "turn") exclude(id);
 		},
-		[changeView, exclude, titleOf, toast, t],
+		[addToInput, exclude],
 	);
 
 	const noSource = t("toast.noSource");
@@ -505,7 +596,11 @@ export function LensApp({
 		);
 		engineRef.current = engine;
 		engine.start();
-		return () => engine.destroy();
+		engine.highlight(sticky.current);
+		return () => {
+			engine.destroy();
+			engineRef.current = null;
+		};
 	}, []);
 
 	// ---------- sentence hover and click ----------
@@ -533,6 +628,9 @@ export function LensApp({
 				handlers.current.pin(null);
 				return;
 			}
+
+			setInspecting(true);
+
 			handlers.current.pin(ids, turnOf(s));
 			s.classList.add("hl");
 			if (!ids.length) toast(handlers.current.noSource);
@@ -563,7 +661,13 @@ export function LensApp({
 	const send = (e: React.FormEvent) => {
 		e.preventDefault();
 		const q = input.trim();
-		if (!q || stream.isLoading) return;
+		if (
+			!q ||
+			stream.isThreadLoading ||
+			stream.isLoading ||
+			effectiveOrder.some((id) => !available.has(id))
+		)
+			return;
 		stream.submit(
 			{
 				messages: [{ type: "human", content: q }],
@@ -572,7 +676,7 @@ export function LensApp({
 					item_id: id,
 					status: "temporarily_ignored",
 				})),
-				manual_memory_ids: draft.pinned,
+				input_order: draft.inputOrder,
 				regen_request: null,
 				locale,
 			} as Partial<LensState>,
@@ -586,6 +690,9 @@ export function LensApp({
 				}),
 			},
 		);
+
+		setInspecting(true);
+		setStepView("latest");
 		setInput("");
 		setDraft(EMPTY);
 		requestAnimationFrame(() => {
@@ -605,7 +712,7 @@ export function LensApp({
 		? stripItems(preview.candidates, preview.selected_ids, input.trim(), text)
 		: stripItems([], [], input.trim(), text);
 	const composingNext = Boolean(
-		composing && (input.trim() || draft.pinned.length),
+		composing && (input.trim() || effectiveOrder.length),
 	);
 	const pending = turns.length > 0 && stream.isLoading && regenTurn === null;
 	// The scope picker joins the row once the overview arrives, and shows a situation's name.
@@ -613,30 +720,38 @@ export function LensApp({
 		JSON.stringify([locale, scope, overview.data?.projects.map((p) => p.name)]),
 	);
 
+	const entering = useHistoryLoading(stream.isThreadLoading);
 	return (
+		<>
+		{entering && <SessionProgress />}
 		<div
+			inert={entering}
 			className="lens-root"
 			ref={stageRef}
 			style={
 				{
 					// Badge text drawn by CSS (::after) on cards the engine renders.
 					"--t-pinned": JSON.stringify(t("lens.badgePinned")),
-					"--t-near": JSON.stringify(t("lens.nearMiss")),
+					"--t-near": JSON.stringify(t("field.related")),
 				} as React.CSSProperties
 			}
 		>
-			<svg className="wires" ref={svgRef} aria-hidden="true" />
-			<div className="lens-zone" ref={trayRef}>
-				<span>{t("lens.zoneTray")}</span>
-			</div>
-			<button
-				type="button"
-				className="lens-shelf"
-				ref={shelfRef}
-				hidden
-				aria-expanded={shelfOpen}
-				onClick={() => setShelfOpen((o) => !o)}
-			/>
+			{
+				<>
+					<svg className="wires" ref={svgRef} aria-hidden="true" />
+					<div className="lens-zone" ref={trayRef}>
+						<span>{t("lens.zoneTray")}</span>
+					</div>
+					<button
+						type="button"
+						className="lens-shelf"
+						ref={shelfRef}
+						hidden
+						aria-expanded={shelfOpen}
+						onClick={() => setShelfOpen((o) => !o)}
+					/>
+				</>
+			}
 
 			<section
 				className="lens-sheet"
@@ -645,9 +760,6 @@ export function LensApp({
 			>
 				<div className="lens-head">
 					<div className="lens-head-row" ref={headRef}>
-						<Link href="/" className="lens-mark">
-							<BrandLogo />
-						</Link>
 						<Link href={projectPath(scope)} className="lens-scope">
 							{name ?? t("lens.ordinary")}
 						</Link>
@@ -663,19 +775,22 @@ export function LensApp({
 								<Library aria-hidden="true" />
 								<span>{t("lens.library")}</span>
 							</Link>
-							<NewChat scope={scope} className="lens-text-btn lens-fold-btn" />
 							<SettingsMenu
 								onManageModels={() => setManagingModels(true)}
 								onManageSituations={() => setManagingSituations(true)}
 							/>
 						</nav>
 					</div>
+					<ConversationTitle
+						threadId={threadId}
+						title={initialTitle || turns[0]?.q.trim().slice(0, 100) || ""}
+					/>
 				</div>
 				{overview.data && (
 					<Inbox overview={overview.data} onChanged={overview.reload} />
 				)}
 				<div className="lens-msgs" ref={msgsRef}>
-					{turns.length === 0 && (
+					{!stream.isThreadLoading && turns.length === 0 && (
 						<div className="lens-empty">
 							<b>{t("lens.emptyTitle")}</b>
 							<span>{t("lens.emptyBody")}</span>
@@ -711,6 +826,18 @@ export function LensApp({
 								<div className="lens-q">{t.q}</div>
 								{(rec || streaming !== null) && (
 									<AnswerCard
+										sourceFocus={
+											sentenceFocus?.turn === i ? sentenceFocus.ids : null
+										}
+										stepsHost={
+											stepsRecord && stepsIndex === i ? stepsHost : null
+										}
+										onShowSteps={() => {
+											setStepView(i);
+											requestAnimationFrame(() =>
+												document.getElementById("turn-steps-canvas")?.focus(),
+											);
+										}}
 										index={i}
 										record={rec}
 										streamingText={streaming}
@@ -719,7 +846,6 @@ export function LensApp({
 										onRewrite={(turn, change) => void rewrite(turn, change)}
 										onUndo={(turn) => submitRegen(turn, { action: "undo" })}
 										onHover={(ids, turn) => hover(ids, turn)}
-										onFlip={() => pin(null)}
 										onStale={(ids, turn) => pin(ids, turn)}
 										threadId={threadId}
 										onMemoryChanged={() => setPreviewNonce((n) => n + 1)}
@@ -742,16 +868,30 @@ export function LensApp({
 				</div>
 				<form className="lens-composer" ref={formRef} onSubmit={send}>
 					{/* The line under the bar teaches it once; after that it only speaks while you type. */}
+					<OrderedInput
+						order={effectiveOrder}
+						candidates={available}
+						onAdd={addToInput}
+						onMove={addToInput}
+						onRemove={(id) =>
+							setDraft((d) => ({
+								...d,
+								excluded: [...without(d.excluded, id), id],
+								inputOrder: without(d.inputOrder ?? effectiveOrder, id),
+							}))
+						}
+					/>
 					<ContextMeter
 						items={items}
 						details={composingNext || turns.length === 0}
-						idleHint={turns.length === 0 ? t("lens.stripIdle") : undefined}
 						pressed={stripRemovals}
 						onRemove={(id) => {
 							setStripRemovals((n) => n + 1);
 							setDraft((d) => ({
-								excluded: [...without(d.excluded, id), id],
-								pinned: without(d.pinned, id),
+								excluded: available.has(id)
+									? d.excluded
+									: [...without(d.excluded, id), id],
+								inputOrder: without(d.inputOrder ?? effectiveOrder, id),
 							}));
 							toast(
 								t("toast.removedNext", {
@@ -773,7 +913,11 @@ export function LensApp({
 							ref={inputRef}
 							rows={1}
 							value={input}
-							onChange={(e) => setInput(e.target.value)}
+							onChange={(e) => {
+								pin(null);
+								setInput(e.target.value);
+								setInspecting(false);
+							}}
 							onKeyDown={(e) => {
 								// Enter also confirms an IME composition; that must not send.
 								if (
@@ -797,7 +941,12 @@ export function LensApp({
 							<button
 								className="lens-send"
 								type="submit"
-								disabled={!input.trim() || stream.isLoading}
+								disabled={
+									!input.trim() ||
+									stream.isThreadLoading ||
+									stream.isLoading ||
+									effectiveOrder.some((id) => !available.has(id))
+								}
 								aria-label={t("lens.send")}
 								title={t("lens.send")}
 							>
@@ -812,17 +961,53 @@ export function LensApp({
 
 			{/* Which request the field shows, and its tools; only what is needed right now shows. */}
 			<div className="lens-fieldbar" ref={toolsRef}>
+				<button
+					type="button"
+					className="lens-text-btn"
+					onClick={() => {
+						pin(null);
+						setInspecting(false);
+					}}
+				>
+					{t("field.next")}
+				</button>
 				<div className="lens-field-note" ref={noteRef} />
 				{placed > 0 && (
 					<button
 						type="button"
-						className="lens-text-btn lens-float"
+						className="lens-text-btn"
 						onClick={() => engineRef.current?.tidy()}
 					>
 						{t("lens.tidy", { count: placed })}
 					</button>
 				)}
 			</div>
+			<div ref={resourcesRef} className="scene-resources">
+				<ContextField
+					candidates={sceneCandidates.filter((c) => !extracted.has(c.id))}
+					query={input}
+					order={effectiveOrder}
+					onAdd={addToInput}
+					onHover={hover}
+					error={previewError}
+					onRetry={() => setPreviewNonce((n) => n + 1)}
+				/>
+			</div>
+			{stepsRecord && (
+				<section
+					ref={stepsPanelRef}
+					id="turn-steps-canvas"
+					tabIndex={-1}
+					className="steps-canvas"
+					aria-label={t("turnSteps.heading")}
+				>
+					<header>
+						<h2>{t("turnSteps.turnHeading", { n: Number(stepsIndex) + 1 })}</h2>
+					</header>
+					<div ref={setStepsHost} />
+				</section>
+			)}
+
 			{managingSituations && (
 				<SituationSettings
 					current={overview.data?.scenes ?? []}
@@ -843,5 +1028,6 @@ export function LensApp({
 				{toastMsg}
 			</div>
 		</div>
+		</>
 	);
 }

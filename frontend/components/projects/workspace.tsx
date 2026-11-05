@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { MenuSelect } from "@/components/lens/menu-select";
 import { saveSettings } from "@/lib/projects/settings";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { NewChat } from "./new-chat";
@@ -80,10 +81,12 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				}}
 			/>
 			<main className="pr-main">
-				<div className="pr-top">
-					<Link href="/">{t("projects.all")}</Link>
-					{scope && title && <span> / {title}</span>}
-				</div>
+				{scope && (
+					<div className="pr-top">
+						<Link href="/">{t("projects.all")}</Link>
+						{scope && title && <span> / {title}</span>}
+					</div>
+				)}
 				<header className="pr-header">
 					<h1>
 						{scope ? <Folder /> : <Folders />}
@@ -160,14 +163,15 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 							)}
 							{tab === "chats" && (
 								<div className="pr-layout">
-									<select
-										aria-label={t("projects.sort")}
+									<MenuSelect
+										label={t("projects.sort")}
 										value={sort}
-										onChange={(e) => setSort(e.target.value)}
-									>
-										<option value="recent">{t("projects.modified")}</option>
-										<option value="name">{t("projects.name")}</option>
-									</select>
+										onChange={setSort}
+										options={[
+											{ value: "recent", label: t("projects.modified") },
+											{ value: "name", label: t("projects.name") },
+										]}
+									/>
 									<button
 										type="button"
 										aria-label={t("projects.grid")}

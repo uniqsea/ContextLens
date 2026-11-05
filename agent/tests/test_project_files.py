@@ -29,6 +29,56 @@ class ProjectFilesTests(StoreTestCase):
         snapshot = prepare_snapshot({"project_id": self.project, "messages": [HumanMessage(content=question)]})
         return [c for c in snapshot["candidates"] if c["layer"] == "retrieval"]
 
+    def test_explicit_field_separates_relevance_from_membership_and_request_order(self):
+        project_files.attach(self.project, [str(self.first), str(self.second)])
+        (self.first / "unrelated.md").write_text("A fictional weather vane rotates clockwise.")
+        (self.first / "opaque.png").write_bytes(b"\x00fictional binary")
+        self.add("Fictional lanterns have a violet switch.", scope=self.project)
+        other = self.add("Private scope fixture", scope=self.other)
+        state = {"project_id": self.project, "messages": [HumanMessage(content="lanterns")], "input_order": []}
+        preview = prepare_snapshot(state)
+        files = {c["title"]: c for c in preview["candidates"] if c["layer"] == "retrieval"}
+        self.assertEqual(set(files), {"maps/nested/layout.md", "maps/unrelated.md", "rules/notes.txt"})
+        self.assertIsNone(files["maps/unrelated.md"]["retrieval_rank"])
+        self.assertGreaterEqual(files["maps/nested/layout.md"]["retrieval_rank"], 1)
+        [mem] = [c for c in preview["candidates"] if c["layer"] == "memory"]
+        self.assertGreater(mem["relevance"], 0)
+        self.assertEqual(preview["selected_ids"], ["sys-001", "usr-001"])
+        self.assertEqual(preview["file_dependencies"], [])
+        chosen = [files["maps/unrelated.md"]["id"], mem["id"], files["rules/notes.txt"]["id"]]
+        for order in [chosen, list(reversed(chosen))]:
+            result = prepare_snapshot({**state, "input_order": [*order, order[0], other]})
+            self.assertEqual(result["input_order"], order)
+            self.assertEqual(result["selected_ids"], ["sys-001", *order, "usr-001"])
+            prompt = result["messages"][0]["content"]
+            positions = [prompt.index(f"[{source_id}]") for source_id in order]
+            self.assertEqual(positions, sorted(positions))
+            self.assertNotIn("indigo ink", prompt)
+            self.assertNotIn("Private scope fixture", prompt)
+            self.assertEqual({d["path"] for d in result["file_dependencies"]}, {"unrelated.md", "notes.txt"})
+            self.assertEqual(next(c for c in result["candidates"] if c["id"] == mem["id"])["relevance"], mem["relevance"])
+
+    def test_field_ids_survive_query_changes_with_overlapping_folders(self):
+        project_files.attach(self.project, [str(self.first), str(self.first / "nested")])
+        empty = {"project_id": self.project, "input_order": [], "messages": []}
+        [file] = [c for c in prepare_snapshot(empty)["candidates"] if c["layer"] == "retrieval"]
+        for question in ["layout", "lanterns", "unrelated"]:
+            snapshot = prepare_snapshot({**empty, "input_order": [file["id"]],
+                                         "messages": [HumanMessage(content=question)]})
+            self.assertEqual(snapshot["input_order"], [file["id"]])
+            self.assertEqual(len(snapshot["file_dependencies"]), 1)
+
+    def test_explicit_file_tools_enforce_read_and_listing_selection(self):
+        from contextlens.project_files.index import browse
+
+        project_files.attach(self.project, [str(self.first), str(self.second)])
+        first, second = self.search()
+        allowed = {first["id"]}
+        self.assertEqual(browse(self.project, "", second["id"], 0, set(), allowed)[1], {})
+        listing, _ = browse(self.project, "", "", 0, set(), allowed)
+        self.assertIn(first["title"], listing)
+        self.assertNotIn(second["title"], listing)
+
     def test_multi_folder_picker_and_live_scoped_retrieval(self):
         client = TestClient(app)
         url = f"/lens/projects/{self.project}/folders"
@@ -103,6 +153,32 @@ class ProjectFilesTests(StoreTestCase):
         self.assertEqual(browse(self.project, "", doc["id"], 0, {doc["id"]})[1], {})
         listing, _ = browse(self.project, ".png", "", 0, set())
         self.assertIn("sample.png", listing)
+
+    def test_thumbnail_reads_document_start_and_is_project_scoped(self):
+        from contextlens.project_files.thumbnails import thumbnail
+        from contextlens.memory.types import MemoryError
+        self.plan.write_text("# Fictional harbour\n\n" + "Page opening. " * 180 + "\nMatch: indigo")
+        project_files.attach(self.project, [str(self.first)])
+        source = next(c for c in self.search("indigo") if c["title"].endswith("layout.md"))
+        data, mime = thumbnail(self.project, source["id"])
+        self.assertEqual(mime, "image/svg+xml")
+        self.assertIn(b"Fictional harbour", data)
+        self.assertNotIn(b"Match: indigo", data)
+        with self.assertRaises(MemoryError):
+            thumbnail(self.other, source["id"])
+        res = TestClient(app).get(f"/lens/projects/{self.project}/files/{source['id']}/thumbnail")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers["cache-control"], "private, no-store")
+        folder = project_files.folders(self.project)[0]
+        project_files.detach(self.project, folder["id"])
+        self.assertEqual(TestClient(app).get(f"/lens/projects/{self.project}/files/{source['id']}/thumbnail").status_code, 404)
+
+    def test_html_thumbnail_does_not_run_or_load_document_content(self):
+        from contextlens.project_files.thumbnails import _text_page
+        data, _ = _text_page("fiction.html", "<h1>Fictional greeting</h1><script>secretScript()</script><img src='https://example.invalid/a.png'>")
+        self.assertIn(b"Fictional greeting", data)
+        self.assertNotIn(b"secretScript", data)
+        self.assertNotIn(b"https://", data)
 
     def test_create_with_folders_validates_before_persisting(self):
         client = TestClient(app)

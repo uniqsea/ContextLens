@@ -7,9 +7,17 @@ export default async function ChatPage({
 	params: Promise<{ scope: string; thread: string }>;
 }) {
 	const { scope, thread } = await params;
-	const [name] = await Promise.all([
+	const [name, title] = await Promise.all([
 		projectName(scope),
 		checkThread(scope, thread),
 	]);
-	return <LensApp key={thread} scope={scope} name={name} threadId={thread} />;
+	return (
+		<LensApp
+			key={thread}
+			scope={scope}
+			name={name}
+			threadId={thread}
+			initialTitle={title}
+		/>
+	);
 }

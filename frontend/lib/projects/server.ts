@@ -28,6 +28,7 @@ interface ThreadSummary {
 		project?: string;
 		scope?: string;
 		title?: string;
+		firstMessage?: string;
 		preview?: string;
 	};
 }
@@ -46,7 +47,8 @@ async function threads(filter: {
 			extract: {
 				scope: "metadata.project_scope",
 				project: "values.project_id",
-				title: "values.messages[0].content",
+				title: "metadata.title",
+				firstMessage: "values.messages[0].content",
 				preview: "values.messages[-1].content",
 			},
 		}),
@@ -58,10 +60,19 @@ function owner({ extracted }: ThreadSummary) {
 	return extracted.scope ?? extracted.project ?? ORDINARY;
 }
 
+function threadTitle({ extracted }: ThreadSummary) {
+	const { title, firstMessage } = extracted;
+	if (typeof title === "string" && title.trim()) return title.trim();
+	return typeof firstMessage === "string"
+		? firstMessage.trim().slice(0, 100)
+		: "";
+}
+
 export async function checkThread(scope: string, id: string) {
 	if (!/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(id)) notFound();
 	const [thread] = await threads({ ids: [id], limit: 1 });
 	if (!thread || thread.thread_id !== id || owner(thread) !== scope) notFound();
+	return threadTitle(thread);
 }
 
 export async function conversationIndex(): Promise<Conversation[]> {
@@ -70,12 +81,12 @@ export async function conversationIndex(): Promise<Conversation[]> {
 	for (let offset = 0; ; offset += limit) {
 		const page = await threads({ limit, offset });
 		for (const thread of page) {
-			const { title, preview } = thread.extracted;
+			const { preview } = thread.extracted;
 			conversations.push({
 				id: thread.thread_id,
 				scope: owner(thread),
 				updated_at: thread.updated_at,
-				title: typeof title === "string" ? title.slice(0, 100) : "",
+				title: threadTitle(thread),
 				preview:
 					typeof preview === "string"
 						? preview.replace(/\s*\[\[[^\]]*\]\]/g, "").slice(0, 200)

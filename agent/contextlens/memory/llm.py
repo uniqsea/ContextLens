@@ -18,6 +18,6 @@ def structured(schema: type[T], instructions: str, text: str) -> T:
     return model.invoke([("system", instructions), ("human", text)])
 
 
-def embedder() -> Embedder | None:
-    embedding = models.embedding_model()
+def embedder(*, local_only: bool = False) -> Embedder | None:
+    embedding = models.embedding_model(local_only=local_only)
     return Embedder(*embedding) if embedding else None

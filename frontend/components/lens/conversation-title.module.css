@@ -1,0 +1,43 @@
+.row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 8px;
+	min-width: 0;
+}
+
+.title,
+.input {
+	min-width: 0;
+	color: var(--l-ink);
+	font: 600 18px / 1.4 var(--l-ui);
+}
+
+.title {
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.input {
+	flex: 1;
+	height: 32px;
+	border: 0;
+	border-radius: 8px;
+	padding: 0 8px;
+	background: var(--l-fill);
+}
+
+.row button {
+	flex: none;
+}
+
+.row button:disabled {
+	opacity: 0.45;
+}
+
+.error {
+	color: var(--l-risk);
+	font-size: 13px;
+}

@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
-import { useState } from "react";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 
 export interface MenuOption {
 	value: string;
@@ -17,7 +18,7 @@ export interface MenuOption {
  * (a saved model the catalog no longer lists); it still shows, under its own name. */
 export function MenuSelect({
 	label,
-	value = "",
+	value,
 	options,
 	placeholder,
 	onChange,
@@ -33,40 +34,42 @@ export function MenuSelect({
 	triggerClassName?: string;
 	chevron?: boolean;
 }) {
-	const [open, setOpen] = useState(false);
-	const shown =
-		options.find((o) => o.value === value)?.label || value || placeholder;
+	const selected = options.find((option) => option.value === value);
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className={triggerClassName} aria-label={label}>
-				<span>{shown}</span>
-				{chevron && <ChevronDown aria-hidden="true" />}
-			</PopoverTrigger>
-			<PopoverContent
+		<Select
+			items={options}
+			value={value ?? null}
+			onValueChange={(next) => {
+				if (next !== null) onChange(next);
+			}}
+		>
+			<SelectTrigger
+				className={triggerClassName}
+				aria-label={label}
+				chevron={chevron}
+			>
+				<SelectValue placeholder={placeholder}>
+					{selected?.label ?? (value || placeholder)}
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent
 				align="start"
 				sideOffset={6}
+				alignItemWithTrigger={false}
 				className="lens-theme lens-menu"
-				// A menu opened from a dialog sits in a portal outside it; keep the wheel working.
-				onWheel={(e) => e.stopPropagation()}
 			>
-				<div className="lens-menu-list">
-					{options.map((o) => (
-						<button
-							key={o.value}
-							type="button"
+				<SelectGroup>
+					{options.map((option) => (
+						<SelectItem
+							key={option.value}
+							value={option.value}
 							className="lens-menu-item"
-							aria-pressed={o.value === value}
-							onClick={() => {
-								setOpen(false);
-								onChange(o.value);
-							}}
 						>
-							{o.label}
-							{o.value === value && <Check aria-hidden="true" />}
-						</button>
+							{option.label}
+						</SelectItem>
 					))}
-				</div>
-			</PopoverContent>
-		</Popover>
+				</SelectGroup>
+			</SelectContent>
+		</Select>
 	);
 }

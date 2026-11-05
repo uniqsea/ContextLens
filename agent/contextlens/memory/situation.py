@@ -84,12 +84,13 @@ class Reading(BaseModel):
     new_scene_definition: str = ""
 
 
-def identify(messages: list[tuple[str, str]], scope: str) -> dict:
+def identify(messages: list[tuple[str, str]], scope: str, *, allowed_ids: set[str] | None = None) -> dict:
     """The reading of the moment; if the model fails, the bare message stands in for what is going on."""
     question = messages[-1][1] if messages else ""
     active = operations.active_scenes()
     scenes = [s.name for s in active]
-    known = [" / ".join([c["name"], *c["aliases"]]) for c in operations.concepts_in(scope)[:_KNOWN_CONCEPTS]]
+    vocabulary = operations.concepts_in(scope, allowed_ids)
+    known = [" / ".join([c["name"], *c["aliases"]]) for c in vocabulary[:_KNOWN_CONCEPTS]]
     recent = "\n".join(f"{role}: {text}" for role, text in messages[-_RECENT_MESSAGES:])
     listed = _listed([{"name": s.name, "definition": s.definition} for s in active])
     prompt = f"Scenes:\n{listed}\nKnown concepts: {known or 'none yet'}\n\nConversation:\n{recent}"
@@ -100,7 +101,7 @@ def identify(messages: list[tuple[str, str]], scope: str) -> dict:
         return {"scenes": [], "doing": question[:80], "concepts": [], "new_scene": None, "degraded": True}
     return {"scenes": [s for s in dict.fromkeys(reading.scenes) if s in scenes][:_MOST_SCENES],
             "doing": reading.doing.strip() or question[:80],
-            "concepts": _in_play(reading.concepts, recent, scope), "new_scene": reading.new_scene or None,
+            "concepts": _in_play(reading.concepts, recent, vocabulary), "new_scene": reading.new_scene or None,
             "new_scene_definition": reading.new_scene_definition, "degraded": False}
 
 
@@ -113,11 +114,11 @@ def read_plainly(text: str, scope: str) -> dict:
     return {"scenes": [], "doing": text, "concepts": named, "new_scene": None, "degraded": False}
 
 
-def _in_play(names: list[str], recent: str, scope: str) -> list[str]:
+def _in_play(names: list[str], recent: str, vocabulary: list[dict]) -> list[str]:
     """Small models pick from a list because it is there: a known concept counts only if the
     conversation actually says one of its names. Names it does not know yet are taken as said."""
     text = recent.lower()
-    known = {n.lower(): [c["name"], *c["aliases"]] for c in operations.concepts_in(scope)
+    known = {n.lower(): [c["name"], *c["aliases"]] for c in vocabulary
              for n in (c["name"], *c["aliases"])}
     return [n for n in dict.fromkeys(names) if n == operations.SELF or n.lower() not in known
             or any(alias.lower() in text for alias in known[n.lower()])]

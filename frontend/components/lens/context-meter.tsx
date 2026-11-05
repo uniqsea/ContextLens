@@ -32,7 +32,10 @@ export function stripItems(
 	text: ReturnType<typeof useLensText>,
 ): StripItem[] {
 	const sys = candidates.find((c) => c.layer === "system");
-	const picked = candidates.filter((c) => selected.includes(c.id));
+	const byId = new Map(candidates.map((c) => [c.id, c]));
+	const picked = selected
+		.map((id) => byId.get(id))
+		.filter((c): c is Candidate => !!c && PICKED.includes(c.layer));
 	return [
 		{
 			id: sys?.id ?? "sys-001",
@@ -40,17 +43,13 @@ export function stripItems(
 			tokens: sys?.tokens ?? 100,
 			layer: "system",
 		},
-		...PICKED.flatMap((layer) =>
-			picked
-				.filter((c) => c.layer === layer)
-				.map((c) => ({
-					id: c.id,
-					label: text.title(c),
-					tokens: c.tokens,
-					layer: c.layer,
-					warn: !!c.stale,
-				})),
-		),
+		...picked.map((c) => ({
+			id: c.id,
+			label: text.title(c),
+			tokens: c.tokens,
+			layer: c.layer,
+			warn: !!c.stale,
+		})),
 		{
 			id: "usr-001",
 			label: query ? text.t("items.question") : text.t("items.waiting"),

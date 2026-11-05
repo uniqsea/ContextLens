@@ -1,0 +1,10 @@
+.pr-file-icon { --file-color: var(--l-muted); display: inline-grid; place-items: center; flex: 0 0 28px; height: 28px; border-radius: 7px; background: color-mix(in srgb, var(--file-color) 12%, transparent); }
+.pr-file-icon[data-tone=folder] { --file-color: var(--l-doc); }
+.pr-file-icon[data-tone=blue] { --file-color: var(--l-mem); }
+.pr-file-icon[data-tone=green], .pr-file-icon[data-tone=teal] { --file-color: var(--l-hist); }
+.pr-file-icon[data-tone=red] { --file-color: var(--l-risk); }
+.pr-file-icon[data-tone=orange] { --file-color: light-dark(#a44718, #ffac76); }
+.pr-file-icon[data-tone=violet] { --file-color: light-dark(#7747ad, #c49bff); }
+.dark .pr-file-icon { color-scheme: dark; }
+.pr-file-icon svg { width: 18px; height: 18px; color: var(--file-color); }
+.pr-file-icon[data-tone=folder] svg { fill: color-mix(in srgb, currentColor 27%, transparent); }

@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 
 from langchain.tools import ToolRuntime, tool
 
+from contextlens.turn_trace import capture_calls
+
 from . import operations
 from .recall import recall as recollect
 from .recall import render
@@ -22,6 +24,8 @@ class TurnContext:
     situation: dict = field(default_factory=dict)
     thread_id: str | None = None
     turn: int | None = None
+    # None preserves automatic lookup for callers without an explicit context selection.
+    allowed_context: set[str] | None = None
 
 
 Runtime = ToolRuntime[TurnContext]
@@ -32,17 +36,18 @@ def identify_situation(what_changed: str, runtime: Runtime) -> tuple[str, dict]:
     """Read the situation again when the task has moved on from where the turn began, and bring up the
     memories for it. Say what changed in your own words."""
     ctx = runtime.context
-    situation = identify([("user", ctx.question), ("assistant", what_changed)], ctx.scope)
-    found = recollect(what_changed, situation, ctx.scope)["memories"]
+    with capture_calls() as calls:
+        situation = identify([("user", ctx.question), ("assistant", what_changed)], ctx.scope, allowed_ids=ctx.allowed_context)
+    found = recollect(what_changed, situation, ctx.scope, allowed_ids=ctx.allowed_context)["memories"]
     text = f"Now: {situation['doing']}\n{render(found) or 'Nothing further comes to mind.'}"
-    return text, {"situation": situation, "memories": found}
+    return text, {"situation": situation, "memories": found, "reading_calls": list(calls)}
 
 
 @tool("recall", response_format="content_and_artifact")
 def recall_tool(query: str, runtime: Runtime) -> tuple[str, dict]:
     """Search memory beyond what you were given, when the task depends on the user or past work."""
     ctx = runtime.context
-    found = recollect(query, ctx.situation, ctx.scope)["memories"]
+    found = recollect(query, ctx.situation, ctx.scope, allowed_ids=ctx.allowed_context)["memories"]
     return render(found) or "No memory matches.", {"memories": found}
 
 
@@ -53,7 +58,8 @@ def open_concept(name: str, runtime: Runtime) -> tuple[str, dict]:
     if not concepts:
         return f"Nothing is remembered about {name}.", {"memories": []}
     found = [m for m in memories_in(operations.visible_scopes(runtime.context.scope))
-             if concepts[0].id in m.concepts]
+             if concepts[0].id in m.concepts and
+             (runtime.context.allowed_context is None or m.id in runtime.context.allowed_context)]
     lines = [f"- [{m.id}] {m.learned}" + (f" (while {m.situation})" if m.situation else "") for m in found]
     return "\n".join(lines) or f"Nothing is remembered about {name}.", {"memories": [m.id for m in found]}
 
@@ -103,6 +109,8 @@ def propose_scene(name: str, definition: str, reason: str, runtime: Runtime) -> 
 
 
 def _mine(memory_id: str, ctx: TurnContext) -> str:
+    if ctx.allowed_context is not None and memory_id not in ctx.allowed_context:
+        raise MemoryError("This memory was not included in the turn.")
     return operations.visible_memory(memory_id, ctx.scope).id
 
 

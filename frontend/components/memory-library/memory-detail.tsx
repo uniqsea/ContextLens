@@ -9,6 +9,7 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord, Scene, TimelineFact } from "@/lib/memory-types";
 import { MemoryEditor } from "./editor";
@@ -72,19 +73,19 @@ export function MemoryDetail({
 			<X aria-hidden="true" />
 		</DialogClose>
 	);
-	// An open form holds typing that a stray click or Escape must not lose.
-	const hold = (e: Event) => {
-		if (editing) e.preventDefault();
-	};
-
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog
+			open
+			disablePointerDismissal={editing}
+			onOpenChange={(open, details) => {
+				if (editing && details.reason === "escape-key") details.cancel();
+				else if (!open) onClose();
+			}}
+		>
 			<DialogContent
 				className={`lens-theme lib-detail${m ? "" : " is-solo"}`}
 				showCloseButton={false}
 				aria-describedby={undefined}
-				onInteractOutside={hold}
-				onEscapeKeyDown={hold}
 			>
 				{m && (
 					<div className="lib-detail-main">
@@ -171,17 +172,12 @@ export function MemoryDetail({
 										{!trashed && (
 											<div className="lib-prop">
 												<span id="lib-always-on">{t("alwaysOn")}</span>
-												<button
-													type="button"
-													role="switch"
-													className="lens-switch"
+												<Switch
 													aria-labelledby="lib-always-on"
-													aria-checked={m.always_on}
+													checked={m.always_on}
 													title={t(m.always_on ? "unpin" : "pin")}
-													onClick={() =>
-														onChange(() =>
-															memoryApi.setAlwaysOn(m.id, !m.always_on),
-														)
+													onCheckedChange={(checked) =>
+														onChange(() => memoryApi.setAlwaysOn(m.id, checked))
 													}
 												/>
 											</div>

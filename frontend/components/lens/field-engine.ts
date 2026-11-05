@@ -5,6 +5,7 @@
  */
 import type { CardState, Layer } from "@/lib/lens/types";
 import { layerColor } from "@/lib/lens/types";
+import { Wire } from "./wire";
 
 export interface FieldCard {
 	id: string;
@@ -12,6 +13,8 @@ export interface FieldCard {
 	title: string;
 	content: string;
 	meta: string;
+	previewUrl?: string;
+	previewLabel?: string;
 	stale: boolean;
 	scope: string;
 	/** Worded by the caller: the layer's name and the unlink handle's label. */
@@ -34,6 +37,8 @@ export interface Rect {
 }
 
 export interface FieldModel {
+	fieldRight?: number;
+	fieldBottom?: number;
 	cards: FieldCard[];
 	state: Record<string, CardState>;
 	pinned: Set<string>;
@@ -47,7 +52,7 @@ export interface FieldModel {
 	shelf: boolean;
 }
 
-export type DropTarget = "tray" | "composer" | "answer" | "fling" | "none";
+export type DropTarget = "tray" | "composer" | "none";
 
 export interface FieldHandlers {
 	model(): FieldModel;
@@ -62,9 +67,7 @@ export interface FieldHandlers {
 interface Live {
 	card: FieldCard;
 	el: HTMLButtonElement;
-	hit: SVGPathElement;
-	wire: SVGPathElement;
-	dot: SVGCircleElement;
+	wire: Wire;
 	x: number;
 	y: number;
 	vx: number;
@@ -82,7 +85,6 @@ interface Live {
 	seed: number;
 }
 
-const NS = "http://www.w3.org/2000/svg";
 /** Column order for sent cards: what you own nearest, the transcript farthest. */
 const CATEGORIES: Layer[] = ["memory", "retrieval", "short_term"];
 const CARD_W = 212;
@@ -112,7 +114,6 @@ export class FieldEngine {
 		sx: number;
 		sy: number;
 		moved: boolean;
-		hist: number[][];
 	} | null = null;
 	private handle: HTMLButtonElement;
 	private heads = new Map<Layer, HTMLDivElement>();
@@ -147,7 +148,7 @@ export class FieldEngine {
 			const l = this.handleFor;
 			if (!l) return;
 			this.hideHandle(true);
-			this.snap(l);
+			l.wire.snap();
 			this.h.onUnlink(l.card.id);
 		});
 		stage.appendChild(this.handle);
@@ -165,6 +166,8 @@ export class FieldEngine {
 
 	destroy() {
 		cancelAnimationFrame(this.raf);
+		this.stage.style.height = "";
+		this.stage.classList.remove("dragging", "over-composer", "focusing");
 		for (const l of [...this.live.values()]) this.removeLive(l);
 		this.handle.remove();
 		this.heads.forEach((h) => {
@@ -204,8 +207,7 @@ export class FieldEngine {
 		this.live.forEach((l) => {
 			const on = !!ids && ids.includes(l.card.id);
 			l.el.classList.toggle("hl", on);
-			l.wire.classList.toggle("hl", on);
-			l.dot.classList.toggle("hl", on);
+			l.wire.highlight(on);
 		});
 	}
 
@@ -220,7 +222,8 @@ export class FieldEngine {
 					l.card.content !== card.content ||
 					l.card.meta !== card.meta ||
 					l.card.kind !== card.kind ||
-					l.card.scope !== card.scope
+					l.card.scope !== card.scope ||
+					l.card.previewUrl !== card.previewUrl
 				)
 					this.fill(l.el, card);
 				l.card = card;
@@ -237,11 +240,37 @@ export class FieldEngine {
 			'<div class="t"></div><div class="b"></div><div class="k"><i></i><em></em><span></span></div>';
 		(el.querySelector("em") as HTMLElement).textContent = c.kind;
 		(el.querySelector(".t") as HTMLElement).textContent = c.title;
-		// Line-clamped in CSS; history items carry the model's Markdown markers.
-		(el.querySelector(".b") as HTMLElement).textContent = c.content.replace(
-			/\*\*/g,
-			"",
-		);
+		el.classList.toggle("document-card", c.layer === "retrieval");
+		if (c.layer === "retrieval") {
+			const title = el.querySelector(".t") as HTMLElement;
+			title.textContent = c.title.split("/").at(-1) ?? c.title;
+			title.title = c.title;
+			if (c.previewUrl) {
+				const cover = document.createElement("div");
+				cover.className = "document-cover";
+				const image = document.createElement("img");
+				image.src = c.previewUrl;
+				image.alt = c.previewLabel ?? c.title;
+				image.loading = "lazy";
+				image.draggable = false;
+				image.addEventListener(
+					"error",
+					() => {
+						image.remove();
+						cover.classList.add("unavailable");
+						cover.textContent =
+							c.kind + " · " + (c.title.split(".").at(-1)?.toUpperCase() ?? "");
+					},
+					{ once: true },
+				);
+				cover.append(image);
+				el.prepend(cover);
+			}
+		}
+		const content = el.querySelector(".b") as HTMLElement;
+		content.textContent = c.content.replace(/\*\*/g, "");
+		if (c.layer === "retrieval") content.title = c.content;
+
 		const m = el.querySelector(".k span") as HTMLElement;
 		m.textContent = [c.scope, c.meta].filter(Boolean).join(" · ");
 		m.classList.toggle("stale", c.stale);
@@ -255,22 +284,14 @@ export class FieldEngine {
 		el.style.width = this.CW + "px";
 		this.fill(el, card);
 		this.stage.appendChild(el);
-		const hit = document.createElementNS(NS, "path");
-		hit.setAttribute("class", "hit");
-		const wire = document.createElementNS(NS, "path");
-		wire.setAttribute("class", "wire");
-		wire.style.setProperty("--c", layerColor(card.layer));
-		const dot = document.createElementNS(NS, "circle");
-		dot.setAttribute("class", "dot");
-		dot.setAttribute("r", "3");
-		dot.style.setProperty("--c", layerColor(card.layer));
-		this.svg.append(hit, wire, dot);
 		const l: Live = {
 			card,
 			el,
-			hit,
-			wire,
-			dot,
+			wire: new Wire(this.svg, {
+				color: layerColor(card.layer),
+				startDot: true,
+				interactive: true,
+			}),
 			x: (this.W || this.stage.clientWidth) - this.CW - 20,
 			y: 80,
 			vx: 0,
@@ -292,9 +313,7 @@ export class FieldEngine {
 
 	private removeLive(l: Live) {
 		l.el.remove();
-		l.hit.remove();
 		l.wire.remove();
-		l.dot.remove();
 		if (this.handleFor === l) this.hideHandle(true);
 		this.live.delete(l.card.id);
 	}
@@ -391,7 +410,7 @@ export class FieldEngine {
 			// Back from a phone width: the stage fills the window again.
 			if (this.stage.style.height) this.stage.style.height = "";
 			const colX = m.sheet.x + m.sheet.w + 48;
-			const right = this.W - 18;
+			const right = (m.fieldRight ?? this.W) - 18;
 			const gap = 16;
 			const step = this.CW + gap;
 			const near = groups.near.sort(sortByOrder);
@@ -405,13 +424,14 @@ export class FieldEngine {
 			);
 			const inNeed = Math.max(1, cats.length);
 			const side = near.length > 0 || (m.shelf && idle.length > 0);
-			const sideCols = !side
-				? 0
-				: right - colX >= (inNeed + 2) * step + 32
-					? 2
-					: 1;
+			const sideCols =
+				!side || right - colX < 2 * step
+					? 0
+					: right - colX >= (inNeed + 2) * step + 32
+						? 2
+						: 1;
 			const sideW = sideCols ? sideCols * step - gap : 0;
-			const sideX = right - sideW;
+			const sideX = sideCols ? right - sideW : colX;
 			const fit = Math.max(
 				1,
 				Math.floor(
@@ -422,7 +442,7 @@ export class FieldEngine {
 			const bottomOf = (x: number) =>
 				groups.ex.length && x + this.CW > this.tray.x
 					? this.tray.y - 12
-					: this.H - 12;
+					: (m.fieldBottom ?? this.H) - 12;
 			const limit = (c: number) => bottomOf(colX + c * step);
 			const label = 22;
 			const first = 84;
@@ -519,11 +539,16 @@ export class FieldEngine {
 			});
 
 			// Near misses first, at full height: they are the ones worth reading.
-			let y = 62;
+			let y = sideCols
+				? 62
+				: Math.max(62, ...groups.in.map((l) => l.ty + cardH(l) + 14));
 			const cols = Math.max(1, sideCols);
+			if (near.length && y + near.length * (TIGHT_H + 12) > bottomOf(sideX)) {
+				for (const l of near) l.tight = true;
+			}
 			near.forEach((l, j) => {
 				l.tx = sideX + (j % cols) * step;
-				l.ty = y + Math.floor(j / cols) * (l.h + 12);
+				l.ty = y + Math.floor(j / cols) * (cardH(l) + 12);
 				l.deck = true;
 			});
 			y += near.length
@@ -638,6 +663,10 @@ export class FieldEngine {
 		this.live.forEach((l) => {
 			const s = m.state[l.card.id] ?? "idle";
 			if (!(this.drag && this.drag.l === l)) {
+				if (rm) {
+					l.x = l.tx;
+					l.y = l.ty;
+				}
 				l.vx = (l.vx + (l.tx - l.x) * K) * D;
 				l.vy = (l.vy + (l.ty - l.y) * K) * D;
 				l.x += l.vx;
@@ -652,10 +681,7 @@ export class FieldEngine {
 			l.el.tabIndex = l.shelved ? -1 : 0;
 			const a = m.anchors[l.card.id];
 			const on = s === "in" && !!a && !this.narrow;
-			l.wire.style.display =
-				l.hit.style.display =
-				l.dot.style.display =
-					on ? "" : "none";
+			l.wire.setVisible(on);
 			if (!on) {
 				if (this.handleFor === l) this.hideHandle(true);
 				return;
@@ -670,23 +696,18 @@ export class FieldEngine {
 			// field can be grabbed, so it never covers the input.
 			const sx = a.kind === "strip" ? m.sheet.x + m.sheet.w : ax;
 			const sy = a.kind === "strip" ? ay - RAIL : ay;
-			const dx = ex - sx;
-			const curve = `C${sx + dx * 0.5} ${sy} ${ex - dx * 0.5} ${ey} ${ex} ${ey}`;
-			const open = `M${sx} ${sy} ${curve}`;
-			l.wire.setAttribute(
-				"d",
-				a.kind === "strip"
-					? `M${ax} ${ay} V${sy + 5} Q${ax} ${sy} ${ax + 5} ${sy} H${sx} ${curve}`
-					: open,
+			l.wire.move(
+				sx,
+				sy,
+				ex,
+				ey,
+				a.kind === "strip" ? { x: ax, y: ay } : undefined,
 			);
-			l.hit.setAttribute("d", open);
-			l.wire.classList.toggle("preview", a.kind === "strip");
-			l.wire.classList.toggle("far", l.far);
-			l.wire.style.opacity = a.fade ? "0.12" : "";
-			l.dot.setAttribute("cx", String(ax));
-			l.dot.setAttribute("cy", String(ay));
-			if (this.handleFor === l) {
-				const p = l.hit.getPointAtLength(l.hit.getTotalLength() * 0.5);
+			l.wire.dim(l.far, !!a.fade);
+			if (this.handleFor === l && l.wire.hit) {
+				const p = l.wire.hit.getPointAtLength(
+					l.wire.hit.getTotalLength() * 0.5,
+				);
 				this.handle.style.transform = `translate(${p.x - 13}px, ${p.y - 13}px)`;
 			}
 		});
@@ -711,7 +732,6 @@ export class FieldEngine {
 				sx: x,
 				sy: y,
 				moved: false,
-				hist: [[x, y, e.timeStamp]],
 			};
 			el.setPointerCapture(e.pointerId);
 		});
@@ -729,8 +749,6 @@ export class FieldEngine {
 			l.x = x - d.ox;
 			l.y = y - d.oy;
 			el.style.transform = `translate(${l.x}px, ${l.y}px)`;
-			d.hist.push([x, y, e.timeStamp]);
-			if (d.hist.length > 6) d.hist.shift();
 			const m = this.h.model();
 			this.stage.classList.toggle("over-composer", inRect(x, y, m.form));
 			this.zones.tray.classList.toggle("over", inRect(x, y, this.tray));
@@ -751,17 +769,11 @@ export class FieldEngine {
 				this.suppressClick = false;
 			}, 0);
 			const [x, y] = this.local(e);
-			const h0 = d.hist[0];
-			const h1 = d.hist[d.hist.length - 1];
-			const speed =
-				Math.hypot(h1[0] - h0[0], h1[1] - h0[1]) / Math.max(1, h1[2] - h0[2]);
 			const m = this.h.model();
 			const s = m.state[l.card.id] ?? "idle";
 			let target: DropTarget = "none";
 			if (inRect(x, y, m.form)) target = "composer";
-			else if (inRect(x, y, m.answer)) target = "answer";
 			else if (inRect(x, y, this.tray)) target = "tray";
-			else if (speed > 0.9 && s === "in") target = "fling";
 			if (target === "none" && s !== "ex" && !this.narrow) {
 				// Open field: the card stays where you put it, inside the stage.
 				this.placed.set(l.card.id, {
@@ -788,11 +800,11 @@ export class FieldEngine {
 			if (!this.drag) this.h.onHover(l.card.id);
 		});
 		el.addEventListener("mouseleave", () => this.h.onHover(null));
-		l.hit.addEventListener("mouseenter", () => {
+		l.wire.hit?.addEventListener("mouseenter", () => {
 			if (!this.drag) this.showHandle(l);
 		});
-		l.hit.addEventListener("mouseleave", () => this.hideHandle());
-		l.hit.addEventListener("click", () => this.showHandle(l));
+		l.wire.hit?.addEventListener("mouseleave", () => this.hideHandle());
+		l.wire.hit?.addEventListener("click", () => this.showHandle(l));
 	}
 
 	private showHandle(l: Live) {
@@ -813,13 +825,5 @@ export class FieldEngine {
 		};
 		if (now) go();
 		else this.hideT = setTimeout(go, 260);
-	}
-
-	private snap(l: Live) {
-		const g = document.createElementNS(NS, "path");
-		g.setAttribute("class", "snap");
-		g.setAttribute("d", l.wire.getAttribute("d") ?? "");
-		this.svg.appendChild(g);
-		setTimeout(() => g.remove(), 520);
 	}
 }

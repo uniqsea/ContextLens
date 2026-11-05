@@ -1,3 +1,4 @@
+import "./file-browser-controls.css";
 import {
 	Archive,
 	BookOpenText,

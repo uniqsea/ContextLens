@@ -2,11 +2,11 @@
 
 看见模型真正看到的。ContextLens 让 AI 助手的上下文与记忆可见、可改、可追溯：
 
-- **取景条**：输入框上方的分段横条就是下一次请求的完整上下文，每段宽度对应它的 token 数。打字时相关记忆滑进来；把一段上下拖出就是不带它。
+- **取景条**：输入框上方的分段横条就是下一次请求的完整上下文，每段宽度对应它的 token 数。输入问题后可查看相关材料，再选择本轮要带入的记忆和文件。
 - **句子级来源**：模型回答时标注每句话依据的上下文，记忆场里的卡片用连线直接连到那句话。悬停一句话，它的依据被"对焦"，其余卡片虚化。
-- **翻面**：每条回答都有背面，列出模型实际看到的每一项、入选或落选的原因，以及原始请求。在背面改完翻回来，回答原地重写，保留版本，可以撤销。
+- **步骤卡**：展开每一轮实际执行的步骤，可以检查输入、输出和发送的上下文。修改上下文后可以重新生成，并查看回答版本。
 - **情境**：每轮用记忆前自动判断主要属于哪个情境（真的横跨时最多两个）、此刻在做什么、提到了什么，显示在回答下方；判断错了可以直接改、调亮或调暗概念，回答会原地重写。默认有工作、学习、生活三个大情境并带定义，可在设置里修改，也可以描述你的使用习惯让 AI 帮你选或生成，只用来浏览和轻微参考；项目才是边界，默认隔离。
-- **记忆场**：卡片可以拖进回答（加入）、拖进输入框（带进下一次请求），或者甩开（本轮不使用）。
+- **记忆场**：卡片显示材料与问题的相关性。把记忆或文件拖入本轮输入区，按希望发送的顺序排好。
 
 ## 快速开始
 
@@ -54,9 +54,9 @@ npm run dev        # 你自己的记忆，数据库在 agent/data/contextlens.sq
 | `agent/contextlens/memory/` | 记忆系统：记忆与概念、只追加的事件账本（改动都能撤销）、用记忆前的情境识别、想起（按概念、当时情况、内容排序）、每轮写入、后台整理、agent 记忆工具；项目默认隔离 |
 | `agent/contextlens/records.py` | 记忆系统和界面、上下文之间的转换 |
 | `agent/contextlens/models/` | 模型目录（models.dev 缓存）、本地设置与密钥、按角色构建模型、测试连接 |
-| `frontend/components/model-settings/` | 输入框旁的模型选择器（[assistant-ui](https://www.assistant-ui.com/elements/model-selector) 的 ModelSelector）与服务商设置弹窗 |
+| `frontend/components/model-settings/` | 输入框旁的模型选择器（shadcn/ui 与 Base UI）与服务商设置弹窗 |
 | `agent/contextlens/api.py` | `/lens/preview`（每次按键预览下一次请求，不调用对话模型）、`/lens/settings`、`/lens/memories` 与 `/lens/memory-events`（记忆库与改动历史）；拒绝一切来自浏览器的直接请求 |
-| `frontend/components/lens/` | 记忆场引擎、取景条、可翻面的回答、页面编排 |
+| `frontend/components/lens/` | 记忆场引擎、取景条、回答与步骤卡、页面编排 |
 | `frontend/app/memories/`、`frontend/components/memory-library/` | 记忆库：记忆列表与版本历史、全部改动的时间线（看前后对比、逐条撤销）、回收站与永久删除 |
 | `frontend/proxy.ts`、`frontend/app/api/` | 只接受同源请求；代理只放行界面用到的 agent 接口 |
 | `frontend/messages/`、`frontend/i18n/` | 中英文文案（next-intl） |

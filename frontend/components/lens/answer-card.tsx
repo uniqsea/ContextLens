@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useLocale } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { htmlLang } from "@/i18n/config";
@@ -16,6 +17,7 @@ import {
 } from "./context-meter";
 import { MemoryChanges } from "./memory-changes";
 import { TurnReading } from "./turn-reading";
+import { TurnSteps } from "./turn-steps";
 
 export interface Rewrite {
 	excluded: string[];
@@ -81,6 +83,9 @@ function InlineText({ text }: { text: string }) {
 }
 
 export function AnswerCard({
+	sourceFocus,
+	stepsHost,
+	onShowSteps,
 	index,
 	record,
 	streamingText,
@@ -89,13 +94,15 @@ export function AnswerCard({
 	onRewrite,
 	onUndo,
 	onHover,
-	onFlip,
 	onStale,
 	threadId,
 	onMemoryChanged,
 	scenes,
 	concepts,
 }: {
+	sourceFocus: string[] | null;
+	stepsHost: HTMLElement | null;
+	onShowSteps: () => void;
 	index: number;
 	record: TurnRecord | undefined;
 	threadId: string | null;
@@ -108,14 +115,12 @@ export function AnswerCard({
 	onRewrite: (turn: number, change: Rewrite) => void;
 	onUndo: (turn: number) => void;
 	onHover: (ids: string[] | null, turn: number) => void;
-	onFlip: () => void;
 	onStale: (ids: string[], turn: number) => void;
 }) {
 	const text = useLensText();
 	const { t } = text;
 	const latest = record?.versions[record.versions.length - 1];
 	const count = record?.versions.length ?? 0;
-	const [flipped, setFlipped] = useState(false);
 	const [peek, setPeek] = useState<Peek | null>(null);
 	const [pieces, setPieces] = useState<Piece[] | null>(null);
 	const prev = useRef<{ count: number; segments: Segment[] } | null>(null);
@@ -131,11 +136,6 @@ export function AnswerCard({
 		return () => clearTimeout(t);
 	}, [count, latest]);
 
-	const flip = (to: boolean) => {
-		setFlipped(to);
-		onFlip();
-	};
-
 	const segments: Piece[] =
 		pieces ??
 		(latest?.segments ?? []).map((seg) => ({ kind: "keep" as const, seg }));
@@ -146,196 +146,188 @@ export function AnswerCard({
 		seen.set(text, n);
 		return `${text}#${n}`;
 	};
+	const assembled = latest?.assembled_ids ?? latest?.selected_ids ?? [];
 	const stale = latest
 		? latest.candidates
-				.filter((c) => c.stale && latest.selected_ids.includes(c.id))
+				.filter((c) => c.stale && assembled.includes(c.id))
 				.map((c) => c.id)
 		: [];
 	const strip = latest
-		? stripItems(
-				latest.candidates,
-				latest.selected_ids,
-				record?.query ?? "",
-				text,
-			)
+		? stripItems(latest.candidates, assembled, record?.query ?? "", text)
 		: [];
 
 	return (
-		<div className={"lens-a" + (flipped ? " flipped" : "")} data-turn={index}>
-			<div className="flip">
-				<div className="face front" aria-hidden={flipped}>
-					{(count > 1 || busy) && (
-						<div className="bar">
-							{count > 1 && (
-								<>
-									<span className="v">{t("answer.version", { n: count })}</span>
-									<span>
-										{latest && text.note(latest.note, latest.candidates)}
-									</span>
-									<button
-										type="button"
-										onClick={() => onUndo(index)}
-										disabled={busy}
-									>
-										{t("answer.undo")}
-									</button>
-								</>
-							)}
-							{busy && <span className="busy">{t("answer.rewriting")}</span>}
-						</div>
-					)}
-					{streamingText !== null ? (
-						<p className="lens-answer streaming">
-							<InlineText text={streamingText} />
-						</p>
-					) : (
-						<p className="lens-answer">
-							{segments.map((p, k) =>
-								p.kind === "gone" ? (
-									<del key={keyOf(`gone:${p.text}`)} className="gone">
-										<InlineText text={p.text} />
-									</del>
-								) : (
-									<span
-										key={keyOf(`seg:${p.seg.text}`)}
-										className={
-											"seg" +
-											(p.seg.src.length ? "" : " nosrc") +
-											(p.kind === "new" ? " ink" : "")
-										}
-										style={
-											p.kind === "new"
-												? { animationDelay: `${k * 90}ms` }
-												: undefined
-										}
-										data-src={p.seg.src.join(" ")}
-										title={
-											p.seg.src.length
-												? t("answer.basis", {
-														titles: p.seg.src
-															.map((id) => {
-																const c = latest?.candidates.find(
-																	(x) => x.id === id,
-																);
-																return c ? text.title(c) : id;
-															})
-															.join(" · "),
-													})
-												: t("answer.noBasis")
-										}
-									>
-										<InlineText text={p.seg.text} />
-									</span>
-								),
-							)}
-						</p>
-					)}
-					{latest && (
+		<div className="lens-a turn-answer" data-turn={index}>
+			{(count > 1 || busy) && (
+				<div className="bar">
+					{count > 1 && (
 						<>
-							<div className="lens-rcpt">
-								<ContextStrip
-									items={strip}
-									mini
-									onHover={(ids) => onHover(ids, index)}
-									onPeek={setPeek}
-								/>
-								<span>
-									{peek
-										? t("lens.stripSegment", {
-												label: peek.label,
-												tokens: peek.tokens,
-											})
-										: t("answer.receipt", {
-												count: latest.selected_ids.filter((id) =>
-													FIELD_LAYERS.includes(
-														latest.candidates.find((c) => c.id === id)?.layer ??
-															"system",
-													),
-												).length,
-												tokens: stripTokens(strip),
-											})}
-								</span>
-								{stale.length > 0 && (
-									<button
-										type="button"
-										className="warn"
-										onClick={(e) => {
-											e.stopPropagation();
-											onStale(stale, index);
-										}}
-									>
-										{t("answer.stale", { count: stale.length })}
-									</button>
-								)}
-								<button
-									type="button"
-									className="flip-tab"
-									onClick={() => flip(true)}
-									tabIndex={flipped ? -1 : 0}
-								>
-									<svg
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-										aria-hidden="true"
-									>
-										<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" />
-										<path d="M18 3v4h-4M6 21v-4h4" />
-									</svg>
-									{t("answer.back")}
-								</button>
-							</div>
-							<TurnReading
-								version={latest}
-								scenes={scenes}
-								concepts={concepts}
-								busy={busy}
-								onRewrite={(change) => onRewrite(index, change)}
-							/>
-							<MemoryChanges
-								changes={record?.memory_changes ?? []}
-								threadId={threadId}
-								onChanged={onMemoryChanged}
-							/>
+							<span className="v">{t("answer.version", { n: count })}</span>
+							<span>{latest && text.note(latest.note, latest.candidates)}</span>
+							<button
+								type="button"
+								onClick={() => onUndo(index)}
+								disabled={busy}
+							>
+								{t("answer.undo")}
+							</button>
 						</>
 					)}
+					{busy && <span className="busy">{t("answer.rewriting")}</span>}
 				</div>
-				<div className="face back" aria-hidden={!flipped}>
-					{latest && flipped && (
-						<Back
-							key={count}
-							index={index}
-							query={record?.query ?? ""}
-							version={latest}
-							usage={usage}
-							onHover={onHover}
-							onDone={(change) => {
-								flip(false);
-								if (change) setTimeout(() => onRewrite(index, change), 420);
-							}}
-						/>
+			)}
+			{streamingText !== null ? (
+				<p className="lens-answer streaming">
+					<InlineText text={streamingText} />
+				</p>
+			) : (
+				<p className="lens-answer">
+					{segments.map((p, k) =>
+						p.kind === "gone" ? (
+							<del key={keyOf(`gone:${p.text}`)} className="gone">
+								<InlineText text={p.text} />
+							</del>
+						) : (
+							<span
+								key={keyOf(`seg:${p.seg.text}`)}
+								className={
+									"seg" +
+									(p.seg.src.length ? "" : " nosrc") +
+									(p.kind === "new" ? " ink" : "")
+								}
+								style={
+									p.kind === "new"
+										? { animationDelay: `${k * 90}ms` }
+										: undefined
+								}
+								data-src={p.seg.src.join(" ")}
+								title={
+									p.seg.src.length
+										? t("answer.basis", {
+												titles: p.seg.src
+													.map((id) => {
+														const c = latest?.candidates.find(
+															(x) => x.id === id,
+														);
+														return c ? text.title(c) : id;
+													})
+													.join(" · "),
+											})
+										: t("answer.noBasis")
+								}
+							>
+								<InlineText text={p.seg.text} />
+							</span>
+						),
 					)}
-				</div>
-			</div>
+				</p>
+			)}
+			{latest && (
+				<>
+					<div className="lens-rcpt">
+						<ContextStrip
+							items={strip}
+							mini
+							onHover={(ids) => onHover(ids, index)}
+							onPeek={setPeek}
+						/>
+						<span>
+							{peek
+								? t("lens.stripSegment", {
+										label: peek.label,
+										tokens: peek.tokens,
+									})
+								: t("answer.receipt", {
+										count: assembled.filter((id) =>
+											FIELD_LAYERS.includes(
+												latest.candidates.find((c) => c.id === id)?.layer ??
+													"system",
+											),
+										).length,
+										tokens: stripTokens(strip),
+									})}
+						</span>
+						{stale.length > 0 && (
+							<button
+								type="button"
+								className="warn"
+								onClick={(e) => {
+									e.stopPropagation();
+									onStale(stale, index);
+								}}
+							>
+								{t("answer.stale", { count: stale.length })}
+							</button>
+						)}
+					</div>
+					<button
+						type="button"
+						className="lens-text-btn step-link"
+						aria-controls="turn-steps-canvas"
+						onClick={onShowSteps}
+					>
+						{t("turnSteps.showCanvas")} ↗
+					</button>
+					{stepsHost &&
+						createPortal(
+							<TurnSteps
+								sourceFocus={sourceFocus}
+								key={latest.created_at}
+								version={latest}
+								query={record?.query ?? ""}
+								rewrite={count > 1}
+								readingControls={
+									latest.situation && (
+										<TurnReading
+											version={latest}
+											scenes={scenes}
+											concepts={concepts}
+											busy={busy}
+											onRewrite={(change) => onRewrite(index, change)}
+										/>
+									)
+								}
+								contextControls={
+									<ContextEditor
+										index={index}
+										query={record?.query ?? ""}
+										version={latest}
+										usage={usage}
+										onHover={onHover}
+										busy={busy}
+										onRewrite={(change) => onRewrite(index, change)}
+									/>
+								}
+							/>,
+							stepsHost,
+						)}
+					<MemoryChanges
+						changes={record?.memory_changes ?? []}
+						threadId={threadId}
+						onChanged={onMemoryChanged}
+					/>
+				</>
+			)}
 		</div>
 	);
 }
 
-function Back({
+function ContextEditor({
 	index,
 	query,
 	version,
 	usage,
 	onHover,
-	onDone,
+	busy,
+	onRewrite,
 }: {
 	index: number;
 	query: string;
 	version: NonNullable<TurnRecord["versions"][number]>;
 	usage: (id: string) => number;
 	onHover: (ids: string[] | null, turn: number) => void;
-	onDone: (change: Rewrite | null) => void;
+	busy: boolean;
+	onRewrite: (change: Rewrite) => void;
 }) {
 	const text = useLensText();
 	const { t } = text;
@@ -347,17 +339,6 @@ function Back({
 		() => new Set(version.pinned),
 	);
 	const [notes, setNotes] = useState<Change[]>([]);
-	const [raw, setRaw] = useState(false);
-	const box = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		const t = setTimeout(
-			() =>
-				box.current?.querySelector<HTMLButtonElement>(".acts button")?.focus(),
-			300,
-		);
-		return () => clearTimeout(t);
-	}, []);
-
 	const items = useMemo(
 		() =>
 			version.candidates.filter(
@@ -365,10 +346,14 @@ function Back({
 			),
 		[version],
 	);
-	const using = (c: Candidate) =>
-		!excluded.has(c.id) &&
-		(version.selected_ids.includes(c.id) || pinned.has(c.id));
-	const used = items.filter(using);
+	const selected = version.assembled_ids ?? version.selected_ids;
+	const included = [...new Set([...selected, ...pinned])].filter(
+		(id) => !excluded.has(id),
+	);
+	const using = (c: Candidate) => included.includes(c.id);
+	const used = included
+		.map((id) => items.find((c) => c.id === id))
+		.filter((c) => c !== undefined);
 	const unused = items.filter((c) => !using(c));
 	const change = (note: Change, fn: () => void) => {
 		fn();
@@ -390,14 +375,14 @@ function Back({
 		const n = usage(c.id);
 		const reason = excluded.has(c.id)
 			? t("reasons.excludedHere")
-			: pinned.has(c.id) && !version.selected_ids.includes(c.id)
+			: pinned.has(c.id) && !selected.includes(c.id)
 				? t("reasons.manual")
 				: text.reason(c);
 		return (
 			// biome-ignore lint/a11y/noStaticElementInteractions: hover only previews focus; the buttons carry the actions
 			<div
 				key={c.id}
-				className={"item" + (isIn ? "" : " off")}
+				className={`item${isIn ? "" : " off"}`}
 				style={{ "--c": layerColor(c.layer) } as React.CSSProperties}
 				data-iid={c.id}
 				onMouseEnter={() => onHover([c.id], index)}
@@ -433,13 +418,15 @@ function Back({
 						<button
 							type="button"
 							onClick={() =>
-								change({ op: "restore", id: c.id }, () =>
+								change({ op: "restore", id: c.id }, () => {
+									if (!selected.includes(c.id))
+										setPinned((s) => new Set(s).add(c.id));
 									setExcluded((s) => {
 										const t = new Set(s);
 										t.delete(c.id);
 										return t;
-									}),
-								)
+									});
+								})
 							}
 						>
 							{t("back.restore")}
@@ -479,7 +466,7 @@ function Back({
 				onHover={(ids) => onHover(ids, index)}
 			/>
 			<h4>
-				<span>{t("back.seen")}</span>
+				<span>{t("turnSteps.included")}</span>
 				<span>
 					{t("back.seenMeta", {
 						count: used.length,
@@ -490,7 +477,7 @@ function Back({
 					})}
 				</span>
 			</h4>
-			<div className="items" ref={box}>
+			<div className="items">
 				<div
 					className="item"
 					style={{ "--c": "var(--l-kind-sys)" } as React.CSSProperties}
@@ -524,14 +511,7 @@ function Back({
 					<div className="items">{unused.map(row)}</div>
 				</>
 			)}
-			<div className="back-foot">
-				<button
-					type="button"
-					onClick={() => setRaw((r) => !r)}
-					aria-expanded={raw}
-				>
-					{t("back.raw")}
-				</button>
+			<div className="step-editor-actions">
 				{dirty && (
 					<span className="dirty">
 						{t("back.dirty", { count: notes.length })}
@@ -540,24 +520,18 @@ function Back({
 				<button
 					type="button"
 					className="primary"
+					disabled={busy || !dirty}
 					onClick={() =>
-						onDone(
-							dirty
-								? {
-										excluded: [...excluded],
-										pinned: [...pinned],
-										note: notes,
-									}
-								: null,
-						)
+						onRewrite({
+							excluded: [...excluded],
+							pinned: [...pinned],
+							note: notes,
+						})
 					}
 				>
-					{dirty ? t("back.flipRewrite") : t("back.flipBack")}
+					{t("lens.rewrite")}
 				</button>
 			</div>
-			{raw && (
-				<pre>{JSON.stringify({ messages: version.payload }, null, 2)}</pre>
-			)}
 		</>
 	);
 }

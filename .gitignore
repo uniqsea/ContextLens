@@ -72,6 +72,7 @@ AGENTS.override.md
 CLAUDE.md
 GEMINI.md
 /.impeccable/
+.playwright-mcp/
 
 # ===== 内部研究、设计与生成产物（保留本地） =====
 /docs/
@@ -80,10 +81,9 @@ GEMINI.md
 /PRODUCT.md
 /output/
 /prototypes/
-# 数据默认留在本地，仅明确列出的模拟数据允许跟踪。
-# 新增公开数据前必须检查来源和内容。
-/data/*
-!/data/synthetic/
+# 数据默认留在本地。公开具体文件前须获明确授权并核查其虚构来源和内容。
+/data/
+seed.local.*
 /shared/*
 /exports/
 /backups/

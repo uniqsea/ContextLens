@@ -17,18 +17,24 @@ request that carries one is refused: no other web page can reach them through th
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import asdict
 
+from setproctitle import setproctitle
 from langchain_core.messages import convert_to_messages
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from contextlens import memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
+
+# The reload supervisor starts a separate worker that imports this ASGI app.
+if process_title := os.environ.get("CONTEXTLENS_AGENT_TITLE"):
+    setproctitle(process_title)
 
 
 class RefuseBrowsers(BaseHTTPMiddleware):
@@ -48,6 +54,8 @@ async def preview(request: Request) -> JSONResponse:
         "project_id": body.get("project_id"),
         "context_policies": body.get("context_policies") or [],
         "manual_memory_ids": body.get("manual_memory_ids") or [],
+        "input_order": body.get("input_order"),
+        "include_inventory": True,
     }
     try:
         # SQLite reads are synchronous; keep them off the event loop.
@@ -227,6 +235,17 @@ async def list_project_files(request: Request) -> JSONResponse:
                        request.query_params.get("directory"), request.query_params.get("q", "").strip())
 
 
+async def document_thumbnail(request: Request) -> Response:
+    from contextlens.project_files.thumbnails import thumbnail
+    try:
+        data, mime = await asyncio.to_thread(thumbnail, request.path_params["id"], request.path_params["source_id"])
+        return Response(data, media_type=mime, headers={"Cache-Control": "private, no-store",
+                        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                        "X-Content-Type-Options": "nosniff"})
+    except memory.MemoryError:
+        return Response(status_code=404)
+
+
 async def detach_project_folder(request: Request) -> JSONResponse:
     return await _read(project_files.detach, request.path_params["id"], request.path_params["folder_id"])
 
@@ -322,6 +341,7 @@ app = Starlette(
         Route("/lens/projects", projects_index, methods=["GET", "POST"]),
         Route("/lens/projects/{id}/folders", project_folders, methods=["GET", "POST"]),
         Route("/lens/projects/{id}/folders/pick", pick_project_folders, methods=["POST"]),
+        Route("/lens/projects/{id}/files/{source_id}/thumbnail", document_thumbnail, methods=["GET"]),
         Route("/lens/projects/{id}/folders/{folder_id}/files", list_project_files, methods=["GET"]),
         Route("/lens/projects/{id}/folders/{folder_id}", detach_project_folder, methods=["DELETE"]),
         Route("/lens/projects/{id}/settings", project_settings, methods=["PATCH"]),

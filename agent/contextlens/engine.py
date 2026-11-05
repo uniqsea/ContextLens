@@ -53,11 +53,13 @@ def build():
 
 
 def answer(prompt: str, question: str, *, situation: dict, scope: str = memory.ORDINARY,
-           thread_id: str | None = None, turn: int | None = None, config=None, excluded_files=()) -> tuple[str, list[dict]]:
+           thread_id: str | None = None, turn: int | None = None, config=None, excluded_files=(),
+           allowed_context=None) -> tuple[str, list[dict]]:
     """Run the engine once. Returns the final text and the tool steps taken on the way."""
     result = build().invoke({"messages": [HumanMessage(content=question)]}, config,
                             context=Request(prompt=prompt, question=question, scope=scope, situation=situation,
-                                            thread_id=thread_id, turn=turn, excluded_files=set(excluded_files)))
+                                            thread_id=thread_id, turn=turn, excluded_files=set(excluded_files),
+                                            allowed_context=allowed_context))
     messages = result["messages"]
     final = next(m for m in reversed(messages) if isinstance(m, AIMessage))
     return str(final.text if hasattr(final, "text") else final.content), _steps(messages)
@@ -69,7 +71,7 @@ def _steps(messages) -> list[dict]:
     for m in messages:
         for call in getattr(m, "tool_calls", []) if isinstance(m, AIMessage) else []:
             result = results.get(call["id"])
-            steps.append({"tool": call["name"], "args": call["args"],
+            steps.append({"call_id": call["id"], "tool": call["name"], "args": call["args"],
                           "result": str(result.content) if result else None,
                           "artifact": result.artifact if result else None})
     return steps

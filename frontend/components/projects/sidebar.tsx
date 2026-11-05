@@ -1,15 +1,19 @@
 import {
+	ChevronRight,
 	Clock3,
 	Folder,
 	Folders,
 	MessageSquare,
-	Search,
 	Star,
+	X,
+	PanelsTopLeft,
 } from "lucide-react";
+import { useSessions } from "@/components/lens/session-tabs";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
 import { LocaleSwitch } from "@/components/locale-switch";
+import { SearchField } from "@/components/ui/search-field";
 import {
 	ORDINARY,
 	projectPath,
@@ -30,6 +34,8 @@ export function ProjectSidebar({
 	onQuery: (value: string) => void;
 }) {
 	const t = useTranslations("projects");
+	const labels = useTranslations("sessionTabs");
+	const { tabs, close } = useSessions();
 	const recent = useRecentProjects(scope);
 	const recentProjects = recent.flatMap((id) =>
 		projects.filter((p) => p.id === id && !p.starred),
@@ -49,17 +55,12 @@ export function ProjectSidebar({
 			<Link href="/" className="lens-mark">
 				<BrandLogo />
 			</Link>
-			<label className="pr-search">
-				<Search aria-hidden="true" />
-				<input
-					type="search"
-					value={query}
-					onChange={(e) => onQuery(e.target.value)}
-					placeholder={t(scope ? "searchChats" : "search")}
-					aria-label={t(scope ? "searchChats" : "search")}
-				/>
-			</label>
-			<nav aria-label={t("all")}>
+			<SearchField
+				label={t(scope ? "searchChats" : "search")}
+				value={query}
+				onValueChange={onQuery}
+			/>
+			<nav className="pr-project-links" aria-label={t("all")}>
 				<Link href="/" aria-current={!scope ? "page" : undefined}>
 					<Folders />
 					{t("all")}
@@ -86,6 +87,37 @@ export function ProjectSidebar({
 				)}
 				{recentProjects.map(projectLink)}
 			</nav>
+			{tabs.length > 0 && (
+				<details className="pr-open-sessions">
+					<summary>
+						<PanelsTopLeft />
+						<span>{labels("label")}</span>
+						<small>{tabs.length}</small>
+						<ChevronRight />
+					</summary>
+					<ul>
+						{tabs.map((tab) => {
+							const project = tab.projectName ?? t("ordinary");
+							const label = project + " · " + tab.title;
+							return (
+								<li key={tab.href}>
+									<Link href={tab.href} title={label}>
+										<span>{tab.title}</span>
+										<small>{project}</small>
+									</Link>
+									<button
+										type="button"
+										aria-label={labels("close", { title: label })}
+										onClick={() => close(tab.href)}
+									>
+										<X />
+									</button>
+								</li>
+							);
+						})}
+					</ul>
+				</details>
+			)}
 			<LocaleSwitch className="lens-seg" />
 		</aside>
 	);

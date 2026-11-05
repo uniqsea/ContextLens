@@ -105,14 +105,11 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 	}
 	return (
 		<Dialog open={open} onOpenChange={toggle}>
-			<DialogTrigger asChild>
-				<button
-					type="button"
-					className={project ? "lens-btn outline" : "lens-btn primary"}
-				>
-					{project ? <Pencil /> : <Plus />}
-					{title}
-				</button>
+			<DialogTrigger
+				className={project ? "lens-btn outline" : "lens-btn primary"}
+			>
+				{project ? <Pencil /> : <Plus />}
+				{title}
 			</DialogTrigger>
 			<DialogContent
 				className="lens-theme pr-editor"

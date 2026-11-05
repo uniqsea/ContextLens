@@ -63,10 +63,10 @@ class Lessons(BaseModel):
     lessons: list[Lesson]
 
 
-def remember_turn(question: str, situation: dict, scope: str, source: Source) -> list[dict]:
+def remember_turn(question: str, situation: dict, scope: str, source: Source, *, allowed_ids: set[str] | None = None) -> list[dict]:
     """The events for what this turn taught; may be none."""
     try:
-        nearby = nearest(question, scope)
+        nearby = nearest(question, scope, allowed_ids)
         shown = "\n".join(f"[{m.id}] {m.learned}" for m in nearby) or "none"
         prompt = (f"Today: {date.today():%Y-%m-%d, %A}\nWhat was going on: {situation.get('doing', '')}\n"
                   f"Existing memories:\n{shown}\n\n"
@@ -85,10 +85,12 @@ def remember_turn(question: str, situation: dict, scope: str, source: Source) ->
     return events
 
 
-def nearest(text: str, scope: str):
+def nearest(text: str, scope: str, allowed_ids: set[str] | None = None):
     """The scope's memories closest to the text: the only ones a write from it may change."""
     with session() as conn:
-        pool = memories_in({scope}, conn)
+        pool = [m for m in memories_in({scope}, conn) if allowed_ids is None or m.id in allowed_ids]
+        if not pool:
+            return []
         scores = search.similarity(conn, text, "learned", pool, llm.embedder())
     return sorted(pool, key=lambda m: -scores.get(m.id, 0.0))[:_NEARBY]  # newest first breaks ties
 

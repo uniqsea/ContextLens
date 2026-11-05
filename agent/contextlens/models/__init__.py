@@ -56,11 +56,14 @@ def chat_model(role: str = "agent") -> BaseChatModel:
     return _chat(provider_id, model_id)
 
 
-def embedding_model() -> tuple[str, Embeddings] | None:
+def embedding_model(*, local_only: bool = False) -> tuple[str, Embeddings] | None:
     """("provider/model", client) for the embedding role. Nothing to set up: unless a provider's model
     was chosen, it runs on this machine. None when not even that is available."""
     if _override is not None:
         return _embedding_override
+    # Scoring the whole field may touch sources the user has not chosen to send.
+    if local_only:
+        return local_embedding.available()
     spec = role_spec("embedding")
     if spec:
         try:

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
+import { SessionProvider } from "@/components/lens/session-tabs";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { htmlLang } from "@/i18n/config";
 import "./globals.css";
@@ -32,7 +33,9 @@ export default async function RootLayout({
 		<html lang={htmlLang(locale)} suppressHydrationWarning>
 			<body className={`${inter.variable} ${geistMono.variable} antialiased`}>
 				<NextIntlClientProvider>
-					<ThemeProvider>{children}</ThemeProvider>
+					<ThemeProvider>
+						<SessionProvider>{children}</SessionProvider>
+					</ThemeProvider>
 				</NextIntlClientProvider>
 			</body>
 		</html>

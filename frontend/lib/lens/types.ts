@@ -38,6 +38,9 @@ export interface Situation {
 
 /** One context item as the agent saw it for a request (see context_control.prepare_snapshot). */
 export interface Candidate {
+	relevance?: number | null;
+	retrieval_rank?: number | null;
+	always_on?: boolean | null;
 	id: string;
 	layer: Layer;
 	title: string;
@@ -53,6 +56,7 @@ export interface Candidate {
 }
 
 export interface Snapshot {
+	input_order?: string[];
 	candidates: Candidate[];
 	selected_ids: string[];
 	messages: Array<{ role: string; content: string }>;
@@ -64,7 +68,37 @@ export interface Segment {
 	src: string[];
 }
 
+export interface TraceMessage {
+	role: string;
+	content: string;
+	tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }>;
+	tool_call_id?: string;
+}
+
+export interface ModelCall {
+	messages: TraceMessage[];
+	tools?: Record<string, unknown>[];
+	output?: TraceMessage;
+	failed?: boolean;
+}
+
+export interface ToolStep {
+	artifact?: {reading_calls?: ModelCall[]; memories?: (string | {id:string})[]; document?: {id:string}} | null;
+	call_id?: string;
+	tool: string;
+	args: Record<string, unknown>;
+	result: string | null;
+}
+
 export interface AnswerVersion {
+	input_order?: string[];
+	/** Older checkpoints only have the prepared payload and tool results. */
+	assembled_ids?: string[];
+	reading_calls?: ModelCall[];
+	agent_calls?: ModelCall[];
+	writing_calls?: ModelCall[];
+	written_changes?: MemoryChange[];
+	steps?: ToolStep[];
 	note: Change[];
 	content: string;
 	segments: Segment[];

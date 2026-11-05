@@ -153,11 +153,13 @@ def link_concepts(memory_id: str, names: list[str], source: Source) -> list[dict
     return ledger.commit(source, "linked", replace(memory, concepts=merged))
 
 
-def concepts_in(scope: str) -> list[dict]:
+def concepts_in(scope: str, allowed_ids: set[str] | None = None) -> list[dict]:
     """Concepts the scope can see (a concept shows only through a memory visible here), with counts."""
     memories = memories_in(visible_scopes(scope))
     counts: dict[str, int] = {}
     for memory in memories:
+        if allowed_ids is not None and memory.id not in allowed_ids:
+            continue
         for concept_id in memory.concepts:
             counts[concept_id] = counts.get(concept_id, 0) + 1
     rows = [{"id": c.id, "name": c.name, "aliases": c.aliases, "part_of": c.part_of, "count": counts[c.id]}

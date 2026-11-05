@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { SearchField } from "@/components/ui/search-field";
 import type { ModelInfo } from "@/lib/model-settings";
 
 /** Which of a provider's chat models the picker offers; the catalog's current ones until changed. */
@@ -52,13 +53,10 @@ export function ModelChooser({
 					{t("chooser.reset")}
 				</button>
 			</legend>
-			<input
-				type="search"
+			<SearchField
+				label={t("chooser.search")}
 				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-				placeholder={t("chooser.search")}
-				aria-label={t("chooser.search")}
-				className="lens-input"
+				onValueChange={setQuery}
 			/>
 			<ul className="lens-check-list">
 				{listed.map((m) => (

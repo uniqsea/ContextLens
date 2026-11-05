@@ -18,6 +18,7 @@ from contextlens import engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
 from contextlens.context.snapshot import estimate_tokens
 from contextlens.provenance import parse_segments
+from contextlens.turn_trace import capture_calls
 
 
 class LensState(TypedDict):
@@ -27,6 +28,7 @@ class LensState(TypedDict):
     # Request-local choices for the next send: ids to leave out and memories to add.
     context_policies: NotRequired[list[dict]]
     manual_memory_ids: NotRequired[list[str]]
+    input_order: NotRequired[list[str] | None]
     # Per answered turn: which memories and earlier turns it relied on (drives history validity).
     history_lineage: NotRequired[dict]
     # Per answered turn: every version of the answer with the request it came from.
@@ -40,20 +42,24 @@ class LensState(TypedDict):
 def answer_turn(state: LensState, config: RunnableConfig) -> dict:
     if state.get("locale") in models.settings.LANGUAGES:
         memory.language.choose(interface=state["locale"])
-    situation = memory.identify(_conversation(state["messages"]), _scope(state))
+    excluded = sorted({p["item_id"] for p in state.get("context_policies", [])})
+    order = state.get("input_order")
+    allowed = set(order).difference(excluded) if order is not None else None
+    with capture_calls() as reading_calls:
+        situation = memory.identify(_conversation(state["messages"]), _scope(state), allowed_ids=allowed)
     earlier = [{"situation": r["versions"][-1].get("situation", {})} for r in state.get("turn_records", {}).values()]
     memory.propose_if_unfit(earlier, situation, memory.Source("after_turn", reason=situation["doing"]))
     snapshot = prepare_snapshot({**state, "situation": situation})
     index = len(message_pairs(state["messages"]))
-    excluded = sorted({p["item_id"] for p in state.get("context_policies", [])})
     version = _make_version(snapshot, excluded, sorted(set(state.get("manual_memory_ids", []))), note=[],
                             situation=situation, scope=_scope(state), thread_id=_thread(config), turn=index)
+    version["reading_calls"] = list(reading_calls)
     lineage = {**state.get("history_lineage", {}), str(index): version["lineage"]}
     records = {**state.get("turn_records", {}),
                str(index): {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
                             "memory_changes": _tool_changes(version)}}
     return {"messages": [AIMessage(content=version["content"])], "history_lineage": lineage,
-            "turn_records": records, "context_policies": [], "manual_memory_ids": []}
+            "turn_records": records, "context_policies": [], "manual_memory_ids": [], "input_order": None}
 
 
 def remember_turn(state: LensState, config: RunnableConfig) -> dict:
@@ -62,9 +68,14 @@ def remember_turn(state: LensState, config: RunnableConfig) -> dict:
     record = state["turn_records"][str(index)]
     version = record["versions"][-1]
     source = memory.Source("after_turn", thread_id=_thread(config), turn=index, evidence=record["query"])
-    events = memory.remember_turn(record["query"], version["situation"], _scope(state), source)
+    with capture_calls() as writing_calls:
+        allowed = set(version["input_order"]) if "input_order" in version else None
+        events = memory.remember_turn(record["query"], version["situation"], _scope(state), source, allowed_ids=allowed)
     memory.upkeep.run_if_due(_scope(state))
-    record = {**record, "memory_changes": record.get("memory_changes", []) + [_change(e) for e in records.changes(events)]}
+    changes = [_change(e) for e in records.changes(events)]
+    version = {**version, "writing_calls": list(writing_calls), "written_changes": changes}
+    record = {**record, "versions": [*record["versions"][:-1], version],
+              "memory_changes": record.get("memory_changes", []) + changes}
     return {"turn_records": {**state["turn_records"], str(index): record}}
 
 
@@ -84,8 +95,11 @@ def rewrite_turn(state: LensState, config: RunnableConfig) -> dict:
         before = record["versions"][-1]
         situation = {**before["situation"], **req.get("situation", {})}
         bright, dim = req.get("brighten", before["brighten"]), req.get("dim", before["dim"])
+        order = before.get("input_order")
+        if order is not None:
+            order = list(dict.fromkeys([*order, *pinned]))
         snapshot = prepare_snapshot({
-            **state, "messages": upto, "situation": situation, "brighten": bright, "dim": dim,
+            **state, "input_order": req.get("input_order", order), "messages": upto, "situation": situation, "brighten": bright, "dim": dim,
             "context_policies": [{"item_id": x} for x in excluded], "manual_memory_ids": pinned})
         version = _make_version(snapshot, excluded, pinned, req.get("note", []), situation=situation, bright=bright,
                                 dim=dim, scope=_scope(state), thread_id=_thread(config), turn=i)
@@ -112,8 +126,10 @@ def _follow_correction(req: dict, record: dict, situation: dict, config: Runnabl
 def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, *, situation, scope, thread_id,
                   turn, bright=(), dim=()) -> dict:
     prompt, question = snapshot["messages"][0]["content"], snapshot["messages"][1]["content"]
-    text, steps = engine.answer(prompt, question, situation=situation, scope=scope, thread_id=thread_id, turn=turn,
-                                excluded_files=excluded)
+    with capture_calls() as agent_calls:
+        text, steps = engine.answer(prompt, question, situation=situation, scope=scope, thread_id=thread_id, turn=turn,
+                                    excluded_files=excluded, allowed_context=(
+                                        set(snapshot["input_order"]) if "input_order" in snapshot else None))
     # Memories the agent looked up itself are sources too.
     recalled = [m["id"] if isinstance(m, dict) else m for s in steps for m in (s["artifact"] or {}).get("memories", [])]
     file_dependencies = list(snapshot.get("file_dependencies", []))
@@ -135,7 +151,9 @@ def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, 
             item["content"] += "\n…\n" + doc["content"]
             item["tokens"] = estimate_tokens(item["content"])
     content, segments = parse_segments(text, [*selected, *recalled])
-    return {"note": note, "content": content, "segments": segments, "steps": steps,
+    return {**({"input_order": snapshot["input_order"]} if "input_order" in snapshot else {}),
+            "note": note, "content": content, "segments": segments, "steps": steps,
+            "agent_calls": list(agent_calls), "assembled_ids": list(snapshot["selected_ids"]),
             "selected_ids": selected, "candidates": list(candidates.values()),
             "payload": snapshot["messages"], "fingerprint": snapshot["fingerprint"], "situation": situation,
             "concepts": [{"id": c.id, "name": c.name} for c in memory.operations.concepts_named(situation.get("concepts", []))],

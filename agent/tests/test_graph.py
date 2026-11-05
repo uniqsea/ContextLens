@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -40,6 +41,10 @@ class GraphTests(StoreTestCase):
         self.assertIsInstance(sent[0], SystemMessage)
         self.assertTrue(sent[0].content.startswith(version["payload"][0]["content"]))
         self.assertEqual([m.content for m in sent[1:]], [version["payload"][1]["content"]])
+        # Unlike the prepared payload, the observed call includes the harness instructions.
+        self.assertEqual([m["content"] for m in version["agent_calls"][0]["messages"]], [m.content for m in sent])
+        for stage, call in zip(("reading_calls", "writing_calls"), self.memory_model.calls, strict=True):
+            self.assertEqual([m["content"] for m in version[stage][0]["messages"]], [m.content for m in call])
 
     def test_the_turn_is_read_before_memory_is_used_and_kept_with_what_it_wrote(self):
         self.script("ok.", memory=[reading("planning the offsite dinner"), structured(
@@ -73,6 +78,38 @@ class GraphTests(StoreTestCase):
         self.script(call, f"You hike.[[{personal}]]", memory=self.memory_replies())
         version = self.run_graph()(self.state)["turn_records"]["0"]["versions"][-1]
         self.assertEqual(version["segments"][0]["src"], [personal])
+        first, second = version["agent_calls"]
+        step, = version["steps"]
+        self.assertEqual(first["output"]["tool_calls"][0]["id"], step["call_id"])
+        self.assertEqual(second["messages"][-1], {"role": "tool", "content": step["result"], "tool_call_id": step["call_id"]})
+
+    def test_explicit_empty_selection_scopes_all_chat_models_and_nested_reading(self):
+        hidden_name = "Fictional orchard parcel"
+        hidden = self.add("The synthetic parcel number is 36.", concepts=[hidden_name])
+        reread = AIMessage(content="", tool_calls=[{"name": "identify_situation", "id": "again",
+                                                    "args": {"what_changed": "Check the revised question"}}])
+        writer = structured("Lessons", lessons=[{"learned": "A synthetic update", "corrects": hidden, "replaces": hidden}])
+        agent = self.script(reread, "Done.", memory=[reading("Reading"), reading("Reading again"), writer])
+        # Background cross-turn maintenance is separate from the requests under test.
+        with patch.object(memory.upkeep, "run_if_due"):
+            version = self.run_graph()({**self.state, "input_order": []})["turn_records"]["0"]["versions"][0]
+        self.assertEqual(len(agent.calls), 2)
+        self.assertEqual(len(self.memory_model.calls), 3)
+        for messages in [*agent.calls, *self.memory_model.calls]:
+            for forbidden in (hidden_name, hidden, "parcel number is 36", "WORK_SECRET", "PERSONAL_SECRET", "GENERAL_FACT"):
+                self.assertNotIn(forbidden, str(messages))
+        self.assertEqual(len(version["agent_calls"]), 2)
+        self.assertEqual(len(version["steps"][0]["artifact"]["reading_calls"]), 1)
+        self.assertEqual(memory.get(memory.Memory, hidden).learned, "The synthetic parcel number is 36.")
+        self.assertIsNone(memory.get(memory.Memory, hidden).superseded_by)
+
+    def test_explicit_selection_scopes_writer_and_reading_to_chosen_memory(self):
+        model = self.script("Done.", memory=self.memory_replies())
+        self.run_graph()({**self.state, "input_order": [self.work]})
+        for messages in (model.calls[0], self.memory_model.calls[-1]):
+            self.assertIn(self.work, str(messages))
+            self.assertNotIn("PERSONAL_SECRET", str(messages))
+            self.assertNotIn("GENERAL_FACT", str(messages))
 
     def test_tools_cannot_reach_across_a_boundary(self):
         project = ops.create_project("paper", USER)
@@ -101,6 +138,10 @@ class GraphTests(StoreTestCase):
         self.assertEqual([m.id for m in out["messages"]][-1], ai_id)
         self.assertEqual(out["messages"][-1].content, "second.")
         self.assertEqual([v["note"] for v in out["turn_records"]["0"]["versions"]], [[], note])
+        rewritten = out["turn_records"]["0"]["versions"][-1]
+        self.assertNotIn("reading_calls", rewritten)
+        self.assertNotIn("writing_calls", rewritten)
+        self.assertEqual(rewritten["agent_calls"][0]["output"]["content"], "second.")
         out = run({"regen_request": {"turn": 0, "action": "undo"}})
         self.assertEqual(out["messages"][-1].content, "first.")
         self.assertEqual(len(out["turn_records"]["0"]["versions"]), 1)

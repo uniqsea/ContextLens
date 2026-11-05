@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { SearchField } from "@/components/ui/search-field";
 import type { ModelInfo, ProviderRow } from "@/lib/model-settings";
 import { ModelChooser } from "./model-chooser";
 
@@ -48,13 +49,10 @@ export function ProviderList({
 
 	return (
 		<section aria-label={t("providersTitle")} className="grid gap-2">
-			<input
-				type="search"
+			<SearchField
+				label={t("search", { count: providers.length })}
 				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-				placeholder={t("search", { count: providers.length })}
-				aria-label={t("search", { count: providers.length })}
-				className="lens-input is-pill"
+				onValueChange={setQuery}
 			/>
 			<ul className="lens-group">
 				{shown.map((p) => (

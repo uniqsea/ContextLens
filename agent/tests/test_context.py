@@ -25,6 +25,38 @@ class ContextTests(StoreTestCase):
         self.assertNotIn(self.ids["personal"], snap["selected_ids"])
         self.assertNotIn("PERSONAL_SECRET", str(snap["messages"]))
 
+    def test_explicit_selection_keeps_configured_scoring_and_can_be_empty(self):
+        from unittest.mock import patch
+        from contextlens.memory import llm
+
+        with patch.object(llm, "embedder", return_value=None) as embedder:
+            snap = prepare_snapshot({**self.state, "input_order": []})
+        embedder.assert_called_once_with(local_only=False)
+        self.assertEqual(snap["selected_ids"], ["sys-001", "usr-001"])
+        self.assertEqual(snap["memory_dependencies"], {})
+        self.assertNotIn("WORK_SECRET", str(snap["messages"]))
+        self.assertTrue(any(c["relevance"] > 0 for c in snap["candidates"] if c["layer"] == "memory"))
+        self.assertFalse(any(c["layer"] == "retrieval" for c in snap["candidates"]))
+
+    def test_null_order_restores_automatic_selection_and_manual_override(self):
+        automatic = prepare_snapshot({**self.state, "input_order": None})
+        self.assertIn(self.ids["work"], automatic["selected_ids"])
+        adjusted = prepare_snapshot({**self.state, "input_order": [self.ids["personal"]]})
+        self.assertIn(self.ids["personal"], adjusted["selected_ids"])
+        self.assertNotIn(self.ids["work"], adjusted["selected_ids"])
+
+    def test_three_example_questions_automatically_include_fictional_memories(self):
+        examples = [
+            ("推荐一家周五团队聚餐的餐厅", "虚构团队周五聚餐选小南瓜餐厅", "安排团队聚餐"),
+            ("事务隔离级别怎么理解？", "学习数据库事务隔离级别时希望用虚构书店订单举例", "学习事务隔离"),
+            ("周四晚上约朋友吃饭去哪", "虚构朋友周四晚上在小风铃饭店吃饭", "周四约朋友吃饭"),
+        ]
+        for query, learned, doing in examples:
+            with self.subTest(query=query):
+                mid = self.add(learned, situation=doing)
+                snap = prepare_snapshot({"messages": [HumanMessage(content=query)], "input_order": None})
+                self.assertIn(mid, snap["selected_ids"])
+
     def test_a_scene_is_no_wall(self):
         # A memory from another scene still comes up when the moment reads as this one.
         reading = {"doing": QUESTION, "concepts": [], "scenes": ["生活"]}

@@ -4,10 +4,10 @@ import {
 	Folder,
 	FolderOpen,
 	RefreshCw,
-	Search,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { SearchField } from "@/components/ui/search-field";
 import {
 	type FileEntry,
 	folderApi,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/projects/folders";
 import { DisconnectFolder } from "./disconnect-folder";
 
+import { Breadcrumb, DirectoryLink } from "./file-browser-controls";
 import { FileIcon } from "./file-icon";
 
 const PAGE_SIZE = 100;
@@ -106,33 +107,17 @@ export function FolderContents({
 			{expanded && (
 				<div className="pr-file-body">
 					<div className="pr-browser-tools">
-						<nav aria-label={t("location")}>
-							<button type="button" onClick={() => navigate("")}>
-								{rootName}
-							</button>
-							{directory &&
-								directory.split("/").map((part, i, parts) => (
-									<span key={parts.slice(0, i + 1).join("/")}>
-										<ChevronRight />
-										<button
-											type="button"
-											onClick={() => navigate(parts.slice(0, i + 1).join("/"))}
-										>
-											{part}
-										</button>
-									</span>
-								))}
-						</nav>
-						<label>
-							<Search />
-							<input
-								type="search"
-								aria-label={t("searchFiles")}
-								placeholder={t("searchFiles")}
-								value={query}
-								onChange={(e) => setQuery(e.target.value)}
-							/>
-						</label>
+						<Breadcrumb
+							rootName={rootName}
+							directory={directory}
+							navigate={navigate}
+						/>
+						<SearchField
+							label={t("searchFiles")}
+							value={query}
+							onValueChange={setQuery}
+							className="w-44 max-w-full"
+						/>
 					</div>
 					{failed ? (
 						<p role="alert">{t("unavailable")}</p>
@@ -146,15 +131,10 @@ export function FolderContents({
 								{files.slice(0, limit).map((entry) => (
 									<li key={entry.path} className="pr-file-entry">
 										{entry.directory ? (
-											<button
-												className="pr-directory-link"
-												type="button"
-												onClick={() => navigate(entry.path)}
-											>
-												<FileIcon directory name={entry.name} />
-												<span>{entry.name}</span>
-												<ChevronRight />
-											</button>
+											<DirectoryLink
+												name={entry.name}
+												onOpen={() => navigate(entry.path)}
+											/>
 										) : (
 											<>
 												<FileIcon name={entry.name} />
