@@ -27,7 +27,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from contextlens import memory, models, records
+from contextlens import memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
 
 
@@ -206,12 +206,47 @@ async def scene_decision(request: Request) -> JSONResponse:
     return await _plain_change(lambda b: memory.operations.decide_scene(sid, accept, _USER), request)
 
 
-async def projects_index(request: Request) -> JSONResponse:
+async def project_folders(request: Request) -> JSONResponse:
+    project_id = request.path_params["id"]
+    if request.method == "GET":
+        return await _read(project_files.folders, project_id)
     body = await request.json()
-    return await _read(lambda: asdict(memory.operations.create_project(body.get("name", ""), _USER)))
+    return await _read(project_files.attach, project_id, body.get("paths") if isinstance(body, dict) else None)
+
+
+async def choose_folder_paths(request: Request) -> JSONResponse:
+    return await _read(project_files.choose_paths)
+
+
+async def pick_project_folders(request: Request) -> JSONResponse:
+    return await _read(project_files.pick, request.path_params["id"])
+
+
+async def list_project_files(request: Request) -> JSONResponse:
+    return await _read(project_files.list_files, request.path_params["id"], request.path_params["folder_id"],
+                       request.query_params.get("directory"), request.query_params.get("q", "").strip())
+
+
+async def detach_project_folder(request: Request) -> JSONResponse:
+    return await _read(project_files.detach, request.path_params["id"], request.path_params["folder_id"])
+
+
+async def project_settings(request: Request) -> JSONResponse:
+    return await _read(projects.configure, request.path_params["id"], await request.json())
+
+
+async def projects_index(request: Request) -> JSONResponse:
+    if request.method == "GET":
+        return await _read(projects.directory)
+    body = await request.json()
+    return await _read(lambda: asdict(project_files.create_with_folders(body.get("name", ""), _USER, body.get("paths", []))))
 
 
 async def project_item(request: Request) -> JSONResponse:
+    if request.method == "DELETE":
+        return await _read(projects.remove_local, request.path_params["id"])
+    if request.method == "PUT":
+        return await _read(project_files.edit_project, request.path_params["id"], _USER, await request.json())
     pid = request.path_params["id"]
     return await _plain_change(lambda b: memory.operations.set_isolated(pid, bool(b["isolated"]), _USER), request)
 
@@ -242,7 +277,7 @@ async def memory_history(request: Request) -> JSONResponse:
 async def memory_events(request: Request) -> JSONResponse:
     q = request.query_params
     events = await asyncio.to_thread(records.events, None, q.get("thread_id"), int(q.get("limit", 100)),
-                                     int(q["before"]) if q.get("before") else None)
+                                     int(q["before"]) if q.get("before") else None, q.get("scope"))
     return JSONResponse({"events": events})
 
 
@@ -283,8 +318,14 @@ app = Starlette(
         Route("/lens/scenes", scenes_index, methods=["POST"]),
         Route("/lens/scenes/suggest", scenes_suggest, methods=["POST"]),
         Route("/lens/scenes/{id}/{decision}", scene_decision, methods=["POST"]),
-        Route("/lens/projects", projects_index, methods=["POST"]),
-        Route("/lens/projects/{id}", project_item, methods=["PATCH"]),
+        Route("/lens/folder-picker", choose_folder_paths, methods=["POST"]),
+        Route("/lens/projects", projects_index, methods=["GET", "POST"]),
+        Route("/lens/projects/{id}/folders", project_folders, methods=["GET", "POST"]),
+        Route("/lens/projects/{id}/folders/pick", pick_project_folders, methods=["POST"]),
+        Route("/lens/projects/{id}/folders/{folder_id}/files", list_project_files, methods=["GET"]),
+        Route("/lens/projects/{id}/folders/{folder_id}", detach_project_folder, methods=["DELETE"]),
+        Route("/lens/projects/{id}/settings", project_settings, methods=["PATCH"]),
+        Route("/lens/projects/{id}", project_item, methods=["PATCH", "PUT", "DELETE"]),
         Route("/lens/questions/{id}", question_item, methods=["POST"]),
         Route("/lens/memories", memories_index, methods=["GET", "POST"]),
         Route("/lens/memories/{memory_id}", memory_item, methods=["PATCH"]),

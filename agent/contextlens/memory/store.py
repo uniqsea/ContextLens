@@ -30,6 +30,22 @@ CREATE TABLE IF NOT EXISTS scenes (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, definition TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, reason TEXT);
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, isolated INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS removed_projects (id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS project_settings (
+  project_id TEXT PRIMARY KEY, starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', updated_at TEXT);
+CREATE TABLE IF NOT EXISTS project_folders (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, path TEXT NOT NULL, device INTEGER NOT NULL,
+  inode TEXT NOT NULL, UNIQUE(project_id, path));
+CREATE TABLE IF NOT EXISTS project_documents (
+  id INTEGER PRIMARY KEY, folder_id TEXT NOT NULL, path TEXT NOT NULL, stamp TEXT NOT NULL,
+  UNIQUE(folder_id, path));
+CREATE VIRTUAL TABLE IF NOT EXISTS project_passages USING fts5(document_id UNINDEXED, name, terms, excerpt UNINDEXED);
+CREATE TRIGGER IF NOT EXISTS remove_project_passages AFTER DELETE ON project_documents BEGIN
+  DELETE FROM project_passages WHERE document_id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS remove_project_documents AFTER DELETE ON project_folders BEGIN
+  DELETE FROM project_documents WHERE folder_id = OLD.id;
+END;
 CREATE TABLE IF NOT EXISTS questions (
   id TEXT PRIMARY KEY, scope TEXT NOT NULL, text TEXT NOT NULL, memory_ids TEXT NOT NULL,
   state TEXT NOT NULL, answer TEXT);
@@ -65,6 +81,8 @@ def connect() -> sqlite3.Connection:
     conn.executescript(_SCHEMA)
     if "definition" not in {r["name"] for r in conn.execute("PRAGMA table_info(scenes)")}:  # stores made before it
         conn.execute("ALTER TABLE scenes ADD COLUMN definition TEXT NOT NULL DEFAULT ''")
+    if "updated_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
+        conn.execute("ALTER TABLE project_settings ADD COLUMN updated_at TEXT")
     return conn
 
 
@@ -124,11 +142,12 @@ EVENT_ROW = ("SELECT e.*, (SELECT MIN(r.id) FROM events r WHERE r.reverts = e.ba
 
 
 def list_events(limit: int = 100, before_id: int | None = None, entity_id: str | None = None,
-                thread_id: str | None = None, entity: str | None = None) -> list[dict]:
+                thread_id: str | None = None, entity: str | None = None, scope: str | None = None) -> list[dict]:
     """Newest first, each with the first event that undid its batch and the first it undid."""
     where, params = ["1 = 1"], []
     for clause, value in (("e.id < ?", before_id), ("e.entity_id = ?", entity_id), ("e.thread_id = ?", thread_id),
-                          ("e.entity = ?", entity)):
+                          ("e.entity = ?", entity),
+                          ("e.entity_id IN (SELECT id FROM memories WHERE scope = ?)", scope)):
         if value is not None:
             where.append(clause)
             params.append(value)

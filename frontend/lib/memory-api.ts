@@ -86,9 +86,10 @@ export const memoryApi = {
 		).then((r) => r.events),
 	/** Newest first; pass the last id seen as `before` for the next page. */
 	events: (
-		opts: { threadId?: string; before?: number; limit?: number } = {},
+		opts: { scope?: string; threadId?: string; before?: number; limit?: number } = {},
 	) => {
 		const q = new URLSearchParams();
+		if (opts.scope) q.set("scope", opts.scope);
 		if (opts.threadId) q.set("thread_id", opts.threadId);
 		if (opts.before) q.set("before", String(opts.before));
 		q.set("limit", String(opts.limit ?? 100));
@@ -127,10 +128,10 @@ export const memoryApi = {
 		}).then((r) => r.situations),
 	decideScene: (id: string, accept: boolean) =>
 		post(`/scenes/${id}/${accept ? "accept" : "dismiss"}`),
-	createProject: (name: string) =>
+	createProject: (name: string, paths: string[] = []) =>
 		call<Project>("/projects", {
 			method: "POST",
-			body: JSON.stringify({ name }),
+			body: JSON.stringify({ name, paths }),
 		}),
 	setIsolated: (id: string, isolated: boolean) =>
 		patch(`/projects/${id}`, { isolated }),

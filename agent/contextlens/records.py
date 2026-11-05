@@ -11,6 +11,7 @@ from datetime import date
 
 from contextlens import config, memory
 from contextlens.memory import operations
+from contextlens.projects import directory as project_directory
 
 _ACTORS = {"after_turn": "consolidation", "upkeep": "consolidation", "seed": "import", "import": "import"}
 _SEED_SCENES = {"work": "工作", "study": "学习", "personal": "生活", "life": "生活"}
@@ -48,7 +49,7 @@ def overview(scope: str) -> dict:
     _seed_if_new()
     operations.preset_scenes_if_never_chosen()
     scenes = memory.all_of(memory.Scene)
-    return {"projects": [asdict(p) for p in memory.all_of(memory.Project)],
+    return {"projects": [{k: p[k] for k in ("id", "name", "isolated")} for p in project_directory()],
             "scenes": [asdict(s) for s in scenes if s.state == "active"],
             "proposed_scenes": [asdict(s) for s in scenes if s.state == "proposed"],
             "concepts": operations.concepts_in(scope),
@@ -84,8 +85,8 @@ def revise(memory_id: str, fields: dict, source: memory.Source, expected_revisio
 
 
 def events(memory_id: str | None = None, thread_id: str | None = None, limit: int = 200,
-           before_id: int | None = None) -> list[dict]:
-    raw = memory.list_events(limit, before_id, memory_id, thread_id, entity="memories")
+           before_id: int | None = None, scope: str | None = None) -> list[dict]:
+    raw = memory.list_events(limit, before_id, memory_id, thread_id, entity="memories", scope=scope)
     return [_event(e) for e in raw]
 
 

@@ -9,6 +9,7 @@ import { ScopeBar } from "@/components/lens/scope-bar";
 import { useOverview } from "@/components/lens/use-overview";
 import { useScope } from "@/components/lens/use-scope";
 import { LocaleSwitch } from "@/components/locale-switch";
+import { projectPath } from "@/lib/projects/types";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord } from "@/lib/memory-types";
 import { ConceptBar } from "./concept-bar";
@@ -17,9 +18,17 @@ import { MemoryCard } from "./memory-card";
 import { MemoryDetail } from "./memory-detail";
 import { Timeline } from "./timeline";
 
-export function MemoryLibrary() {
+export function MemoryLibrary({
+	projectScope,
+	projectName,
+}: {
+	projectScope?: string;
+	projectName?: string | null;
+}) {
+	const nav = useTranslations("projects");
 	const t = useTranslations("library");
-	const { scope, chooseScope } = useScope();
+	const legacy = useScope();
+	const scope = projectScope ?? legacy.scope;
 	const overview = useOverview(scope);
 	const [view, setView] = useState<"memories" | "timeline">("memories");
 	const [version, setVersion] = useState(0);
@@ -100,22 +109,28 @@ export function MemoryLibrary() {
 					<Link href="/" className="lens-mark">
 						<BrandLogo />
 					</Link>
-					{overview.data && (
-						<ScopeBar
-							projects={overview.data.projects}
-							scope={scope}
-							onScope={(next) => {
-								chooseScope(next);
-								setConcept(null);
-								setFilter("all");
-							}}
-							onChanged={overview.reload}
-						/>
+					{projectScope ? (
+						<Link className="lens-scope" href={projectPath(scope)}>
+							{projectName ?? nav("ordinary")}
+						</Link>
+					) : (
+						overview.data && (
+							<ScopeBar
+								projects={overview.data.projects}
+								scope={scope}
+								onScope={(next) => {
+									legacy.chooseScope(next);
+									setConcept(null);
+									setFilter("all");
+								}}
+								onChanged={overview.reload}
+							/>
+						)
 					)}
 					<div className="lib-top-right">
 						<LocaleSwitch className="lens-seg" />
-						<Link href="/" className="lens-btn outline">
-							{t("backToAssistant")}
+						<Link href={projectPath(scope)} className="lens-btn outline">
+							{nav("back")}
 						</Link>
 					</div>
 				</header>
@@ -175,6 +190,7 @@ export function MemoryLibrary() {
 				{view === "timeline" ? (
 					<div className="lens-sheet-panel lib-timeline">
 						<Timeline
+							scope={scope}
 							refreshKey={version}
 							onChanged={() => void refreshMemories()}
 						/>

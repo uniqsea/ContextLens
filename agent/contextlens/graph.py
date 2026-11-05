@@ -16,6 +16,7 @@ from langgraph.graph.message import add_messages
 
 from contextlens import engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
+from contextlens.context.snapshot import estimate_tokens
 from contextlens.provenance import parse_segments
 
 
@@ -111,18 +112,38 @@ def _follow_correction(req: dict, record: dict, situation: dict, config: Runnabl
 def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, *, situation, scope, thread_id,
                   turn, bright=(), dim=()) -> dict:
     prompt, question = snapshot["messages"][0]["content"], snapshot["messages"][1]["content"]
-    text, steps = engine.answer(prompt, question, situation=situation, scope=scope, thread_id=thread_id, turn=turn)
+    text, steps = engine.answer(prompt, question, situation=situation, scope=scope, thread_id=thread_id, turn=turn,
+                                excluded_files=excluded)
     # Memories the agent looked up itself are sources too.
     recalled = [m["id"] if isinstance(m, dict) else m for s in steps for m in (s["artifact"] or {}).get("memories", [])]
-    content, segments = parse_segments(text, [*snapshot["selected_ids"], *recalled])
+    file_dependencies = list(snapshot.get("file_dependencies", []))
+    candidates = {item["id"]: dict(item) for item in snapshot["candidates"]}
+    selected = list(snapshot["selected_ids"])
+    for step in steps:
+        doc = (step["artifact"] or {}).get("document")
+        if not doc:
+            continue
+        for dep in doc["files"]:
+            if dep not in file_dependencies:
+                file_dependencies.append(dep)
+        item = candidates.get(doc["id"])
+        if item is None:
+            candidates[doc["id"]] = {**{k: v for k, v in doc.items() if k != "files"}, "layer": "retrieval", "status": "active",
+                                     "selection_reason": {"code": "source"}, "tokens": estimate_tokens(doc["content"])}
+            selected.append(doc["id"])
+        elif doc["content"] not in item["content"]:
+            item["content"] += "\n…\n" + doc["content"]
+            item["tokens"] = estimate_tokens(item["content"])
+    content, segments = parse_segments(text, [*selected, *recalled])
     return {"note": note, "content": content, "segments": segments, "steps": steps,
-            "selected_ids": snapshot["selected_ids"], "candidates": snapshot["candidates"],
+            "selected_ids": selected, "candidates": list(candidates.values()),
             "payload": snapshot["messages"], "fingerprint": snapshot["fingerprint"], "situation": situation,
             "concepts": [{"id": c.id, "name": c.name} for c in memory.operations.concepts_named(situation.get("concepts", []))],
             "brighten": list(bright), "dim": list(dim),
             "recalled_ids": sorted(set(recalled)),
             "excluded": excluded, "pinned": pinned, "created_at": datetime.now(timezone.utc).isoformat(),
-            "lineage": {"memories": snapshot["memory_dependencies"], "history": snapshot["history_dependencies"]}}
+            "lineage": {"memories": snapshot["memory_dependencies"], "history": snapshot["history_dependencies"],
+                        "files": file_dependencies}}
 
 
 def _tool_changes(version: dict) -> list[dict]:

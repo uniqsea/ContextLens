@@ -5,7 +5,6 @@ This is the only module that imports deepagents. The rest of the backend talks t
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import cache
 
 from deepagents import create_deep_agent
@@ -14,6 +13,8 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from contextlens import memory, models
+from contextlens.project_files.tools import browse_project_files
+from contextlens.turn import Request
 
 # Context reaches the model only through the governed snapshot, so the harness must not add its own
 # routes in: no general-purpose subagent (separate context) and no automatic summary of history.
@@ -21,13 +22,6 @@ _PROFILE = HarnessProfile(
     general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
     excluded_middleware=frozenset({"SummarizationMiddleware"}),
 )
-
-
-@dataclass
-class Request(memory.TurnContext):
-    """Per-run context: the system prompt rendered from this turn's snapshot, plus where the run
-    belongs (question, scope, situation, thread, turn), which the memory tools use and record."""
-    prompt: str = ""
 
 
 class SnapshotPrompt(AgentMiddleware):
@@ -54,16 +48,16 @@ def build():
     provider = model._get_ls_params().get("ls_provider")
     if provider:
         register_harness_profile(provider, _PROFILE)
-    return create_deep_agent(model=model, tools=memory.TOOLS, middleware=[SettingsModel(), SnapshotPrompt()],
+    return create_deep_agent(model=model, tools=[*memory.TOOLS, browse_project_files], middleware=[SettingsModel(), SnapshotPrompt()],
                              context_schema=Request, name="contextlens-engine")
 
 
 def answer(prompt: str, question: str, *, situation: dict, scope: str = memory.ORDINARY,
-           thread_id: str | None = None, turn: int | None = None, config=None) -> tuple[str, list[dict]]:
+           thread_id: str | None = None, turn: int | None = None, config=None, excluded_files=()) -> tuple[str, list[dict]]:
     """Run the engine once. Returns the final text and the tool steps taken on the way."""
     result = build().invoke({"messages": [HumanMessage(content=question)]}, config,
                             context=Request(prompt=prompt, question=question, scope=scope, situation=situation,
-                                            thread_id=thread_id, turn=turn))
+                                            thread_id=thread_id, turn=turn, excluded_files=set(excluded_files)))
     messages = result["messages"]
     final = next(m for m in reversed(messages) if isinstance(m, AIMessage))
     return str(final.text if hasattr(final, "text") else final.content), _steps(messages)

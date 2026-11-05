@@ -67,10 +67,12 @@ const UNDO_RUN_MS = 2 * 60_000;
  * that caused it. Each change can be undone, which adds the opposite change; history never
  * shrinks. With `memoryId`, the history of one memory. */
 export function Timeline({
+	scope,
 	memoryId,
 	refreshKey,
 	onChanged,
 }: {
+	scope?: string;
 	memoryId?: string;
 	refreshKey?: number;
 	onChanged: () => void;
@@ -85,10 +87,10 @@ export function Timeline({
 	const load = useCallback(async () => {
 		const list = memoryId
 			? await memoryApi.history(memoryId)
-			: await memoryApi.events({ limit: PAGE });
+			: await memoryApi.events({ scope, limit: PAGE });
 		setEvents(list);
 		setMore(!memoryId && list.length === PAGE);
-	}, [memoryId]);
+	}, [memoryId, scope]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is a trigger
 	useEffect(() => {
@@ -98,7 +100,7 @@ export function Timeline({
 	const loadMore = async () => {
 		const last = events?.[events.length - 1];
 		if (!last) return;
-		const page = await memoryApi.events({ before: last.id, limit: PAGE });
+		const page = await memoryApi.events({ scope, before: last.id, limit: PAGE });
 		setEvents((e) => [...(e ?? []), ...page]);
 		setMore(page.length === PAGE);
 	};

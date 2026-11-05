@@ -1,7 +1,7 @@
 "use client";
 
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { Library, SquarePen } from "lucide-react";
+import { Library } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,41 +33,12 @@ import {
 	type Rect,
 } from "./field-engine";
 import { Inbox } from "./inbox";
-import { ScopeBar } from "./scope-bar";
+import { NewChat } from "@/components/projects/new-chat";
+import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
 import { useFold } from "./use-fold";
 import { useOverview } from "./use-overview";
-import { useScope } from "./use-scope";
-
-const THREADS_KEY = "contextlens.threads";
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function readThreads(): Record<string, string> {
-	try {
-		return JSON.parse(localStorage.getItem(THREADS_KEY) ?? "{}");
-	} catch {
-		return {};
-	}
-}
-
-/** Each scope's last conversation, if one was saved and looks valid. */
-function readThread(scope: string): string | null {
-	const id = readThreads()[scope];
-	return id && UUID.test(id) ? id : null;
-}
-
-function rememberThread(scope: string, id: string | null) {
-	try {
-		const threads = readThreads();
-		if (id) threads[scope] = id;
-		else delete threads[scope];
-		localStorage.setItem(THREADS_KEY, JSON.stringify(threads));
-	} catch {
-		/* storage unavailable */
-	}
-}
-
 const EMPTY: Draft = { excluded: [], pinned: [] };
 const without = (xs: string[], id: string) => xs.filter((x) => x !== id);
 
@@ -86,45 +57,27 @@ const plain = (content: unknown) =>
 					.join("")
 			: "";
 
-export function LensApp() {
+export function LensApp({
+	scope,
+	name,
+	threadId,
+}: {
+	scope: string;
+	name: string | null;
+	threadId: string;
+}) {
 	const text = useLensText();
 	const { t } = text;
 	const locale = useLocale();
 	const examples = t.raw("lens.examples") as string[];
-	const { scope, chooseScope, projectId } = useScope();
+	const projectId = scope === ORDINARY ? null : scope;
 	const overview = useOverview(scope);
-	const [threadId, setThreadId] = useState<string | null>(null);
 	const stream = useStream<LensState>({
 		apiUrl: apiUrl(),
 		assistantId: ASSISTANT_ID,
 		threadId,
 		messagesKey: "messages",
-		onThreadId: (id) => {
-			setThreadId(id || null);
-			if (id) rememberThread(scope, id);
-		},
 	});
-	const switchThread = useRef(stream.switchThread);
-	switchThread.current = stream.switchThread;
-	useEffect(() => {
-		// Each scope has its own conversation; resume it only if the agent still has it (it forgets
-		// on restart).
-		let live = true;
-		const saved = readThread(scope);
-		switchThread.current(null);
-		setThreadId(null);
-		if (saved)
-			fetch(`/api/threads/${saved}`)
-				.then((res) => {
-					if (!live) return;
-					if (res.ok) setThreadId(saved);
-					else rememberThread(scope, null);
-				})
-				.catch(() => rememberThread(scope, null));
-		return () => {
-			live = false;
-		};
-	}, [scope]);
 
 	const [input, setInput] = useState("");
 	const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -692,46 +645,25 @@ export function LensApp() {
 			>
 				<div className="lens-head">
 					<div className="lens-head-row" ref={headRef}>
-						<div className="lens-mark">
+						<Link href="/" className="lens-mark">
 							<BrandLogo />
-						</div>
-						{overview.data && (
-							<ScopeBar
-								projects={overview.data.projects}
-								scope={scope}
-								onScope={(next) => {
-									chooseScope(next);
-									setDraft(EMPTY);
-								}}
-								onChanged={overview.reload}
-							/>
-						)}
+						</Link>
+						<Link href={projectPath(scope)} className="lens-scope">
+							{name ?? t("lens.ordinary")}
+						</Link>
 						<nav
 							className="lens-head-actions"
 							aria-label={t("lens.navigation")}
 						>
 							<Link
-								href="/memories"
+								href={projectPath(scope) + "/memories"}
 								className="lens-text-btn lens-fold-btn"
 								title={t("lens.library")}
 							>
 								<Library aria-hidden="true" />
 								<span>{t("lens.library")}</span>
 							</Link>
-							<button
-								type="button"
-								className="lens-text-btn lens-fold-btn"
-								title={t("lens.newChat")}
-								onClick={() => {
-									rememberThread(scope, null);
-									setThreadId(null);
-									stream.switchThread(null);
-									setDraft(EMPTY);
-								}}
-							>
-								<SquarePen aria-hidden="true" />
-								<span>{t("lens.newChat")}</span>
-							</button>
+							<NewChat scope={scope} className="lens-text-btn lens-fold-btn" />
 							<SettingsMenu
 								onManageModels={() => setManagingModels(true)}
 								onManageSituations={() => setManagingSituations(true)}

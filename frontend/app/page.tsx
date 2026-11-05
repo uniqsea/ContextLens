@@ -1,5 +1,5 @@
-import { LensApp } from "@/components/lens/lens-app";
+import { ProjectWorkspace } from "@/components/projects/workspace";
 
 export default function Home() {
-	return <LensApp />;
+	return <ProjectWorkspace />;
 }

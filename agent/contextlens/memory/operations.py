@@ -258,11 +258,11 @@ def decide_scene(scene_id: str, accept: bool, source: Source) -> list[dict]:
 
 # ---------- projects ----------
 
-def create_project(name: str, source: Source, isolated: bool = True) -> Project:
+def create_project(name: str, source: Source, isolated: bool = True, *, conn=None) -> Project:
     if not name.strip():
         raise MemoryError("A project needs a name.")
     project = Project(id=_id("p"), name=name.strip(), isolated=isolated)
-    ledger.commit(source, "created", project)
+    ledger.commit(source, "created", project, conn=conn)
     return project
 
 

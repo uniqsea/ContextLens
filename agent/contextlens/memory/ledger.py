@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -30,11 +30,11 @@ def together():
         _batch.reset(token)
 
 
-def commit(source: Source, action: str, *entities: Entity, alone: bool = False) -> list[dict]:
+def commit(source: Source, action: str, *entities: Entity, alone: bool = False, conn: sqlite3.Connection | None = None) -> list[dict]:
     """Write these entities as they now should be; ones that did not change are left out. `alone` keeps
     them out of any batch being gathered."""
     batch = None if alone else _batch.get()
-    with session() as conn:
+    with (nullcontext(conn) if conn is not None else session()) as conn:
         return _apply(conn, source, action, batch or uuid.uuid4().hex,
                       [(TABLES[type(e)], e.id, to_row(e)) for e in entities])
 
