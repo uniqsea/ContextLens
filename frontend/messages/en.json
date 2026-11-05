@@ -7,6 +7,10 @@
 		"loading": "Loading conversation"
 	},
 	"field": {
+		"zoom": "Canvas zoom",
+		"zoomOut": "Zoom out",
+		"zoomIn": "Zoom in",
+		"fitAll": "Fit all",
 		"preview": "Document preview of {title}",
 		"related": "Related",
 		"library": "Browse all sources ({count})",

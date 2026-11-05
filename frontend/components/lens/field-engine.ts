@@ -5,6 +5,7 @@
  */
 import type { CardState, Layer } from "@/lib/lens/types";
 import { layerColor } from "@/lib/lens/types";
+import { bindCanvasNavigation, type CanvasView } from "./canvas-navigation";
 import { Wire } from "./wire";
 
 export interface FieldCard {
@@ -62,6 +63,7 @@ export interface FieldHandlers {
 	onClick(id: string): void;
 	/** How many cards you have placed by hand; zero once they are all tidied. */
 	onPlaced(count: number): void;
+	onScale(scale: number): void;
 }
 
 interface Live {
@@ -126,9 +128,12 @@ export class FieldEngine {
 	private hideT: ReturnType<typeof setTimeout> | undefined;
 	private suppressClick = false;
 	private counter = 0;
+	private view: CanvasView = { x: 0, y: 0, scale: 1 };
+	private navigation: ReturnType<typeof bindCanvasNavigation>;
 
 	constructor(
 		private stage: HTMLElement,
+		private world: HTMLElement,
 		private svg: SVGSVGElement,
 		private zones: {
 			tray: HTMLElement;
@@ -151,7 +156,133 @@ export class FieldEngine {
 			l.wire.snap();
 			this.h.onUnlink(l.card.id);
 		});
-		stage.appendChild(this.handle);
+		world.appendChild(this.handle);
+		this.navigation = bindCanvasNavigation(
+			stage,
+			(target, pan) => {
+				if (this.drag || !(target instanceof Element)) return false;
+				if (target === stage || target.classList.contains("canvas-backdrop"))
+					return true;
+				if (
+					!world.contains(target) ||
+					target.closest("textarea,input,select,[contenteditable=true]")
+				)
+					return false;
+				return !pan || !target.closest("button,a,summary,.flow-node,.hit");
+			},
+			(view) => {
+				if (view.scale !== this.view.scale) this.h.onScale(view.scale);
+				this.view = view;
+				// Layout zoom paints glyphs at the requested resolution. Pan in world units.
+				world.style.setProperty("--canvas-scale", String(view.scale));
+				world.style.transform = `translate(${view.x / view.scale}px, ${view.y / view.scale}px)`;
+				stage.style.backgroundSize = `${22 * view.scale}px ${22 * view.scale}px`;
+				stage.style.backgroundPosition = `${view.x + 11 * view.scale}px ${view.y + 11 * view.scale}px`;
+			},
+		);
+	}
+
+	private availableView() {
+		const model = this.h.model();
+		if (window.innerWidth <= 900) {
+			const toolbar = this.stage.querySelector(".lens-fieldbar");
+			const stageTop = this.stage.getBoundingClientRect().top;
+			const top =
+				(toolbar
+					? toolbar.getBoundingClientRect().bottom - stageTop
+					: model.floor) + 12;
+			return {
+				x: 12,
+				y: top,
+				w: this.stage.clientWidth - 24,
+				h: Math.max(
+					1,
+					Math.min(
+						window.innerHeight - 100,
+						this.stage.clientHeight - top - 12,
+					),
+				),
+			};
+		}
+		const left = model.sheet.x + model.sheet.w + 12;
+		const right = (model.fieldRight ?? this.stage.clientWidth) - 12;
+		const toolbar = this.stage.querySelector(".lens-fieldbar");
+		const top = toolbar
+			? toolbar.getBoundingClientRect().bottom -
+				this.stage.getBoundingClientRect().top +
+				12
+			: 60;
+		return {
+			x: left,
+			y: top,
+			w: Math.max(1, right - left),
+			h: Math.max(1, this.stage.clientHeight - top - 12),
+		};
+	}
+
+	zoomBy(factor: number) {
+		const area = this.availableView();
+		this.navigation.zoom(area.x + area.w / 2, area.y + area.h / 2, factor);
+	}
+
+	fitAll() {
+		const elements = this.world.querySelectorAll(
+			".lens-card:not(.shelved), .lens-colhead:not([hidden]), .lens-shelf:not([hidden]), .steps-canvas header, .flow-node",
+		);
+		const area = this.availableView();
+		const world = this.world.getBoundingClientRect();
+		const { scale } = this.view;
+		let left = Infinity,
+			top = Infinity,
+			right = -Infinity,
+			bottom = -Infinity;
+		for (const el of elements) {
+			const box = el.getBoundingClientRect();
+			if (!box.width || !box.height) continue;
+			left = Math.min(left, (box.left - world.left) / scale);
+			top = Math.min(top, (box.top - world.top) / scale);
+			right = Math.max(right, (box.right - world.left) / scale);
+			bottom = Math.max(bottom, (box.bottom - world.top) / scale);
+		}
+		if (!Number.isFinite(left)) {
+			this.navigation.move(0, 0, 1);
+			return;
+		}
+		const fit = Math.min(1, area.w / (right - left), area.h / (bottom - top));
+		this.navigation.move(
+			area.x + (area.w - (right + left) * fit) / 2,
+			area.y + (area.h - (bottom + top) * fit) / 2,
+			fit,
+		);
+		if (window.innerWidth <= 900) {
+			window.scrollBy(0, this.stage.getBoundingClientRect().top + area.y - 16);
+		}
+	}
+
+	locateSteps(panel: HTMLElement, tools: HTMLElement) {
+		const model = this.h.model();
+		if (window.innerWidth <= 900) {
+			this.navigation.move(0, 0, 1);
+			panel.querySelector("header")?.scrollIntoView({ block: "center" });
+		} else {
+			const left = model.sheet.x + model.sheet.w + 12;
+			const right = (model.fieldRight ?? this.stage.clientWidth) - 12;
+			const top =
+				tools.getBoundingClientRect().bottom -
+				this.stage.getBoundingClientRect().top +
+				16;
+			const scale = Math.min(
+				1,
+				Math.max(0.25, (right - left) / Math.max(1, panel.offsetWidth)),
+			);
+			const x = (left + right - panel.offsetWidth * scale) / 2;
+			this.navigation.move(
+				x - panel.offsetLeft * scale,
+				top - panel.offsetTop * scale,
+				scale,
+			);
+		}
+		panel.focus({ preventScroll: true });
 	}
 
 	start() {
@@ -165,6 +296,11 @@ export class FieldEngine {
 	}
 
 	destroy() {
+		this.navigation.destroy();
+		this.world.style.transform = "";
+		this.world.style.removeProperty("--canvas-scale");
+		this.stage.style.backgroundSize = "";
+		this.stage.style.backgroundPosition = "";
 		cancelAnimationFrame(this.raf);
 		this.stage.style.height = "";
 		this.stage.classList.remove("dragging", "over-composer", "focusing");
@@ -182,7 +318,7 @@ export class FieldEngine {
 			h = document.createElement("div");
 			h.className = "lens-colhead";
 			h.style.setProperty("--c", layerColor(layer));
-			this.stage.appendChild(h);
+			this.world.appendChild(h);
 			this.heads.set(layer, h);
 		}
 		h.hidden = text === null;
@@ -283,7 +419,7 @@ export class FieldEngine {
 		el.style.setProperty("--c", layerColor(card.layer));
 		el.style.width = this.CW + "px";
 		this.fill(el, card);
-		this.stage.appendChild(el);
+		this.world.appendChild(el);
 		const l: Live = {
 			card,
 			el,
@@ -697,11 +833,16 @@ export class FieldEngine {
 			const sx = a.kind === "strip" ? m.sheet.x + m.sheet.w : ax;
 			const sy = a.kind === "strip" ? ay - RAIL : ay;
 			l.wire.move(
-				sx,
-				sy,
+				(sx - this.view.x) / this.view.scale,
+				(sy - this.view.y) / this.view.scale,
 				ex,
 				ey,
-				a.kind === "strip" ? { x: ax, y: ay } : undefined,
+				a.kind === "strip"
+					? {
+							x: (ax - this.view.x) / this.view.scale,
+							y: (ay - this.view.y) / this.view.scale,
+						}
+					: undefined,
 			);
 			l.wire.dim(l.far, !!a.fade);
 			if (this.handleFor === l && l.wire.hit) {
@@ -714,8 +855,11 @@ export class FieldEngine {
 	}
 
 	private local(e: PointerEvent): [number, number] {
-		const b = this.stage.getBoundingClientRect();
-		return [e.clientX - b.left, e.clientY - b.top];
+		const b = this.world.getBoundingClientRect();
+		return [
+			(e.clientX - b.left) / this.view.scale,
+			(e.clientY - b.top) / this.view.scale,
+		];
 	}
 
 	private bind(l: Live) {
@@ -750,7 +894,14 @@ export class FieldEngine {
 			l.y = y - d.oy;
 			el.style.transform = `translate(${l.x}px, ${l.y}px)`;
 			const m = this.h.model();
-			this.stage.classList.toggle("over-composer", inRect(x, y, m.form));
+			this.stage.classList.toggle(
+				"over-composer",
+				inRect(
+					this.view.x + x * this.view.scale,
+					this.view.y + y * this.view.scale,
+					m.form,
+				),
+			);
 			this.zones.tray.classList.toggle("over", inRect(x, y, this.tray));
 		});
 		const end = (e: PointerEvent) => {
@@ -772,13 +923,20 @@ export class FieldEngine {
 			const m = this.h.model();
 			const s = m.state[l.card.id] ?? "idle";
 			let target: DropTarget = "none";
-			if (inRect(x, y, m.form)) target = "composer";
+			if (
+				inRect(
+					this.view.x + x * this.view.scale,
+					this.view.y + y * this.view.scale,
+					m.form,
+				)
+			)
+				target = "composer";
 			else if (inRect(x, y, this.tray)) target = "tray";
 			if (target === "none" && s !== "ex" && !this.narrow) {
 				// Open field: the card stays where you put it, inside the stage.
 				this.placed.set(l.card.id, {
-					x: Math.max(0, Math.min(this.W - this.CW, l.x)),
-					y: Math.max(0, Math.min(this.H - l.h, l.y)),
+					x: l.x,
+					y: l.y,
 					state: s,
 				});
 				this.h.onPlaced(this.placed.size);

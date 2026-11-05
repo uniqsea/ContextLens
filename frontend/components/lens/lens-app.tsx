@@ -1,10 +1,10 @@
 "use client";
 
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { Library } from "lucide-react";
+import { Library, Maximize, Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ModelPicker } from "@/components/model-settings/model-picker";
 import { SettingsDialog } from "@/components/model-settings/settings-dialog";
 import { useModelSettings } from "@/components/model-settings/use-model-settings";
@@ -101,10 +101,12 @@ export function LensApp({
 		turn: number;
 		ids: string[];
 	} | null>(null);
+	const [locateTurn, setLocateTurn] = useState<number | null>(null);
 	const [stepsHost, setStepsHost] = useState<HTMLDivElement | null>(null);
 	const [inspecting, setInspecting] = useState(true);
 	const [previewError, setPreviewError] = useState(false);
 	const [shelfOpen, setShelfOpen] = useState(false);
+	const [canvasScale, setCanvasScale] = useState(1);
 	const [placed, setPlaced] = useState(0);
 	const modelSettings = useModelSettings();
 	const [managingModels, setManagingModels] = useState(false);
@@ -239,6 +241,7 @@ export function LensApp({
 	}, []);
 
 	// ---------- refs the field engine reads every frame ----------
+	const worldRef = useRef<HTMLDivElement>(null);
 	const stageRef = useRef<HTMLDivElement>(null);
 	const svgRef = useRef<SVGSVGElement>(null);
 	const trayRef = useRef<HTMLDivElement>(null);
@@ -254,6 +257,14 @@ export function LensApp({
 	const engineRef = useRef<FieldEngine | null>(null);
 	const viewRef = useRef<View>({ kind: "draft", snapshot: null });
 	const sticky = useRef<string[] | null>(null);
+
+	useLayoutEffect(() => {
+		const panel = stepsPanelRef.current;
+		const tools = toolsRef.current;
+		if (locateTurn === null || stepsIndex !== locateTurn || !stepsHost || !panel || !tools) return;
+		engineRef.current?.locateSteps(panel, tools);
+		setLocateTurn(null);
+	}, [locateTurn, stepsIndex, stepsHost]);
 
 	const ctx = useRef({
 		composing,
@@ -406,7 +417,7 @@ export function LensApp({
 		if (noteRef.current && noteRef.current.textContent !== label)
 			noteRef.current.textContent = label;
 		if (toolsRef.current)
-			toolsRef.current.style.left = `${sheet.x + sheet.w + 48}px`;
+			toolsRef.current.style.left = `${sheet.x + sheet.w + 12}px`;
 		const shelved = Object.values(state).filter((s) => s === "idle").length;
 		const shelfLabel = `${tx.t("lens.shelf", { count: shelved })} · ${tx.t(
 			ctx.current.shelfOpen ? "lens.shelfClose" : "lens.shelfOpen",
@@ -422,7 +433,7 @@ export function LensApp({
 					: (c.scenes ?? []).join(" · ");
 		return {
 			fieldRight: rel(resourcesRef.current)?.x,
-			fieldBottom: rel(stepsPanelRef.current)?.y,
+			fieldBottom: stepsPanelRef.current?.offsetTop,
 			cards: visible.map((c) => {
 				const title = tx.title(c);
 				return {
@@ -454,8 +465,14 @@ export function LensApp({
 			form,
 			answer,
 			floor: (() => {
-				const t = rel(toolsRef.current);
-				return t ? t.y + t.h : sheet.y + sheet.h;
+				const resources = rel(resourcesRef.current);
+				const tools = rel(toolsRef.current);
+				const floor = Math.max(sheet.y + sheet.h, resources ? resources.y + resources.h : 0, tools ? tools.y + tools.h : 0);
+				if (window.innerWidth <= 900 && stepsPanelRef.current) {
+					stepsPanelRef.current.style.setProperty("--mobile-steps-top", floor + "px");
+					return floor + stepsPanelRef.current.offsetHeight;
+				}
+				return floor;
 			})(),
 			shelf: ctx.current.shelfOpen,
 		};
@@ -580,6 +597,7 @@ export function LensApp({
 	useEffect(() => {
 		const engine = new FieldEngine(
 			stageRef.current!,
+			worldRef.current!,
 			svgRef.current!,
 			{
 				tray: trayRef.current!,
@@ -592,6 +610,7 @@ export function LensApp({
 				onHover: (id) => handlers.current.hover(id ? [id] : null),
 				onClick: (id) => handlers.current.pin([id]),
 				onPlaced: setPlaced,
+				onScale: setCanvasScale,
 			},
 		);
 		engineRef.current = engine;
@@ -728,6 +747,7 @@ export function LensApp({
 			inert={entering}
 			className="lens-root"
 			ref={stageRef}
+			tabIndex={0}
 			style={
 				{
 					// Badge text drawn by CSS (::after) on cards the engine renders.
@@ -736,22 +756,35 @@ export function LensApp({
 				} as React.CSSProperties
 			}
 		>
-			{
-				<>
-					<svg className="wires" ref={svgRef} aria-hidden="true" />
-					<div className="lens-zone" ref={trayRef}>
-						<span>{t("lens.zoneTray")}</span>
-					</div>
-					<button
-						type="button"
-						className="lens-shelf"
-						ref={shelfRef}
-						hidden
-						aria-expanded={shelfOpen}
-						onClick={() => setShelfOpen((o) => !o)}
-					/>
-				</>
-			}
+			<div className="canvas-backdrop" aria-hidden="true" />
+			<div className="canvas-world" ref={worldRef}>
+				<svg className="wires" ref={svgRef} aria-hidden="true" />
+				<div className="lens-zone" ref={trayRef}>
+					<span>{t("lens.zoneTray")}</span>
+				</div>
+				<button
+					type="button"
+					className="lens-shelf"
+					ref={shelfRef}
+					hidden
+					aria-expanded={shelfOpen}
+					onClick={() => setShelfOpen((o) => !o)}
+				/>
+				{stepsRecord && (
+					<section
+						ref={stepsPanelRef}
+						id="turn-steps-canvas"
+						tabIndex={-1}
+						className="steps-canvas"
+						aria-label={t("turnSteps.heading")}
+					>
+						<header>
+							<h2>{t("turnSteps.turnHeading", { n: Number(stepsIndex) + 1 })}</h2>
+						</header>
+						<div ref={setStepsHost} />
+					</section>
+				)}
+			</div>
 
 			<section
 				className="lens-sheet"
@@ -834,9 +867,7 @@ export function LensApp({
 										}
 										onShowSteps={() => {
 											setStepView(i);
-											requestAnimationFrame(() =>
-												document.getElementById("turn-steps-canvas")?.focus(),
-											);
+											setLocateTurn(i);
 										}}
 										index={i}
 										record={rec}
@@ -959,6 +990,17 @@ export function LensApp({
 				</form>
 			</section>
 
+			<div ref={resourcesRef} className="scene-resources">
+				<ContextField
+					candidates={sceneCandidates.filter((c) => !extracted.has(c.id))}
+					query={input}
+					order={effectiveOrder}
+					onAdd={addToInput}
+					onHover={hover}
+					error={previewError}
+					onRetry={() => setPreviewNonce((n) => n + 1)}
+				/>
+			</div>
 			{/* Which request the field shows, and its tools; only what is needed right now shows. */}
 			<div className="lens-fieldbar" ref={toolsRef}>
 				<button
@@ -981,32 +1023,18 @@ export function LensApp({
 						{t("lens.tidy", { count: placed })}
 					</button>
 				)}
+				<div className="canvas-zoom-controls" role="group" aria-label={t("field.zoom")}>
+					<button type="button" aria-label={t("field.zoomOut")} title={t("field.zoomOut")}
+						disabled={canvasScale <= 0.25} onClick={() => engineRef.current?.zoomBy(0.8)}><Minus /></button>
+					<span>{Math.max(1, Math.round(canvasScale * 100))}%</span>
+					<button type="button" aria-label={t("field.zoomIn")} title={t("field.zoomIn")}
+						disabled={canvasScale >= 4} onClick={() => engineRef.current?.zoomBy(1.25)}><Plus /></button>
+					<button type="button" className="canvas-fit" onClick={() => engineRef.current?.fitAll()}>
+						<Maximize />{t("field.fitAll")}
+					</button>
+				</div>
 			</div>
-			<div ref={resourcesRef} className="scene-resources">
-				<ContextField
-					candidates={sceneCandidates.filter((c) => !extracted.has(c.id))}
-					query={input}
-					order={effectiveOrder}
-					onAdd={addToInput}
-					onHover={hover}
-					error={previewError}
-					onRetry={() => setPreviewNonce((n) => n + 1)}
-				/>
-			</div>
-			{stepsRecord && (
-				<section
-					ref={stepsPanelRef}
-					id="turn-steps-canvas"
-					tabIndex={-1}
-					className="steps-canvas"
-					aria-label={t("turnSteps.heading")}
-				>
-					<header>
-						<h2>{t("turnSteps.turnHeading", { n: Number(stepsIndex) + 1 })}</h2>
-					</header>
-					<div ref={setStepsHost} />
-				</section>
-			)}
+
 
 			{managingSituations && (
 				<SituationSettings

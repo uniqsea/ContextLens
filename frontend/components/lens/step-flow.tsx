@@ -46,27 +46,29 @@ export function StepFlow({
 		});
 		const measure = () => {
 			const box = graph.getBoundingClientRect();
+			const scale = box.width / graph.offsetWidth;
+			if (!scale) return;
 			for (const link of links) {
 				const start = link.start.getBoundingClientRect();
 				const end = link.end.getBoundingClientRect();
 				const startRow = link.start.parentElement!.getBoundingClientRect().top;
 				const endRow = link.end.parentElement!.getBoundingClientRect().top;
 				if (endRow > startRow + 1) {
-					const rowTop = endRow - box.top;
+					const rowTop = (endRow - box.top) / scale;
 					link.wire.moveAcrossRow(
-						start.right - box.left,
-						start.top - box.top + 24,
-						end.left - box.left - 2,
-						end.top - box.top + 24,
+						(start.right - box.left) / scale,
+						(start.top - box.top) / scale + 24,
+						(end.left - box.left) / scale - 2,
+						(end.top - box.top) / scale + 24,
 						rowTop - 20,
 					);
 					continue;
 				}
 				link.wire.move(
-					start.right - box.left,
-					start.top - box.top + 24,
-					end.left - box.left - 2,
-					end.top - box.top + 24,
+					(start.right - box.left) / scale,
+					(start.top - box.top) / scale + 24,
+					(end.left - box.left) / scale - 2,
+					(end.top - box.top) / scale + 24,
 				);
 			}
 		};
@@ -82,12 +84,7 @@ export function StepFlow({
 		};
 	}, [columns]);
 	return (
-		<section
-			className="turn-steps step-flow-scroll"
-			aria-label={label}
-			// biome-ignore lint/a11y/noNoninteractiveTabindex: the scrollable canvas needs keyboard scrolling
-			tabIndex={0}
-		>
+		<section className="turn-steps step-flow-scroll" aria-label={label}>
 			<div className="step-flow" ref={ref}>
 				<svg aria-hidden="true" className="step-flow-lines">
 					<g ref={layer} />

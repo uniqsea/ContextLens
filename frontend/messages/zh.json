@@ -7,6 +7,10 @@
 		"loading": "正在载入会话"
 	},
 	"field": {
+		"zoom": "画布缩放",
+		"zoomOut": "缩小",
+		"zoomIn": "放大",
+		"fitAll": "显示全部",
 		"preview": "「{title}」的文件预览",
 		"related": "相关材料",
 		"library": "浏览全部材料（{count}）",

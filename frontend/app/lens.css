@@ -64,15 +64,15 @@
    Blur is kept for one thing: asking where a sentence came from. */
 .lens-card { position: absolute; left: 0; top: 0; z-index: 2; text-align: left; cursor: grab;
   background: var(--l-card); border: 1px solid transparent; border-radius: 18px; padding: 11px 14px 10px;
-  touch-action: none; user-select: none; -webkit-user-select: none; transform-origin: 0 0; will-change: transform, filter;
-  filter: blur(var(--blur, 0px)); opacity: var(--op, 1); transition: filter .24s ease, opacity .24s ease, box-shadow .18s, background .18s; }
+  touch-action: none; user-select: none; -webkit-user-select: none; transform-origin: 0 0;
+  opacity: var(--op, 1); transition: filter .24s ease, opacity .24s ease, box-shadow .18s, background .18s; }
 .lens-card.near { --op: .9; background: color-mix(in srgb, var(--l-card) 55%, transparent); border: 1px dashed var(--l-line); }
 .lens-card.idle, .lens-card.out { --op: .72; background: color-mix(in srgb, var(--l-card) 60%, transparent); }
 .lens-card.ex { --op: .6; }
 .lens-card.shelved { --op: 0; pointer-events: none; }
 /* Exclude the cards in focus here: this selector outranks `.lens-card.hl` below. */
-.lens-root.focusing .lens-card:not(.shelved, .hl, :hover, .drag) { --blur: 6px; --op: .28; }
-.lens-card.hl, .lens-card:hover, .lens-card.drag { --blur: 0px; --op: 1; background: var(--l-card); }
+.lens-root.focusing .lens-card:not(.shelved, .hl, :hover, .drag) { filter: blur(6px); --op: .28; }
+.lens-card.hl, .lens-card:hover, .lens-card.drag { --op: 1; background: var(--l-card); }
 .lens-card:hover, .lens-card.hl { z-index: 3; }
 .lens-colhead { position: absolute; left: 0; top: 0; z-index: 2; padding-left: 14px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--l-muted);
   pointer-events: none; transition: transform .28s var(--l-settle); }
@@ -94,8 +94,9 @@
 .lens-card.near .k::after { content: var(--t-near, ""); flex: none; margin-left: auto; color: var(--l-doc); }
 
 /* One row over the field: which request it shows, and its tools. */
-.lens-fieldbar { position: absolute; z-index: 4; top: 12px; left: 0; height: 36px; display: flex; align-items: center; gap: 10px; }
-.lens-field-note { padding-left: 14px; font-size: 13px; font-weight: 500; color: var(--l-muted); white-space: nowrap; pointer-events: none; }
+.lens-fieldbar { pointer-events: none; position: absolute; z-index: 4; top: 8px; left: 0; right: 12px; min-height: 36px; display: flex; align-items: center; gap: 6px; }
+.lens-fieldbar button, .canvas-zoom-controls { pointer-events: auto; }
+.lens-field-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; font-size: 13px; font-weight: 500; color: var(--l-muted); white-space: nowrap; pointer-events: none; }
 .lens-seg { display: inline-flex; border-radius: 999px; padding: 2px; background: var(--l-fill); gap: 2px; }
 .lens-seg button, .lens-seg a { border: 0; background: none; border-radius: 999px; padding: 0 12px; cursor: pointer; font-size: 12.5px; font-weight: 500; min-height: 28px; color: var(--l-muted); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; transition: background .18s, color .18s; }
 .lens-seg button:hover { color: var(--l-ink); }
@@ -678,7 +679,25 @@ textarea.lens-input { resize: vertical; }
   .steps-canvas { position: relative; inset: auto; padding: 14px; }
 }
 
-.steps-canvas .step-flow-scroll { display: block; max-width: 100%; overflow: auto; padding-bottom: 12px; }
+.lens-root .canvas-world { transition-property: none; }
+.canvas-backdrop, .canvas-world { position: absolute; inset: 0; }
+.canvas-backdrop { touch-action: none; cursor: grab; }
+.canvas-world { --canvas-scale: 1; zoom: var(--canvas-scale); width: calc(100% * var(--canvas-scale)); height: calc(100% * var(--canvas-scale)); transform-origin: 0 0; transform: translate(0); pointer-events: none; z-index: 1; }
+.canvas-zoom-controls { margin-left: auto; flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid var(--l-line); border-radius: 12px; background: var(--l-card); color: var(--l-ink); font-size: 13px; box-shadow: var(--l-shadow); }
+.canvas-zoom-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 7px; border-radius: 8px; cursor: pointer; }
+.canvas-zoom-controls button:hover { background: var(--l-fill); }
+.canvas-zoom-controls button:disabled { opacity: .4; cursor: default; }
+.canvas-zoom-controls svg { width: 15px; height: 15px; }
+.canvas-zoom-controls span { min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.canvas-zoom-controls .canvas-fit { margin-left: 3px; border-left: 1px solid var(--l-line); white-space: nowrap; }
+@media (max-width: 900px) {
+  .lens-fieldbar { right: auto; flex-wrap: wrap; }
+}
+.canvas-world :is(.lens-card,.lens-unlink,.lens-shelf,.steps-canvas) { pointer-events: auto; }
+.steps-canvas { overflow: visible; cursor: grab; touch-action: none; }
+.steps-canvas .step-flow-scroll { display: block; }
+.step-flow-scroll .flow-node { cursor: auto; }
+.lens-root[data-panning], .lens-root[data-panning] :is(.canvas-backdrop,.steps-canvas) { cursor: grabbing; user-select: none; }
 .step-flow { display: grid; position: relative; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 205px), 1fr)); column-gap: 28px; row-gap: 42px; padding: 6px 16px 22px; }
 .flow-column { display: grid; min-width: 0; align-content: start; gap: 12px; }
 .flow-node pre { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -688,13 +707,16 @@ textarea.lens-input { resize: vertical; }
 .step-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 .lens-root { --source-column-width: clamp(260px, 26vw, 380px); }
-.scene-resources { position: absolute; top: 16px; right: 12px; width: var(--source-column-width); bottom: 12px; }
+.scene-resources { z-index: 2; position: absolute; top: 56px; right: 12px; width: var(--source-column-width); bottom: 12px; }
 .scene-resources > aside { position: static; height: 100%; margin: 0; }
 .steps-canvas { top: auto; right: calc(var(--source-column-width) + 24px); height: 36dvh; bottom: 12px; border-top: 1px solid var(--l-line); padding-top: 10px; }
 .steps-canvas header { margin-bottom: 8px; }
+.steps-canvas:focus-within { z-index: 3; }
+.steps-canvas:focus { outline: none; }
+.steps-canvas:focus > header h2 { text-decoration: underline; text-decoration-color: var(--l-mem); text-underline-offset: 4px; }
 @media (max-width:900px) {
  .scene-resources { position: relative; inset: auto; width: auto; margin: 12px; max-height: 50dvh; overflow: auto; }
- .steps-canvas { position: relative; inset: auto; height: auto; max-height: 60dvh; }
+ .steps-canvas { position: absolute; inset: var(--mobile-steps-top, 0px) 12px auto; height: auto; }
 }
 
 .lens-card.document-card { padding: 8px; }
@@ -765,3 +787,8 @@ textarea.lens-input { resize: vertical; }
 @keyframes session-travel { to { transform: translateX(127%); } }
 @media (prefers-reduced-motion: reduce) { .session-track span { animation: none; margin: auto; } }
 .flow-fold { display: grid; gap: 4px; width: 100%; text-align: start; cursor: pointer; }.flow-fold span, .flow-fold small { color: var(--l-muted); }
+
+@media (min-width: 901px) and (max-width: 1160px) {
+  [data-layout=side] .lens-fieldbar { column-gap: 2px; }
+  [data-layout=side] .lens-fieldbar > button { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+}
