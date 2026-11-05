@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS project_folders (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, path TEXT NOT NULL, device INTEGER NOT NULL,
   inode TEXT NOT NULL, UNIQUE(project_id, path));
 CREATE TABLE IF NOT EXISTS project_documents (
-  id INTEGER PRIMARY KEY, folder_id TEXT NOT NULL, path TEXT NOT NULL, stamp TEXT NOT NULL,
+  id INTEGER PRIMARY KEY, folder_id TEXT NOT NULL, path TEXT NOT NULL, stamp TEXT NOT NULL, image_indexed INTEGER NOT NULL DEFAULT 0,
   UNIQUE(folder_id, path));
 CREATE VIRTUAL TABLE IF NOT EXISTS project_passages USING fts5(document_id UNINDEXED, name, terms, excerpt UNINDEXED);
 CREATE TRIGGER IF NOT EXISTS remove_project_passages AFTER DELETE ON project_documents BEGIN
@@ -83,6 +83,11 @@ def connect() -> sqlite3.Connection:
         conn.execute("ALTER TABLE scenes ADD COLUMN definition TEXT NOT NULL DEFAULT ''")
     if "updated_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
         conn.execute("ALTER TABLE project_settings ADD COLUMN updated_at TEXT")
+    if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+        conn.execute("BEGIN IMMEDIATE")
+        if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+            conn.execute("ALTER TABLE project_documents ADD COLUMN image_indexed INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
     return conn
 
 

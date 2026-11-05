@@ -173,6 +173,43 @@ class ProjectFilesTests(StoreTestCase):
         project_files.detach(self.project, folder["id"])
         self.assertEqual(TestClient(app).get(f"/lens/projects/{self.project}/files/{source['id']}/thumbnail").status_code, 404)
 
+    def test_image_inventory_and_previews_upgrade_existing_folder(self):
+        import base64
+        import io
+        from xml.etree import ElementTree
+        from PIL import Image
+        from contextlens.memory.store import session
+
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5"/></svg>'
+        (self.first / "circle.svg").write_bytes(svg)
+        project_files.attach(self.project, [str(self.first)])
+        for ext in ("png", "jpg", "gif", "webp"):
+            Image.new("RGB", (640, 320), "purple").save(self.first / f"swatch.{ext}")
+
+        def inventory():
+            return {Path(item["title"]).name: item for item in project_files.search(self.project, "", inventory=True)}
+
+        initial = inventory()
+        with session() as conn:
+            conn.execute("UPDATE project_documents SET image_indexed = 0")
+            conn.execute("DELETE FROM project_passages WHERE document_id IN "
+                         "(SELECT id FROM project_documents WHERE path LIKE 'swatch.%')")
+        updated = inventory()
+        client = TestClient(app)
+        for name in ("circle.svg", "swatch.png", "swatch.jpg", "swatch.gif", "swatch.webp"):
+            with self.subTest(name=name):
+                source_id = updated[name]["id"]
+                self.assertEqual(source_id, initial[name]["id"])
+                response = client.get(f"/lens/projects/{self.project}/files/{source_id}/thumbnail")
+                self.assertEqual(response.status_code, 200)
+                if name.endswith(".svg"):
+                    embedded = ElementTree.fromstring(response.content)[0].get("href")
+                    self.assertEqual(base64.b64decode(embedded.split(",")[1]), svg)
+                else:
+                    with Image.open(io.BytesIO(response.content)) as preview:
+                        self.assertEqual(preview.size, (480, 240))
+                        self.assertEqual(preview.format, "PNG")
+
     def test_html_thumbnail_does_not_run_or_load_document_content(self):
         from contextlens.project_files.thumbnails import _text_page
         data, _ = _text_page("fiction.html", "<h1>Fictional greeting</h1><script>secretScript()</script><img src='https://example.invalid/a.png'>")

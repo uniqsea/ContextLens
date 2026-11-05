@@ -8,7 +8,7 @@ from threading import Lock
 from contextlens.memory.search import tokens
 from contextlens.memory.store import session
 
-from .documents import extract, files
+from .documents import IMAGE_SUFFIXES, extract, files
 from .folders import file_stamp, open_root
 
 _SYNC = Lock()
@@ -22,17 +22,18 @@ def _terms(text: str) -> str:
 
 def _refresh(folder, root_fd):
     with session() as conn:
-        known = {r["path"]: r["stamp"] for r in conn.execute(
-            "SELECT path, stamp FROM project_documents WHERE folder_id = ?", (folder["id"],))}
+        known = {r["path"]: (r["stamp"], r["image_indexed"]) for r in conn.execute(
+            "SELECT path, stamp, image_indexed FROM project_documents WHERE folder_id = ?", (folder["id"],))}
     batch = []
     batch_size = 0
     for path, parent_fd, st in files(root_fd):
         stamp = file_stamp(st)
-        if known.pop(path, None) == stamp:
+        image_indexed = Path(path).suffix.lower() in IMAGE_SUFFIXES
+        if known.pop(path, None) == (stamp, image_indexed):
             continue
         text = extract(os.path.basename(path), parent_fd, st.st_size)
         chunks = [text[i:i + _CHUNK] for i in range(0, len(text), _CHUNK - 160)]
-        batch.append((path, stamp, _terms(path), [(_terms(chunk), chunk) for chunk in chunks]))
+        batch.append((path, stamp, image_indexed, _terms(path), [(_terms(chunk), chunk) for chunk in chunks]))
         batch_size += len(text)
         if len(batch) >= 64 or batch_size >= 512_000:
             if not _write_batch(folder["id"], batch):
@@ -53,10 +54,10 @@ def _write_batch(folder_id, batch):
         conn.execute("BEGIN IMMEDIATE")
         if not conn.execute("SELECT 1 FROM project_folders WHERE id = ?", (folder_id,)).fetchone():
             return False
-        for path, stamp, name, chunks in batch:
+        for path, stamp, image_indexed, name, chunks in batch:
             conn.execute("DELETE FROM project_documents WHERE folder_id = ? AND path = ?", (folder_id, path))
-            doc = conn.execute("INSERT INTO project_documents(folder_id, path, stamp) VALUES (?, ?, ?)",
-                               (folder_id, path, stamp)).lastrowid
+            doc = conn.execute("INSERT INTO project_documents(folder_id, path, stamp, image_indexed) VALUES (?, ?, ?, ?)",
+                               (folder_id, path, stamp, image_indexed)).lastrowid
             conn.executemany("INSERT INTO project_passages(document_id, name, terms, excerpt) VALUES (?, ?, ?, ?)",
                              ((doc, name, terms, excerpt) for terms, excerpt in chunks))
     return True

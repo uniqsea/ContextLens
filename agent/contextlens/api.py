@@ -240,7 +240,7 @@ async def document_thumbnail(request: Request) -> Response:
     try:
         data, mime = await asyncio.to_thread(thumbnail, request.path_params["id"], request.path_params["source_id"])
         return Response(data, media_type=mime, headers={"Cache-Control": "private, no-store",
-                        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                        "Content-Security-Policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'",
                         "X-Content-Type-Options": "nosniff"})
     except memory.MemoryError:
         return Response(status_code=404)

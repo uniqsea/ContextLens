@@ -1,4 +1,6 @@
 """Local document thumbnails, resolved through the project's existing folder bindings."""
+import base64
+import io
 import json
 import os
 import shutil
@@ -11,9 +13,11 @@ from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 
+from PIL import Image, ImageOps
+
 from contextlens.memory.store import session
 from contextlens.memory.types import MemoryError
-from .documents import DOCUMENT_LIMIT, extract
+from .documents import DOCUMENT_LIMIT, IMAGE_FORMATS, extract
 from .folders import file_stamp, open_root
 from .index import _active_folders, _id
 
@@ -94,7 +98,24 @@ def thumbnail(scope: str, source_id: str):
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or file_stamp(info) != row["stamp"] or info.st_size > DOCUMENT_LIMIT:
                 raise MemoryError("Document preview unavailable.")
-            if Path(parts[-1]).suffix.lower() == ".pdf" and (renderer := shutil.which("pdftoppm")):
+            suffix = Path(parts[-1]).suffix.lower()
+            if suffix == ".svg":
+                # Embed as an image resource, never as active same-origin markup.
+                raw = stream.read(DOCUMENT_LIMIT + 1)
+                if len(raw) > DOCUMENT_LIMIT:
+                    raise MemoryError("Document preview unavailable.")
+                encoded = base64.b64encode(raw)
+                return (b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">'
+                        b'<image width="480" height="360" href="data:image/svg+xml;base64,' +
+                        encoded + b'"/></svg>'), "image/svg+xml"
+            if suffix in IMAGE_FORMATS:
+                with Image.open(stream, formats=[IMAGE_FORMATS[suffix]]) as image:
+                    image.thumbnail((480, 480))
+                    preview = ImageOps.exif_transpose(image).convert("RGBA")
+                    output = io.BytesIO()
+                    preview.save(output, "PNG")
+                    return output.getvalue(), "image/png"
+            if suffix == ".pdf" and (renderer := shutil.which("pdftoppm")):
                 rendered = subprocess.run([renderer, "-f", "1", "-singlefile", "-scale-to", "480", "-png", "-"],
                                           input=stream.read(DOCUMENT_LIMIT + 1), capture_output=True, check=True, timeout=8)
                 return rendered.stdout, "image/png"
@@ -102,5 +123,5 @@ def thumbnail(scope: str, source_id: str):
             if not text.strip():
                 raise MemoryError("Document preview unavailable.")
             return _text_page(parts[-1], text[:12000])
-    except (OSError, subprocess.SubprocessError):
+    except (Image.DecompressionBombError, OSError, ValueError, SyntaxError, subprocess.SubprocessError):
         raise MemoryError("Document preview unavailable.") from None
