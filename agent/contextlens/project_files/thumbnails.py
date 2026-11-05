@@ -12,6 +12,7 @@ from contextlib import ExitStack
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
+from threading import Lock
 
 from PIL import Image, ImageOps
 
@@ -19,7 +20,9 @@ from contextlens.memory.store import session
 from contextlens.memory.types import MemoryError
 from .documents import DOCUMENT_LIMIT, IMAGE_FORMATS, extract
 from .folders import file_stamp, open_root
-from .index import _active_folders, _id
+
+# Coalesce concurrent misses without keeping a growing registry of file locks.
+_RENDER_LOCKS = tuple(Lock() for _ in range(64))
 
 
 class _HTMLText(HTMLParser):
@@ -78,50 +81,75 @@ def _text_page(name, text):
     return page.encode(), "image/svg+xml"
 
 
-def thumbnail(scope: str, source_id: str):
-    active = _active_folders(scope)
-    with session() as conn:
-        rows = list(conn.execute("""SELECT f.*, d.path AS relative, d.stamp FROM project_documents d
-            JOIN project_folders f ON f.id = d.folder_id WHERE f.project_id = ?""", (scope,)))
-    row = next((r for r in rows if r["id"] in active and _id(scope, r["path"], r["relative"]) == source_id), None)
-    if row is None:
+def _render(name, parent, stream, size):
+    suffix = Path(name).suffix.lower()
+    if suffix == ".svg":
+        # Embed as an image resource, never as active same-origin markup.
+        raw = stream.read(DOCUMENT_LIMIT + 1)
+        if len(raw) > DOCUMENT_LIMIT:
+            raise MemoryError("Document preview unavailable.")
+        encoded = base64.b64encode(raw)
+        return (b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">'
+                b'<image width="480" height="360" href="data:image/svg+xml;base64,' +
+                encoded + b'"/></svg>'), "image/svg+xml"
+    if suffix in IMAGE_FORMATS:
+        with Image.open(stream, formats=[IMAGE_FORMATS[suffix]]) as image:
+            image.thumbnail((480, 480))
+            preview = ImageOps.exif_transpose(image).convert("RGBA")
+            output = io.BytesIO()
+            preview.save(output, "PNG")
+            return output.getvalue(), "image/png"
+    if suffix == ".pdf" and (renderer := shutil.which("pdftoppm")):
+        rendered = subprocess.run([renderer, "-f", "1", "-singlefile", "-scale-to", "480", "-png", "-"],
+                                  input=stream.read(DOCUMENT_LIMIT + 1), capture_output=True, check=True, timeout=8)
+        return rendered.stdout, "image/png"
+    text = extract(name, parent, size)
+    if not text.strip():
         raise MemoryError("Document preview unavailable.")
-    try:
-        with open_root(row) as root, ExitStack() as stack:
-            parent = root
-            parts = Path(row["relative"]).parts
-            for part in parts[:-1]:
-                parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-                stack.callback(os.close, parent)
-            fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-            stream = stack.enter_context(os.fdopen(fd, "rb"))
-            info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or file_stamp(info) != row["stamp"] or info.st_size > DOCUMENT_LIMIT:
-                raise MemoryError("Document preview unavailable.")
-            suffix = Path(parts[-1]).suffix.lower()
-            if suffix == ".svg":
-                # Embed as an image resource, never as active same-origin markup.
-                raw = stream.read(DOCUMENT_LIMIT + 1)
-                if len(raw) > DOCUMENT_LIMIT:
-                    raise MemoryError("Document preview unavailable.")
-                encoded = base64.b64encode(raw)
-                return (b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">'
-                        b'<image width="480" height="360" href="data:image/svg+xml;base64,' +
-                        encoded + b'"/></svg>'), "image/svg+xml"
-            if suffix in IMAGE_FORMATS:
-                with Image.open(stream, formats=[IMAGE_FORMATS[suffix]]) as image:
-                    image.thumbnail((480, 480))
-                    preview = ImageOps.exif_transpose(image).convert("RGBA")
-                    output = io.BytesIO()
-                    preview.save(output, "PNG")
-                    return output.getvalue(), "image/png"
-            if suffix == ".pdf" and (renderer := shutil.which("pdftoppm")):
-                rendered = subprocess.run([renderer, "-f", "1", "-singlefile", "-scale-to", "480", "-png", "-"],
-                                          input=stream.read(DOCUMENT_LIMIT + 1), capture_output=True, check=True, timeout=8)
-                return rendered.stdout, "image/png"
-            text = extract(parts[-1], parent, info.st_size)
-            if not text.strip():
-                raise MemoryError("Document preview unavailable.")
-            return _text_page(parts[-1], text[:12000])
-    except (Image.DecompressionBombError, OSError, ValueError, SyntaxError, subprocess.SubprocessError):
-        raise MemoryError("Document preview unavailable.") from None
+    return _text_page(name, text[:12000])
+
+
+def thumbnail(scope: str, source_id: str):
+    with _RENDER_LOCKS[hash(source_id) % len(_RENDER_LOCKS)], session() as conn:
+        rows = conn.execute("""SELECT f.*, d.path AS relative FROM project_documents d
+            JOIN project_folders f ON f.id = d.folder_id WHERE f.project_id = ? AND d.source_id = ?
+            ORDER BY f.path""", (scope, source_id)).fetchall()
+        for row in rows:
+            try:
+                return _cached_preview(conn, row, source_id)
+            except OSError:
+                # The same file can also be reachable through a nested binding.
+                continue
+            except (Image.DecompressionBombError, ValueError, SyntaxError, subprocess.SubprocessError):
+                break
+        raise MemoryError("Document preview unavailable.")
+
+
+def _cached_preview(conn, row, source_id):
+    with open_root(row) as root, ExitStack() as stack:
+        parent = root
+        parts = Path(row["relative"]).parts
+        for part in parts[:-1]:
+            parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            stack.callback(os.close, parent)
+        name = parts[-1]
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        stream = stack.enter_context(os.fdopen(fd, "rb"))
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > DOCUMENT_LIMIT:
+            raise MemoryError("Document preview unavailable.")
+        stamp = file_stamp(info)
+        key = (row["id"], source_id, stamp)
+        cached = conn.execute("""SELECT preview, preview_mime FROM project_documents
+            WHERE folder_id = ? AND source_id = ? AND preview_stamp = ?""", key).fetchone()
+        if cached is not None:
+            return tuple(cached)
+
+        data, mime = _render(name, parent, stream, info.st_size)
+        if file_stamp(os.stat(name, dir_fd=parent, follow_symlinks=False)) != stamp:
+            raise MemoryError("Document changed during preview.")
+        saved = conn.execute("""UPDATE project_documents SET preview_stamp = ?, preview_mime = ?, preview = ?
+            WHERE folder_id = ? AND source_id = ?""", (stamp, mime, data, row["id"], source_id))
+        if not saved.rowcount:
+            raise MemoryError("Document preview unavailable.")
+        return data, mime

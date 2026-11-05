@@ -36,28 +36,32 @@ def _refresh(folder, root_fd):
         batch.append((path, stamp, image_indexed, _terms(path), [(_terms(chunk), chunk) for chunk in chunks]))
         batch_size += len(text)
         if len(batch) >= 64 or batch_size >= 512_000:
-            if not _write_batch(folder["id"], batch):
+            if not _write_batch(folder, batch):
                 return
             batch.clear()
             batch_size = 0
     if batch:
-        _write_batch(folder["id"], batch)
+        _write_batch(folder, batch)
     if known:
         with session() as conn:
             conn.executemany("DELETE FROM project_documents WHERE folder_id = ? AND path = ?",
                              ((folder["id"], path) for path in known))
 
 
-def _write_batch(folder_id, batch):
+def _write_batch(folder, batch):
+    folder_id = folder["id"]
     # Extraction happens before this short write transaction, so other chats can use the store.
     with session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         if not conn.execute("SELECT 1 FROM project_folders WHERE id = ?", (folder_id,)).fetchone():
             return False
         for path, stamp, image_indexed, name, chunks in batch:
-            conn.execute("DELETE FROM project_documents WHERE folder_id = ? AND path = ?", (folder_id, path))
-            doc = conn.execute("INSERT INTO project_documents(folder_id, path, stamp, image_indexed) VALUES (?, ?, ?, ?)",
-                               (folder_id, path, stamp, image_indexed)).lastrowid
+            source_id = _id(folder["project_id"], folder["path"], path)
+            doc = conn.execute("""INSERT INTO project_documents(folder_id, path, stamp, image_indexed, source_id)
+                VALUES (?, ?, ?, ?, ?) ON CONFLICT(folder_id, path) DO UPDATE SET
+                stamp = excluded.stamp, image_indexed = excluded.image_indexed RETURNING id""",
+                (folder_id, path, stamp, image_indexed, source_id)).fetchone()[0]
+            conn.execute("DELETE FROM project_passages WHERE document_id = ?", (doc,))
             conn.executemany("INSERT INTO project_passages(document_id, name, terms, excerpt) VALUES (?, ?, ?, ?)",
                              ((doc, name, terms, excerpt) for terms, excerpt in chunks))
     return True

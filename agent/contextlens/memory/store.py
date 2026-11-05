@@ -88,6 +88,19 @@ def connect() -> sqlite3.Connection:
         if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
             conn.execute("ALTER TABLE project_documents ADD COLUMN image_indexed INTEGER NOT NULL DEFAULT 0")
         conn.commit()
+    if "source_id" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+        from contextlens.project_files.index import _id
+
+        conn.execute("BEGIN IMMEDIATE")
+        if "source_id" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+            for column in ("source_id TEXT", "preview_stamp TEXT", "preview_mime TEXT", "preview BLOB"):
+                conn.execute(f"ALTER TABLE project_documents ADD COLUMN {column}")
+            rows = conn.execute("""SELECT d.id, f.project_id, f.path AS root, d.path
+                FROM project_documents d JOIN project_folders f ON f.id = d.folder_id""")
+            conn.executemany("UPDATE project_documents SET source_id = ? WHERE id = ?",
+                             ((_id(r["project_id"], r["root"], r["path"]), r["id"]) for r in rows))
+            conn.execute("CREATE INDEX project_document_source ON project_documents(source_id)")
+        conn.commit()
     return conn
 
 

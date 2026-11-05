@@ -38,8 +38,7 @@
 		"add": "将「{title}」加入本轮输入",
 		"added": "「{title}」已在本轮输入中",
 		"remove": "从本轮移除「{title}」",
-		"up": "将「{title}」前移",
-		"down": "将「{title}」后移",
+		"reorder": "拖动「{title}」排序，也可按空格选中，用上下键移动，再按空格放下",
 		"unavailable": "来源不可用"
 	},
 	"turnSteps": {

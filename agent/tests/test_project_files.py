@@ -173,6 +173,31 @@ class ProjectFilesTests(StoreTestCase):
         project_files.detach(self.project, folder["id"])
         self.assertEqual(TestClient(app).get(f"/lens/projects/{self.project}/files/{source['id']}/thumbnail").status_code, 404)
 
+    def test_thumbnail_cache_tracks_one_file_without_scanning_folders(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from contextlens.project_files import thumbnails
+
+        project_files.attach(self.project, [str(self.first)])
+        source_id = self.search("indigo")[0]["id"]
+        with patch("contextlens.project_files.index.files", side_effect=AssertionError("unexpected scan")), patch.object(
+                thumbnails, "_render", wraps=thumbnails._render) as render:
+            with ThreadPoolExecutor(4) as pool:
+                results = list(pool.map(lambda _: thumbnails.thumbnail(self.project, source_id), range(4)))
+            self.assertTrue(all(result == results[0] for result in results))
+            self.assertEqual(render.call_count, 1)
+            self.plan.write_text("Fictional revised chart.")
+            self.assertIn(b"revised chart", thumbnails.thumbnail(self.project, source_id)[0])
+            self.assertEqual(render.call_count, 2)
+        project_files.search(self.project, "", inventory=True)
+        with patch.object(thumbnails, "_render", side_effect=AssertionError("unexpected render")):
+            self.assertIn(b"revised chart", thumbnails.thumbnail(self.project, source_id)[0])
+            self.plan.unlink()
+            with self.assertRaises(memory.MemoryError):
+                thumbnails.thumbnail(self.project, source_id)
+            self.plan.symlink_to(self.second / "notes.txt")
+            with self.assertRaises(memory.MemoryError):
+                thumbnails.thumbnail(self.project, source_id)
+
     def test_image_inventory_and_previews_upgrade_existing_folder(self):
         import base64
         import io

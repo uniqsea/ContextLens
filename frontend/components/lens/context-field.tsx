@@ -1,8 +1,30 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Plus, X } from "lucide-react";
+import {
+	closestCenter,
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Check, GripVertical, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type DragEvent, type ReactNode, useMemo, useState } from "react";
+import {
+	type DragEvent,
+	type ReactNode,
+	useId,
+	useMemo,
+	useState,
+} from "react";
 import {
 	Breadcrumb,
 	DirectoryLink,
@@ -266,6 +288,60 @@ export function ContextField({
 	);
 }
 
+function SortableInputRow({
+	id,
+	name,
+	onRemove,
+	onDrop,
+}: {
+	id: string;
+	name: string;
+	onRemove: () => void;
+	onDrop: (e: DragEvent<HTMLLIElement>) => void;
+}) {
+	const t = useTranslations("field");
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+	} = useSortable({ id });
+	return (
+		<li
+			ref={setNodeRef}
+			data-input-id={id}
+			onDrop={onDrop}
+			style={{ transform: CSS.Transform.toString(transform), transition }}
+		>
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				ref={setActivatorNodeRef}
+				className="touch-none cursor-grab active:cursor-grabbing"
+				{...attributes}
+				{...listeners}
+				aria-label={t("reorder", { title: name })}
+				title={t("reorder", { title: name })}
+			>
+				<GripVertical />
+			</Button>
+			<span className={styles.name} title={name}>
+				{name}
+			</span>
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				aria-label={t("remove", { title: name })}
+				onClick={onRemove}
+			>
+				<X />
+			</Button>
+		</li>
+	);
+}
+
 export function OrderedInput({
 	order,
 	candidates,
@@ -281,6 +357,13 @@ export function OrderedInput({
 }) {
 	const t = useTranslations("field");
 	const [over, setOver] = useState(false);
+	const sortId = useId();
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
 	const drop = (e: DragEvent, before?: string) => {
 		const id = e.dataTransfer.getData(MIME);
 		if (!id || !candidates.has(id)) return;
@@ -308,48 +391,40 @@ export function OrderedInput({
 			<strong>{t("input")}</strong>
 			{order.length === 0 && <span>{t("drop")}</span>}
 			{order.length > 0 && (
-				<ol>
-					{order.map((id, i) => {
-						const name = candidates.get(id)?.title ?? t("unavailable");
-						return (
-							<li
-								key={id}
-								onDrop={(e) => drop(e, id)}
-								draggable
-								onDragStart={(e) => startDrag(e, id)}
-								data-input-id={id}
-							>
-								<span className={styles.index}>{i + 1}</span>
-								<span className={styles.name} title={name}>
-									{name}
-								</span>
-								<button
-									type="button"
-									disabled={!i}
-									aria-label={t("up", { title: name })}
-									onClick={() => onMove(id, order[i - 1])}
-								>
-									<ArrowUp size={14} />
-								</button>
-								<button
-									type="button"
-									disabled={i === order.length - 1}
-									aria-label={t("down", { title: name })}
-									onClick={() => onMove(id, order[i + 2])}
-								>
-									<ArrowDown size={14} />
-								</button>
-								<button
-									type="button"
-									aria-label={t("remove", { title: name })}
-									onClick={() => onRemove(id)}
-								>
-									<X size={14} />
-								</button>
-							</li>
-						);
-					})}
-				</ol>
+				<DndContext
+					id={sortId}
+					sensors={sensors}
+					collisionDetection={closestCenter}
+					onDragEnd={({ active, over }) => {
+						if (!over || active.id === over.id) return;
+						const from = order.indexOf(String(active.id));
+						const to = order.indexOf(String(over.id));
+						if (from < 0 || to < 0) return;
+						onMove(order[from], arrayMove(order, from, to)[to + 1]);
+					}}
+				>
+					<SortableContext items={order} strategy={verticalListSortingStrategy}>
+						<ol>
+							{order.map((id, i) => (
+								<SortableInputRow
+									key={id}
+									id={id}
+									name={candidates.get(id)?.title ?? t("unavailable")}
+									onRemove={() => onRemove(id)}
+									onDrop={(e) => {
+										const rect = e.currentTarget.getBoundingClientRect();
+										drop(
+											e,
+											e.clientY < rect.top + rect.height / 2
+												? id
+												: order[i + 1],
+										);
+									}}
+								/>
+							))}
+						</ol>
+					</SortableContext>
+				</DndContext>
 			)}
 		</section>
 	);

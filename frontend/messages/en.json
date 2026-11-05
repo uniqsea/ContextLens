@@ -38,8 +38,7 @@
 		"add": "Add {title} to this turn",
 		"added": "{title} is in this turn",
 		"remove": "Remove {title} from this turn",
-		"up": "Move {title} earlier",
-		"down": "Move {title} later",
+		"reorder": "Reorder {title}: drag, or press Space, use arrow keys, then press Space again",
 		"unavailable": "Unavailable source"
 	},
 	"turnSteps": {
