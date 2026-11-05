@@ -359,6 +359,9 @@ export class FieldEngine {
 					l.card.meta !== card.meta ||
 					l.card.kind !== card.kind ||
 					l.card.scope !== card.scope ||
+					l.card.stale !== card.stale ||
+					l.card.layer !== card.layer ||
+					l.card.previewLabel !== card.previewLabel ||
 					l.card.previewUrl !== card.previewUrl
 				)
 					this.fill(l.el, card);
@@ -371,16 +374,15 @@ export class FieldEngine {
 	}
 
 	private fill(el: HTMLButtonElement, c: FieldCard) {
-		el.setAttribute("aria-label", `${c.kind}: ${c.title}, ${c.content}`);
-		el.innerHTML =
-			'<div class="t"></div><div class="b"></div><div class="k"><i></i><em></em><span></span></div>';
-		(el.querySelector("em") as HTMLElement).textContent = c.kind;
-		(el.querySelector(".t") as HTMLElement).textContent = c.title;
 		el.classList.toggle("document-card", c.layer === "retrieval");
 		if (c.layer === "retrieval") {
+			el.innerHTML = '<div class="k"><i></i><em></em></div><div class="t"></div>';
+			const filename = c.title.split(/[/\\]/).at(-1) || c.title;
 			const title = el.querySelector(".t") as HTMLElement;
-			title.textContent = c.title.split("/").at(-1) ?? c.title;
+			title.textContent = filename;
 			title.title = c.title;
+			(el.querySelector("em") as HTMLElement).textContent = c.kind;
+			el.setAttribute("aria-label", `${c.kind}: ${filename}`);
 			if (c.previewUrl) {
 				const cover = document.createElement("div");
 				cover.className = "document-cover";
@@ -389,27 +391,23 @@ export class FieldEngine {
 				image.alt = c.previewLabel ?? c.title;
 				image.loading = "lazy";
 				image.draggable = false;
-				image.addEventListener(
-					"error",
-					() => {
-						image.remove();
-						cover.classList.add("unavailable");
-						cover.textContent =
-							c.kind + " · " + (c.title.split(".").at(-1)?.toUpperCase() ?? "");
-					},
-					{ once: true },
-				);
+				image.addEventListener("error", () => cover.remove(), { once: true });
 				cover.append(image);
-				el.prepend(cover);
+				el.append(cover);
 			}
+			return;
 		}
-		const content = el.querySelector(".b") as HTMLElement;
-		content.textContent = c.content.replace(/\*\*/g, "");
-		if (c.layer === "retrieval") content.title = c.content;
 
-		const m = el.querySelector(".k span") as HTMLElement;
-		m.textContent = [c.scope, c.meta].filter(Boolean).join(" · ");
-		m.classList.toggle("stale", c.stale);
+		el.setAttribute("aria-label", `${c.kind}: ${c.title}, ${c.content}`);
+		el.innerHTML =
+			'<div class="t"></div><div class="b"></div><div class="k"><i></i><em></em><span></span></div>';
+		(el.querySelector("em") as HTMLElement).textContent = c.kind;
+		(el.querySelector(".t") as HTMLElement).textContent = c.title;
+		const content = el.querySelector(".b") as HTMLElement;
+		const meta = el.querySelector(".k span") as HTMLElement;
+		content.textContent = c.content.replace(/\*\*/g, "");
+		meta.textContent = [c.scope, c.meta].filter(Boolean).join(" · ");
+		meta.classList.toggle("stale", c.stale);
 	}
 
 	private addLive(card: FieldCard) {

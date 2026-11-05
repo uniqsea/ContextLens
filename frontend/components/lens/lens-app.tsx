@@ -439,7 +439,7 @@ export function LensApp({
 				return {
 					id: c.id,
 					layer: c.layer,
-					title,
+					title: c.layer === "retrieval" ? c.source_label || title : title,
 					content: c.content,
 					previewUrl:
 						c.layer === "retrieval" && projectId && c.id.startsWith("doc-")

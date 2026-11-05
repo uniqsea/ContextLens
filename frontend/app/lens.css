@@ -719,15 +719,23 @@ textarea.lens-input { resize: vertical; }
  .steps-canvas { position: absolute; inset: var(--mobile-steps-top, 0px) 12px auto; height: auto; }
 }
 
-.lens-card.document-card { padding: 8px; }
-.document-cover { height: 146px; overflow: hidden; border-radius: 9px; background: var(--l-panel); border: 1px solid var(--l-line); margin-bottom: 8px; display: grid; place-items: start center; }
-.document-cover img { width: 100%; height: auto; display: block; pointer-events: none; }
-.document-cover.unavailable { align-items: center; font-size: 16px; color: var(--l-muted); }
-.lens-card.document-card .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: 4px; }
-.lens-card.document-card .b { -webkit-line-clamp: 2; font-size: 11px; padding-inline: 4px; }
-.lens-card.document-card .k { padding-inline: 4px; }
-.lens-card.document-card.tight:not(:hover,:focus-visible,.hl,.drag) .document-cover { display: none; }
-.lens-card.document-card.tight:not(:hover,:focus-visible,.hl,.drag) .document-cover { display: block; float: left; width: 24px; height: 30px; margin: -1px 7px 0 0; border-radius: 3px; }
+.lens-card.document-card { padding: 13px 0 0; overflow: hidden; }
+.lens-card.document-card:not(.near) { border-color: var(--l-line); }
+.lens-card.document-card .k { margin: 0 13px 9px; min-height: 19px; }
+.document-card .k i { width: 6px; height: 6px; }
+.document-card.pin .k::after { padding: 2px 7px; border-radius: 6px; background: var(--l-fill); font-size: 10.5px; line-height: 1.45; }
+.lens-card.document-card .t { margin: 0 13px 11px; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.document-cover {
+  height: 156px;
+  margin: 0 13px 13px;
+  overflow: hidden;
+  border: 1px solid var(--l-line);
+  border-radius: 7px;
+  background: var(--l-panel);
+}
+.document-cover img { display: block; width: 100%; height: auto; pointer-events: none; }
+.document-card.tight:not(:hover,:focus-visible,.hl,.drag) .document-cover { display: none; }
+.lens-card.document-card.tight:not(:hover,:focus-visible,.hl,.drag) .t { display: block; font-size: 13.5px; }
 
 .session-shell { --session-bar-height: 58px; --session-side-width: 0px; min-height: 100dvh; }
 .session-shell[data-layout=none] { --session-bar-height: 0px; }
