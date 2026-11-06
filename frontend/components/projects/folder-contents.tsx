@@ -1,20 +1,27 @@
-import {
-	ChevronDown,
-	ChevronRight,
-	Folder,
-	FolderOpen,
-	RefreshCw,
-} from "lucide-react";
+import { Folder, FolderOpen, RefreshCw, Unlink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { InlineConfirm } from "@/components/inline-confirm";
+import { InlineLoading } from "@/components/page-status";
+import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemTitle,
+} from "@/components/ui/item";
 import { SearchField } from "@/components/ui/search-field";
 import {
 	type FileEntry,
 	folderApi,
 	type ProjectFolder,
 } from "@/lib/projects/folders";
-import { DisconnectFolder } from "./disconnect-folder";
-
 import { Breadcrumb, DirectoryLink } from "./file-browser-controls";
 import { FileIcon } from "./file-icon";
 
@@ -33,6 +40,7 @@ export function FolderContents({
 }) {
 	const t = useTranslations("projectFiles");
 	const [expanded, setExpanded] = useState(true);
+	const [confirming, setConfirming] = useState(false);
 	const [files, setFiles] = useState<FileEntry[] | null>(null);
 	const [directory, setDirectory] = useState("");
 	const [query, setQuery] = useState("");
@@ -75,77 +83,118 @@ export function FolderContents({
 			controller.abort();
 		};
 	}, [project, folder.id, revision, directory, query, expanded]);
+	const hasQuery = query.trim() !== "";
 	return (
-		<li className="pr-file-group">
-			<div className="pr-file-head">
-				<button
-					className="pr-file-toggle"
-					type="button"
-					aria-expanded={expanded}
+		<Collapsible
+			render={<li />}
+			open={expanded}
+			onOpenChange={setExpanded}
+			className="grid gap-2 py-3"
+		>
+			<div className="flex items-center gap-1">
+				<Item
+					variant="menu"
+					size="xs"
 					title={folder.path}
-					onClick={() => setExpanded((v) => !v)}
+					render={<CollapsibleTrigger />}
+					className="min-w-0 flex-1 flex-nowrap gap-2 px-2 text-sm [&_svg]:size-4 [&_svg]:text-muted-foreground"
 				>
-					{expanded ? <ChevronDown /> : <ChevronRight />}
-					<Folder />
-					<strong>{rootName}</strong>
-				</button>
-				<button
-					type="button"
-					className="lens-btn outline"
+					<CollapsibleChevron />
+					<Folder aria-hidden />
+					<strong className="min-w-0 font-medium [overflow-wrap:anywhere]">
+						{rootName}
+					</strong>
+				</Item>
+				<Button
+					variant="quiet"
+					size="icon-sm"
+					title={t("refreshFiles")}
 					aria-label={t("refreshFiles")}
 					onClick={() => refresh((v) => v + 1)}
 				>
 					<RefreshCw />
-				</button>
-				<DisconnectFolder
-					path={folder.path}
+				</Button>
+				<Button
+					variant="quiet"
+					size="icon-sm"
+					title={t("disconnect")}
+					aria-label={t("remove", { path: folder.path })}
+					aria-expanded={confirming}
 					disabled={busy}
-					className="lens-btn outline"
-					onConfirm={onRemove}
-				/>
+					onClick={() => setConfirming((v) => !v)}
+				>
+					<Unlink />
+				</Button>
 			</div>
-			{expanded && (
-				<div className="pr-file-body">
-					<div className="pr-browser-tools">
-						<Breadcrumb
-							rootName={rootName}
-							directory={directory}
-							navigate={navigate}
-						/>
-						<SearchField
-							label={t("searchFiles")}
-							value={query}
-							onValueChange={setQuery}
-							className="w-44 max-w-full"
-						/>
-					</div>
-					{failed ? (
-						<p role="alert">{t("unavailable")}</p>
-					) : !files ? (
-						<p role="status">{t("loadingFiles")}</p>
-					) : !files.length ? (
-						<p>{t(query.trim() ? "noMatches" : "emptyFiles")}</p>
-					) : (
-						<>
-							<ul>
-								{files.slice(0, limit).map((entry) => (
-									<li key={entry.path} className="pr-file-entry">
-										{entry.directory ? (
-											<DirectoryLink
-												name={entry.name}
-												onOpen={() => navigate(entry.path)}
-											/>
-										) : (
-											<>
-												<FileIcon name={entry.name} />
-												<span>
+			{confirming && (
+				<InlineConfirm
+					cancelLabel={t("cancel")}
+					confirmLabel={t("disconnect")}
+					busy={busy}
+					onCancel={() => setConfirming(false)}
+					onConfirm={() => {
+						setConfirming(false);
+						onRemove();
+					}}
+				>
+					<strong className="mb-1 block font-medium break-all">
+						{folder.path}
+					</strong>
+					{t("disconnectEffect")}
+				</InlineConfirm>
+			)}
+			<CollapsibleContent className="ml-[15px] grid gap-2 border-l border-border pl-4">
+				<div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-border pb-2.5">
+					<Breadcrumb
+						rootName={rootName}
+						directory={directory}
+						navigate={navigate}
+					/>
+					<SearchField
+						label={t("searchFiles")}
+						value={query}
+						onValueChange={setQuery}
+						className="w-44 max-w-full"
+					/>
+				</div>
+				{failed ? (
+					<p role="alert" className="text-[13px] text-muted-foreground">
+						{t("unavailable")}
+					</p>
+				) : !files ? (
+					<InlineLoading label={t("loadingFiles")} />
+				) : !files.length ? (
+					<p className="text-[13px] text-muted-foreground">
+						{t(hasQuery ? "noMatches" : "emptyFiles")}
+					</p>
+				) : (
+					<>
+						<ul className="grid">
+							{files.slice(0, limit).map((entry) => (
+								<li key={entry.path}>
+									{entry.directory ? (
+										<DirectoryLink
+											name={entry.name}
+											onOpen={() => navigate(entry.path)}
+										/>
+									) : (
+										<Item size="xs" className="flex-nowrap">
+											<FileIcon name={entry.name} />
+											<ItemContent className="min-w-0">
+												<ItemTitle className="line-clamp-none font-normal [overflow-wrap:anywhere]">
 													{entry.name}
-													{query.trim() && <small>{entry.path}</small>}
-												</span>
-												{query.trim() && (
-													<button
-														type="button"
-														className="lens-btn"
+												</ItemTitle>
+												{hasQuery && (
+													<small className="truncate text-xs text-muted-foreground">
+														{entry.path}
+													</small>
+												)}
+											</ItemContent>
+											{hasQuery && (
+												<ItemActions>
+													<Button
+														variant="quiet"
+														size="icon-sm"
 														title={t("containing")}
 														aria-label={t("containing")}
 														onClick={() =>
@@ -155,26 +204,27 @@ export function FolderContents({
 														}
 													>
 														<FolderOpen />
-													</button>
-												)}
-											</>
-										)}
-									</li>
-								))}
-							</ul>
-							{files.length > limit && (
-								<button
-									type="button"
-									className="lens-btn"
-									onClick={() => setLimit((v) => v + PAGE_SIZE)}
-								>
-									{t("moreFiles")}
-								</button>
-							)}
-						</>
-					)}
-				</div>
-			)}
-		</li>
+													</Button>
+												</ItemActions>
+											)}
+										</Item>
+									)}
+								</li>
+							))}
+						</ul>
+						{files.length > limit && (
+							<Button
+								variant="secondary"
+								size="sm"
+								className="justify-self-start"
+								onClick={() => setLimit((v) => v + PAGE_SIZE)}
+							>
+								{t("moreFiles")}
+							</Button>
+						)}
+					</>
+				)}
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

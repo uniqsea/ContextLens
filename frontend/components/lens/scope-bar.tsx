@@ -3,11 +3,16 @@
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Item } from "@/components/ui/item";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { memoryApi } from "@/lib/memory-api";
 import type { Project } from "@/lib/memory-types";
 import { ORDINARY } from "./use-scope";
@@ -35,16 +40,20 @@ export function ScopeBar({
 		onScope(next);
 	};
 	const option = (id: string, label: string) => (
-		<button
+		<Item
 			key={id}
-			type="button"
-			className="lens-menu-item"
+			variant="menu"
+			size="xs"
+			render={<button type="button" />}
+			className="justify-between"
 			aria-pressed={(project ? scope : ORDINARY) === id}
 			onClick={() => choose(id)}
 		>
 			{label}
-			{(project ? scope : ORDINARY) === id && <Check aria-hidden="true" />}
-		</button>
+			{(project ? scope : ORDINARY) === id && (
+				<Check aria-hidden="true" className="size-[15px]" />
+			)}
+		</Item>
 	);
 
 	return (
@@ -55,31 +64,29 @@ export function ScopeBar({
 				if (!next) setNaming(false);
 			}}
 		>
-			<PopoverTrigger className="lens-scope" aria-label={t("project")}>
-				<span>{project?.name ?? t("ordinary")}</span>
+			<PopoverTrigger
+				render={<Button variant="secondary" size="sm" />}
+				className="min-w-0 max-w-[170px] gap-1 pr-2 [&>svg]:text-muted-foreground"
+				aria-label={t("project")}
+			>
+				<span className="truncate">{project?.name ?? t("ordinary")}</span>
 				<ChevronDown aria-hidden="true" />
 			</PopoverTrigger>
-			<PopoverContent
-				align="start"
-				sideOffset={6}
-				className="lens-theme lens-menu"
-			>
+			<PopoverContent align="start" sideOffset={6} variant="menu">
 				{option(ORDINARY, t("ordinary"))}
 				{projects.map((p) => option(p.id, p.name))}
-				<div className="lens-menu-rule" />
+				<Separator className="mx-2.5 my-1 w-auto" />
 				{project && (
-					<label className="lens-menu-check">
-						<input
-							type="checkbox"
+					<div className="flex items-center justify-between gap-3 py-[7px] pr-1.5 pl-2.5 text-muted-foreground">
+						<span id="scope-isolated">{t("isolated")}</span>
+						<Switch
+							aria-labelledby="scope-isolated"
 							checked={project.isolated}
-							onChange={(e) =>
-								memoryApi
-									.setIsolated(project.id, e.target.checked)
-									.then(onChanged)
+							onCheckedChange={(checked) =>
+								memoryApi.setIsolated(project.id, checked).then(onChanged)
 							}
 						/>
-						{t("isolated")}
-					</label>
+					</div>
 				)}
 				{naming ? (
 					<form
@@ -93,10 +100,9 @@ export function ScopeBar({
 							choose(created.id);
 						}}
 					>
-						<input
-							// biome-ignore lint/a11y/noAutofocus: the field appears because it was asked for
+						<Input
 							autoFocus
-							type="text"
+							className="h-8"
 							value={name}
 							placeholder={t("projectName")}
 							aria-label={t("projectName")}
@@ -105,14 +111,16 @@ export function ScopeBar({
 						/>
 					</form>
 				) : (
-					<button
-						type="button"
-						className="lens-menu-item"
+					<Item
+						variant="menu"
+						size="xs"
+						render={<button type="button" />}
+						className="justify-between"
 						onClick={() => setNaming(true)}
 					>
 						{t("newProject")}
-						<Plus aria-hidden="true" />
-					</button>
+						<Plus aria-hidden="true" className="size-[15px]" />
+					</Item>
 				)}
 			</PopoverContent>
 		</Popover>

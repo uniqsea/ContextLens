@@ -3,6 +3,8 @@
 import { Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogClose,
@@ -69,7 +71,10 @@ export function MemoryDetail({
 		onClose();
 	};
 	const close = (
-		<DialogClose className="lens-icon-btn" aria-label={t("close")}>
+		<DialogClose
+			render={<Button variant="quiet" size="icon-sm" />}
+			aria-label={t("close")}
+		>
 			<X aria-hidden="true" />
 		</DialogClose>
 	);
@@ -83,7 +88,7 @@ export function MemoryDetail({
 			}}
 		>
 			<DialogContent
-				className={`lens-theme lib-detail${m ? "" : " is-solo"}`}
+				className={`lib-detail${m ? "" : " is-solo"}`}
 				showCloseButton={false}
 				aria-describedby={undefined}
 			>
@@ -184,69 +189,69 @@ export function MemoryDetail({
 										)}
 									</div>
 								</div>
-								{error && (
-									<p role="alert" className="lens-alert">
-										{error}
-									</p>
-								)}
+								{error && <Alert variant="destructive">{error}</Alert>}
 								<div className="lib-detail-foot">
 									{confirmPurge ? (
 										<div className="lib-confirm" role="alert">
 											<p>{t("purgeConfirm")}</p>
 											<div>
-												<button
+												<Button
 													type="button"
-													className="lens-btn outline"
+													variant="outline"
 													onClick={() => setConfirmPurge(false)}
 												>
 													{t("cancel")}
-												</button>
-												<button
+												</Button>
+												<Button
 													type="button"
-													className="lens-btn solid-danger"
+													variant="destructive"
 													onClick={() => andClose(() => memoryApi.purge(m.id))}
 												>
 													{t("purgeYes")}
-												</button>
+												</Button>
 											</div>
 										</div>
 									) : trashed ? (
 										<>
-											<button
+											<Button
 												type="button"
-												className="lens-btn danger block"
+												variant="danger"
+												className="w-full"
 												onClick={() => setConfirmPurge(true)}
 											>
 												<X aria-hidden="true" />
 												{t("purge")}
-											</button>
-											<button
+											</Button>
+											<Button
 												type="button"
-												className="lens-btn primary block"
+												variant="default"
+												className="w-full"
 												onClick={() => andClose(() => memoryApi.restore(m.id))}
 											>
 												<RotateCcw aria-hidden="true" />
 												{t("restore")}
-											</button>
+											</Button>
 										</>
 									) : (
 										<>
-											<button
+											<Button
 												type="button"
-												className="lens-btn outline block"
+												variant="outline"
+												className="w-full"
 												onClick={() => andClose(() => memoryApi.trash(m.id))}
 											>
 												<Trash2 aria-hidden="true" />
 												{t("moveToTrash")}
-											</button>
-											<button
+											</Button>
+											<Button
 												type="button"
-												className="lens-btn primary block"
+												variant="default"
+												className="w-full"
 												onClick={() => setEditing(true)}
 											>
 												<Pencil aria-hidden="true" />
 												{t("edit")}
-											</button>
+											</Button>
 										</>
 									)}
 								</div>

@@ -100,7 +100,11 @@ export function Timeline({
 	const loadMore = async () => {
 		const last = events?.[events.length - 1];
 		if (!last) return;
-		const page = await memoryApi.events({ scope, before: last.id, limit: PAGE });
+		const page = await memoryApi.events({
+			scope,
+			before: last.id,
+			limit: PAGE,
+		});
 		setEvents((e) => [...(e ?? []), ...page]);
 		setMore(page.length === PAGE);
 	};

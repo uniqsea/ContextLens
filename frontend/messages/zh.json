@@ -119,7 +119,8 @@
 		"remove": "解除关联 {path}",
 		"failed": "请检查文件夹路径和读取权限后重试。",
 		"pickFailed": "无法打开文件夹选择器，请重试。",
-		"retry": "重试"
+		"retry": "重试",
+		"pendingDisconnect": "保存后会解除 {count} 个文件夹的关联，项目对话将不再从中检索内容。磁盘上的文件会保留。"
 	},
 	"projects": {
 		"recent": "最近使用",
@@ -129,6 +130,8 @@
 		"search": "搜索项目",
 		"searchChats": "搜索对话",
 		"star": "星标 {name}",
+		"preview": "预览",
+		"noNotes": "还没有项目说明，点这里开始写",
 		"details": "项目说明",
 		"save": "保存",
 		"failed": "加载或保存失败。",
@@ -143,7 +146,16 @@
 		"noMatch": "没有匹配结果",
 		"emptyChats": "还没有对话",
 		"empty": "创建你的第一个项目",
-		"back": "返回工作区"
+		"back": "返回工作区",
+		"edit": "编辑",
+		"detailsHint": "写下项目是什么、目标、约定和背景。",
+		"notesPlaceholder": "# 这个项目是什么\n\n一两句话说明目标。\n\n## 约定\n- 用什么术语、什么风格\n- 哪些事情不要做",
+		"markdownSupported": "支持 Markdown",
+		"chars": "{count} 字",
+		"isolatedTitle": "隔离此项目",
+		"isolatedHint": "项目里的记忆不会在外面被找到，项目里也找不到外面的记忆。",
+		"editNotes": "编辑项目说明",
+		"nothingToPreview": "还没有内容可预览。"
 	},
 	"meta": {
 		"description": "看见模型真正看到的：可追溯、可修改的 AI 上下文与记忆"
@@ -308,6 +320,10 @@
 		"flipBack": "翻回正面"
 	},
 	"library": {
+		"globalTitle": "全局记忆",
+		"projectTitle": "项目记忆",
+		"global": "全局",
+		"projectFilter": "按项目筛选",
 		"close": "关闭",
 		"checkLabel": "复查",
 		"sourceLabel": "来源",
@@ -515,5 +531,11 @@
 		"close": "关闭",
 		"noted": "记下的日期（留空就用今天）",
 		"text": "记忆内容"
+	},
+	"status": {
+		"loading": "加载中…",
+		"notFound": "这里什么都没有",
+		"notFoundBody": "链接可能已失效，或者内容已被移走。",
+		"backHome": "回到全部项目"
 	}
 }

@@ -3,6 +3,8 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { MenuSelect } from "@/components/lens/menu-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { memoryApi } from "@/lib/memory-api";
 import type { Concept } from "@/lib/memory-types";
 
@@ -35,19 +37,21 @@ export function ConceptBar({
 		<>
 			{/* biome-ignore lint/a11y/useSemanticElements: a filter strip, not a form section */}
 			<div className="lib-concepts" role="group" aria-label={t("allConcepts")}>
-				<button
+				<Button
 					type="button"
-					className="lens-chip"
+					variant="secondary"
+					size="sm"
 					aria-pressed={!concept}
 					onClick={() => onSelect(null)}
 				>
 					{t("allConcepts")}
-				</button>
+				</Button>
 				{concepts.map((c) => (
-					<button
+					<Button
 						key={c.id}
 						type="button"
-						className="lens-chip"
+						variant="secondary"
+						size="sm"
 						aria-pressed={concept?.id === c.id}
 						onClick={() => {
 							onSelect(c.id);
@@ -56,7 +60,7 @@ export function ConceptBar({
 					>
 						{c.name}
 						<small>{c.count}</small>
-					</button>
+					</Button>
 				))}
 			</div>
 			{concept && (
@@ -75,27 +79,27 @@ export function ConceptBar({
 									);
 							}}
 						>
-							<input
-								// biome-ignore lint/a11y/noAutofocus: the field appears because it was asked for
+							<Input
+								className="h-8 w-[min(220px,100%)] bg-card"
 								autoFocus
 								type="text"
-								className="lens-input"
 								value={name}
 								aria-label={t("rename")}
 								onChange={(e) => setName(e.target.value)}
 							/>
 						</form>
 					) : (
-						<button
+						<Button
 							type="button"
-							className="lens-act"
+							variant="secondary"
+							size="chip"
 							onClick={() => {
 								setName(concept.name);
 								setRenaming(true);
 							}}
 						>
 							{t("rename")}
-						</button>
+						</Button>
 					)}
 					{concepts.length > 1 && (
 						<MenuSelect
@@ -122,36 +126,38 @@ export function ConceptBar({
 								onPicking(false);
 							}}
 						>
-							<input
+							<Input
+								className="h-8 w-[min(220px,100%)] bg-card"
 								type="text"
-								className="lens-input"
 								value={name}
 								placeholder={t("splitName")}
 								aria-label={t("splitName")}
 								onChange={(e) => setName(e.target.value)}
 							/>
-							<button type="submit" className="lens-act">
+							<Button type="submit" variant="secondary" size="chip">
 								{t("splitDone")}
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
-								className="lens-act"
+								variant="secondary"
+								size="chip"
 								onClick={() => onPicking(false)}
 							>
 								{t("cancelSplit")}
-							</button>
+							</Button>
 						</form>
 					) : (
-						<button
+						<Button
 							type="button"
-							className="lens-act"
+							variant="secondary"
+							size="chip"
 							onClick={() => {
 								setName("");
 								onPicking(true);
 							}}
 						>
 							{t("split")}
-						</button>
+						</Button>
 					)}
 				</div>
 			)}

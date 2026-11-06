@@ -71,7 +71,11 @@ export interface Segment {
 export interface TraceMessage {
 	role: string;
 	content: string;
-	tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }>;
+	tool_calls?: Array<{
+		id?: string;
+		name: string;
+		args: Record<string, unknown>;
+	}>;
 	tool_call_id?: string;
 }
 
@@ -83,7 +87,11 @@ export interface ModelCall {
 }
 
 export interface ToolStep {
-	artifact?: {reading_calls?: ModelCall[]; memories?: (string | {id:string})[]; document?: {id:string}} | null;
+	artifact?: {
+		reading_calls?: ModelCall[];
+		memories?: (string | { id: string })[];
+		document?: { id: string };
+	} | null;
 	call_id?: string;
 	tool: string;
 	args: Record<string, unknown>;
@@ -146,11 +154,11 @@ export function cardState(c: Candidate, selected: string[]): CardState {
 }
 
 export function layerColor(layer: Layer): string {
-	if (layer === "retrieval") return "var(--l-kind-doc)";
-	if (layer === "short_term") return "var(--l-kind-hist)";
-	if (layer === "system") return "var(--l-kind-sys)";
-	if (layer === "user") return "var(--l-kind-user)";
-	return "var(--l-kind-mem)";
+	if (layer === "retrieval") return "var(--kind-doc)";
+	if (layer === "short_term") return "var(--kind-hist)";
+	if (layer === "system") return "var(--kind-sys)";
+	if (layer === "user") return "var(--kind-user)";
+	return "var(--kind-mem)";
 }
 
 /** Drop the attribution markers a streaming answer still carries. */

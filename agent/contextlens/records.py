@@ -25,10 +25,18 @@ class Conflict(memory.MemoryError):
 
 def records(scope: str = memory.ORDINARY, include_trashed: bool = False) -> list[dict]:
     """Newest first. Facts replaced on a timeline are not listed; `timeline` shows them."""
+    return _records_in(operations.visible_scopes(scope), include_trashed)
+
+
+def library_records(owner: str | None, include_trashed: bool) -> list[dict]:
+    """Browse by ownership independently of the scopes used for conversation recall."""
+    return _records_in({owner} if owner else None, include_trashed)
+
+
+def _records_in(scopes: set[str] | None, include_trashed: bool) -> list[dict]:
     _seed_if_new()
-    scopes = operations.visible_scopes(scope)
     states = {"active", "forgotten"} if include_trashed else {"active"}
-    found = [m for m in memory.all_of(memory.Memory) if m.scope in scopes and m.state in states]
+    found = [m for m in memory.all_of(memory.Memory) if (scopes is None or m.scope in scopes) and m.state in states]
     activity, names = memory.memory_activity(), _concept_names()
     return [_record(m, activity, names) for m in sorted(found, key=lambda m: m.created_at, reverse=True)]
 
@@ -97,7 +105,7 @@ def changes(raw: list[dict]) -> list[dict]:
 
 def _record(m: memory.Memory, activity: dict, names: dict[str, str]) -> dict:
     revision, updated_at = activity.get(m.id, (1, m.created_at))
-    return {"id": m.id, "revision": revision, "title": m.situation or m.learned[:_TITLE_FROM_LEARNED],
+    return {"id": m.id, "scope": m.scope, "revision": revision, "title": m.situation or m.learned[:_TITLE_FROM_LEARNED],
             "content": m.learned, "memory_type": "semantic", "confidence": "high" if m.source == "said" else "low",
             "scenes": m.scenes, "concepts": [{"id": c, "name": names[c]} for c in m.concepts if c in names],
             "created_at": m.created_at, "updated_at": updated_at, "source_kind": _SOURCE_LABELS[m.source],

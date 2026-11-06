@@ -59,9 +59,9 @@ const patch = (path: string, body: object) =>
 const scoped = (scope: string) => `scope=${encodeURIComponent(scope)}`;
 
 export const memoryApi = {
-	list: (scope: string, includeTrashed = true) =>
+	list: (owner?: string) =>
 		call<{ memories: MemoryRecord[] }>(
-			`/memories?${scoped(scope)}${includeTrashed ? "&include_trashed=1" : ""}`,
+			`/memories?view=library&include_trashed=1${owner ? `&${scoped(owner)}` : ""}`,
 		).then((r) => r.memories),
 	create: (scope: string, fields: MemoryFields) =>
 		post(`/memories?${scoped(scope)}`, fields),
@@ -86,7 +86,12 @@ export const memoryApi = {
 		).then((r) => r.events),
 	/** Newest first; pass the last id seen as `before` for the next page. */
 	events: (
-		opts: { scope?: string; threadId?: string; before?: number; limit?: number } = {},
+		opts: {
+			scope?: string;
+			threadId?: string;
+			before?: number;
+			limit?: number;
+		} = {},
 	) => {
 		const q = new URLSearchParams();
 		if (opts.scope) q.set("scope", opts.scope);

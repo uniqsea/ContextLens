@@ -376,7 +376,8 @@ export class FieldEngine {
 	private fill(el: HTMLButtonElement, c: FieldCard) {
 		el.classList.toggle("document-card", c.layer === "retrieval");
 		if (c.layer === "retrieval") {
-			el.innerHTML = '<div class="k"><i></i><em></em></div><div class="t"></div>';
+			el.innerHTML =
+				'<div class="k"><i></i><em></em></div><div class="t"></div>';
 			const filename = c.title.split(/[/\\]/).at(-1) || c.title;
 			const title = el.querySelector(".t") as HTMLElement;
 			title.textContent = filename;

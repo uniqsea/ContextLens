@@ -7,32 +7,69 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { ProjectSidebar } from "@/components/projects/sidebar";
 import { useDirectory } from "@/components/projects/use-directory";
 import "@/components/projects/workspace.css";
-import { ScopeBar } from "@/components/lens/scope-bar";
+import { MenuSelect } from "@/components/lens/menu-select";
 import { useOverview } from "@/components/lens/use-overview";
-import { useScope } from "@/components/lens/use-scope";
-import { projectPath } from "@/lib/projects/types";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord } from "@/lib/memory-types";
+import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { ConceptBar } from "./concept-bar";
 import { ImportDialog } from "./import-dialog";
 import { MemoryCard } from "./memory-card";
 import { MemoryDetail } from "./memory-detail";
 import { Timeline } from "./timeline";
 
-export function MemoryLibrary({
-	projectScope,
-	projectName,
-}: {
+interface LibraryProps {
 	projectScope?: string;
 	projectName?: string | null;
+}
+
+export function MemoryLibrary(props: LibraryProps) {
+	const [view, setView] = useState<"memories" | "timeline">("memories");
+	const [selected, setSelected] = useState("all");
+	const owner =
+		props.projectScope ?? (selected === "all" ? undefined : selected);
+	const directory = useDirectory();
+	return (
+		<LibraryView
+			key={owner ?? "all"}
+			{...props}
+			owner={owner}
+			directory={directory}
+			onSelect={setSelected}
+			view={view}
+			setView={setView}
+		/>
+	);
+}
+
+function LibraryView({
+	projectScope,
+	projectName,
+	owner,
+	directory,
+	onSelect,
+	view,
+	setView,
+}: LibraryProps & {
+	view: "memories" | "timeline";
+	setView: (view: "memories" | "timeline") => void;
+	owner?: string;
+	directory: ReturnType<typeof useDirectory>;
+	onSelect: (value: string) => void;
 }) {
 	const nav = useTranslations("projects");
 	const t = useTranslations("library");
-	const legacy = useScope();
-	const scope = projectScope ?? legacy.scope;
+	const scope = owner ?? ORDINARY;
 	const overview = useOverview(scope);
-	const directory = useDirectory();
-	const [view, setView] = useState<"memories" | "timeline">("memories");
+	const projects = directory.data?.projects ?? [];
+	const title =
+		projectScope === ORDINARY
+			? t("globalTitle")
+			: projectScope
+				? t("projectTitle")
+				: t("title");
 	const [version, setVersion] = useState(0);
 	// The memory whose details are open, or "new" for the form that adds one.
 	const [opened, setOpened] = useState<string | null>(null);
@@ -49,9 +86,9 @@ export function MemoryLibrary({
 	useEffect(() => {
 		let cancelled = false;
 
-		startTransition(() => {
-			memoryApi
-				.list(scope)
+		startTransition(async () => {
+			await memoryApi
+				.list(owner)
 				.then((list) => {
 					if (!cancelled) setMemories(list);
 				})
@@ -61,7 +98,7 @@ export function MemoryLibrary({
 		return () => {
 			cancelled = true;
 		};
-	}, [t, scope]);
+	}, [t, owner]);
 
 	const visibleMemories = useMemo(() => {
 		if (filter === "trashed") {
@@ -76,6 +113,30 @@ export function MemoryLibrary({
 			? active
 			: active.filter((memory) => memory.scenes.includes(filter));
 	}, [filter, concept, memories]);
+	const concepts = useMemo(() => {
+		const counts = new Map<
+			string,
+			{ id: string; name: string; aliases: string[]; count: number }
+		>();
+		for (const memory of memories) {
+			if (memory.lifecycle_state !== "active") continue;
+			for (const c of memory.concepts) {
+				const entry = counts.get(c.id);
+				if (entry) entry.count++;
+				else
+					counts.set(c.id, {
+						...c,
+						aliases:
+							overview.data?.concepts.find((item) => item.id === c.id)
+								?.aliases ?? [],
+						count: 1,
+					});
+			}
+		}
+		return [...counts.values()].sort(
+			(a, b) => b.count - a.count || a.name.localeCompare(b.name),
+		);
+	}, [memories, overview.data]);
 	const openedMemory = memories.find((m) => m.id === opened);
 	const filters = [
 		{ id: "all", label: t("all") },
@@ -88,7 +149,7 @@ export function MemoryLibrary({
 
 	// Every change reloads the list and any history on screen, which now include it.
 	const refreshMemories = async () => {
-		setMemories(await memoryApi.list(scope));
+		setMemories(await memoryApi.list(owner));
 		setVersion((v) => v + 1);
 		overview.reload();
 	};
@@ -105,74 +166,80 @@ export function MemoryLibrary({
 	};
 
 	return (
-		<div className="lens-theme lens-page pr-workspace">
-			<ProjectSidebar scope={scope} projects={directory.data?.projects ?? []} />
+		<div className="lens-page pr-workspace">
+			<ProjectSidebar
+				scope={projectScope}
+				library={!projectScope}
+				projects={projects}
+			/>
 			<main className="pr-main">
 				<nav className="pr-top lib-path" aria-label={nav("all")}>
 					<Link href="/">{nav("all")}</Link>
 					<span aria-hidden="true">/</span>
-					{projectScope ? (
-						<Link href={projectPath(scope)}>
-							{projectName ?? nav("ordinary")}
-						</Link>
-					) : overview.data ? (
-						<ScopeBar
-							projects={overview.data.projects}
-							scope={scope}
-							onScope={(next) => {
-								legacy.chooseScope(next);
-								setConcept(null);
-								setFilter("all");
-							}}
-							onChanged={overview.reload}
-						/>
-					) : (
-						<Link href={projectPath(scope)}>{nav("back")}</Link>
+					{projectScope && (
+						<>
+							<Link href={projectPath(projectScope)}>
+								{projectName ?? nav("ordinary")}
+							</Link>
+							<span aria-hidden="true">/</span>
+						</>
 					)}
-					<span aria-hidden="true">/</span>
-					<span aria-current="page">{t("title")}</span>
+					<span aria-current="page">{title}</span>
 				</nav>
 				<header className="pr-header">
 					<h1>
 						<Library aria-hidden="true" />
-						{t("title")}
+						{title}
 					</h1>
 					<div className="lib-hero-tools">
-						{view === "memories" && (
+						{!projectScope && (
+							<MenuSelect
+								label={t("projectFilter")}
+								value={owner ?? "all"}
+								onChange={onSelect}
+								options={[
+									{ value: "all", label: nav("all") },
+									{ value: ORDINARY, label: t("global") },
+									...projects.map((p) => ({ value: p.id, label: p.name })),
+								]}
+							/>
+						)}
+						{owner && view === "memories" && (
 							<>
-								<button
+								<Button
 									type="button"
-									className="lens-btn outline"
+									variant="outline"
 									onClick={() => setImporting(true)}
 								>
 									<Import aria-hidden="true" />
 									{t("import")}
-								</button>
-								<button
+								</Button>
+								<Button
 									type="button"
-									className="lens-btn primary"
+									variant="default"
 									onClick={() => setOpened("new")}
 								>
 									<Plus aria-hidden="true" />
 									{t("add")}
-								</button>
+								</Button>
 							</>
 						)}
 					</div>
 				</header>
 				<div className="pr-tools">
-					<div role="group" aria-label={t("title")} className="pr-tabs">
+					<fieldset aria-label={title} className="pr-tabs">
 						{(["memories", "timeline"] as const).map((v) => (
-							<button
+							<Button
 								key={v}
-								type="button"
+								variant="quiet"
+								size="sm"
 								aria-pressed={view === v}
 								onClick={() => setView(v)}
 							>
 								{t(v === "memories" ? "tabMemories" : "tabTimeline")}
-							</button>
+							</Button>
 						))}
-					</div>
+					</fieldset>
 					{view === "memories" && (
 						<small className="lib-count" aria-live="polite">
 							{isPending
@@ -181,15 +248,11 @@ export function MemoryLibrary({
 						</small>
 					)}
 				</div>
-				{error && (
-					<p role="alert" className="lens-alert">
-						{error}
-					</p>
-				)}
+				{error && <Alert variant="destructive">{error}</Alert>}
 				{view === "timeline" ? (
 					<div className="lens-sheet-panel lib-timeline">
 						<Timeline
-							scope={scope}
+							scope={owner}
 							refreshKey={version}
 							onChanged={() => void refreshMemories()}
 						/>
@@ -199,19 +262,20 @@ export function MemoryLibrary({
 						{/* biome-ignore lint/a11y/useSemanticElements: a filter strip, not a form section */}
 						<div className="lib-filters" role="group" aria-label={t("title")}>
 							{filters.map(({ id: item, label }) => (
-								<button
+								<Button
 									key={item}
 									type="button"
-									className="lens-chip"
+									variant="secondary"
+									size="sm"
 									aria-pressed={filter === item}
 									onClick={() => setFilter(item)}
 								>
 									{label}
-								</button>
+								</Button>
 							))}
 						</div>
 						<ConceptBar
-							concepts={overview.data?.concepts ?? []}
+							concepts={concepts}
 							selected={concept}
 							onSelect={(id) => {
 								setConcept(id);
@@ -236,6 +300,12 @@ export function MemoryLibrary({
 									<MemoryCard
 										key={memory.id}
 										memory={memory}
+										owner={
+											memory.scope === ORDINARY
+												? t("global")
+												: (projects.find((p) => p.id === memory.scope)?.name ??
+													memory.scope)
+										}
 										onOpen={() => setOpened(memory.id)}
 										picking={picking}
 										picked={picked.includes(memory.id)}

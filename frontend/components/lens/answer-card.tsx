@@ -1,8 +1,9 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import { useLocale } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Button } from "@/components/ui/button";
 import { htmlLang } from "@/i18n/config";
 import { useLensText } from "@/lib/lens/text";
 import type { Candidate, Change, Segment, TurnRecord } from "@/lib/lens/types";
@@ -260,14 +261,15 @@ export function AnswerCard({
 							</button>
 						)}
 					</div>
-					<button
+					<Button
 						type="button"
-						className="lens-text-btn step-link"
+						variant="quiet"
+						size="sm"
 						aria-controls="turn-steps-canvas"
 						onClick={onShowSteps}
 					>
 						{t("turnSteps.showCanvas")} ↗
-					</button>
+					</Button>
 					{stepsHost &&
 						createPortal(
 							<TurnSteps
@@ -480,7 +482,7 @@ function ContextEditor({
 			<div className="items">
 				<div
 					className="item"
-					style={{ "--c": "var(--l-kind-sys)" } as React.CSSProperties}
+					style={{ "--c": "var(--kind-sys)" } as React.CSSProperties}
 				>
 					<i />
 					<div className="tx">
@@ -492,7 +494,7 @@ function ContextEditor({
 				{used.map(row)}
 				<div
 					className="item"
-					style={{ "--c": "var(--l-kind-user)" } as React.CSSProperties}
+					style={{ "--c": "var(--kind-user)" } as React.CSSProperties}
 				>
 					<i />
 					<div className="tx">

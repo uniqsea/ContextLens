@@ -2,6 +2,7 @@ export type MemoryType = "semantic" | "episodic" | "procedural";
 export type MemoryConfidence = "high" | "low";
 export type MemoryLifecycleState = "active" | "trashed";
 export interface MemoryRecord {
+	scope: string;
 	revision: number;
 	id: string;
 	title: string;

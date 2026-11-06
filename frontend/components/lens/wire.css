@@ -1,13 +1,55 @@
 /* Wires stay neutral at rest; a wire takes its source's colour only when asked about. */
-.lens-wire .wire { fill: none; stroke: var(--l-ink); stroke-width: 1.5; opacity: .42; transition: opacity .18s, stroke-width .18s; }
-.lens-wire .wire.preview { stroke-dasharray: 4 4; }
+.lens-wire .wire {
+	fill: none;
+	stroke: var(--foreground);
+	stroke-width: 1.5;
+	opacity: 0.42;
+	transition:
+		opacity 0.18s,
+		stroke-width 0.18s;
+}
+.lens-wire .wire.preview {
+	stroke-dasharray: 4 4;
+}
 /* Wires to later columns must pass behind nearer cards: keep them faint until asked for. */
-.lens-wire .wire.far { opacity: .2; }
-.lens-wire .wire.hl { stroke: var(--c); stroke-width: 2; opacity: 1; }
-.lens-root.focusing .wire:not(.hl) { opacity: .06; }
-.lens-wire .dot { fill: var(--l-ink); opacity: .55; }
-.lens-wire .dot.hl { fill: var(--c); opacity: 1; }
-.lens-root.focusing .dot:not(.hl) { opacity: .08; }
-.lens-wire .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
-.lens-wire-snap { stroke: var(--l-risk); stroke-width: 2.5; fill: none; animation: lens-snap 500ms ease-out forwards; }
-@keyframes lens-snap { to { opacity: 0; stroke-width: 0; } }
+.lens-wire .wire.far {
+	opacity: 0.2;
+}
+.lens-wire .wire.hl {
+	stroke: var(--c);
+	stroke-width: 2;
+	opacity: 1;
+}
+.lens-root.focusing .wire:not(.hl) {
+	opacity: 0.06;
+}
+.lens-wire .dot {
+	fill: var(--foreground);
+	opacity: 0.55;
+}
+.lens-wire .dot.hl {
+	fill: var(--c);
+	opacity: 1;
+}
+.lens-root.focusing .dot:not(.hl) {
+	opacity: 0.08;
+}
+.lens-wire .hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 16;
+	pointer-events: stroke;
+	cursor: pointer;
+}
+.lens-wire-snap {
+	stroke: var(--destructive);
+	stroke-width: 2.5;
+	fill: none;
+	animation: lens-snap 500ms ease-out forwards;
+}
+@keyframes lens-snap {
+	to {
+		opacity: 0;
+		stroke-width: 0;
+	}
+}

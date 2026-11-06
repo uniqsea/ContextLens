@@ -2,6 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord, MemoryType, Scene } from "@/lib/memory-types";
 
@@ -75,55 +82,52 @@ export function MemoryEditor({
 		>
 			<div className="lib-detail-scroll">
 				<div className="lib-editor-fields">
-					<label className="lens-field">
+					<Label>
 						{t("title")}
-						<input
+						<Input
 							required
-							className="lens-input"
 							value={title}
 							onChange={(e) => setTitle(e.target.value)}
 						/>
-					</label>
-					<label className="lens-field">
+					</Label>
+					<Label>
 						{t("content")}
-						<textarea
+						<Textarea
 							required
 							maxLength={20000}
 							rows={5}
-							className="lens-input"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
 						/>
-					</label>
-					{/* biome-ignore lint/a11y/useSemanticElements: a segmented control, not a form section */}
-					<div className="lens-field" role="group" aria-label={t("type")}>
-						{t("type")}
-						<div>
-							<div className="lens-seg">
-								{TYPES.map((m) => (
-									<button
-										key={m}
-										type="button"
-										aria-pressed={type === m}
-										onClick={() => setType(m)}
-									>
-										{tl(`memoryTypes.${m}`)}
-									</button>
-								))}
-							</div>
-						</div>
-					</div>
+					</Label>
+					<FieldSet>
+						<FieldLegend variant="label">{t("type")}</FieldLegend>
+						<ToggleGroup
+							variant="segment"
+							spacing={0.5}
+							value={[type]}
+							onValueChange={(next) =>
+								next[0] && setType(next[0] as typeof type)
+							}
+						>
+							{TYPES.map((m) => (
+								<ToggleGroupItem key={m} value={m}>
+									{tl(`memoryTypes.${m}`)}
+								</ToggleGroupItem>
+							))}
+						</ToggleGroup>
+					</FieldSet>
 					{sceneOptions.length > 0 && (
-						// biome-ignore lint/a11y/useSemanticElements: a set of toggles, not a form section
-						<div className="lens-field" role="group" aria-label={t("scenes")}>
-							{t("scenes")}
-							<div className="lens-chips">
+						<FieldSet>
+							<FieldLegend variant="label">{t("scenes")}</FieldLegend>
+							<div className="flex flex-wrap gap-1.5">
 								{sceneOptions.map((s) => (
-									<button
+									<Button
 										key={s.id}
 										type="button"
 										aria-pressed={scenes.includes(s.name)}
-										className="lens-chip lib-toggle"
+										variant="secondary"
+										size="sm"
 										onClick={() =>
 											setScenes(
 												scenes.includes(s.name)
@@ -133,44 +137,41 @@ export function MemoryEditor({
 										}
 									>
 										{s.name}
-									</button>
+									</Button>
 								))}
 							</div>
-						</div>
+						</FieldSet>
 					)}
-					<label className="lens-field">
+					<Label>
 						{t("concepts")}
-						<input
-							className="lens-input"
+						<Input
 							value={concepts}
 							placeholder={t("conceptsHint")}
 							onChange={(e) => setConcepts(e.target.value)}
 						/>
-					</label>
+					</Label>
 					<p className="lib-hint">{t("hint")}</p>
-					{error && (
-						<p role="alert" className="lens-alert">
-							{error}
-						</p>
-					)}
+					{error && <Alert variant="destructive">{error}</Alert>}
 				</div>
 			</div>
 			<div className="lib-detail-foot">
-				<button
+				<Button
 					disabled={busy}
 					type="button"
 					onClick={onCancel}
-					className="lens-btn outline block"
+					variant="outline"
+					className="w-full"
 				>
 					{t("cancel")}
-				</button>
-				<button
+				</Button>
+				<Button
 					disabled={busy}
 					type="submit"
-					className="lens-btn primary block"
+					variant="default"
+					className="w-full"
 				>
 					{busy ? t("saving") : t("save")}
-				</button>
+				</Button>
 			</div>
 		</form>
 	);

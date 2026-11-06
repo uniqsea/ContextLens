@@ -2,6 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FieldLegend, FieldSet } from "@/components/ui/field";
+import { Item } from "@/components/ui/item";
 import { SearchField } from "@/components/ui/search-field";
 import type { ModelInfo } from "@/lib/model-settings";
 
@@ -44,35 +48,49 @@ export function ModelChooser({
 	);
 
 	return (
-		<fieldset className="lens-chooser">
-			<legend>
+		<FieldSet className="min-w-0 gap-2">
+			<FieldLegend
+				variant="label"
+				className="mb-2 flex w-full items-center justify-between gap-3"
+			>
 				<span>
 					{t("chooser.title", { count: shown.length, total: models.length })}
 				</span>
-				<button type="button" onClick={() => onChange(provider, null)}>
+				<Button
+					variant="quiet"
+					size="xs"
+					onClick={() => onChange(provider, null)}
+				>
 					{t("chooser.reset")}
-				</button>
-			</legend>
+				</Button>
+			</FieldLegend>
 			<SearchField
 				label={t("chooser.search")}
 				value={query}
 				onValueChange={setQuery}
 			/>
-			<ul className="lens-check-list">
+			<ul className="grid max-h-56 overflow-y-auto [scrollbar-width:thin]">
 				{listed.map((m) => (
 					<li key={m.id}>
-						<label>
-							<input
-								type="checkbox"
+						<Item
+							variant="menu"
+							size="xs"
+							className="flex-nowrap"
+							// biome-ignore lint/a11y/noLabelWithoutControl: the Checkbox inside is the control
+							render={<label />}
+						>
+							<Checkbox
 								checked={m.shown}
-								onChange={() => toggle(m.id)}
+								onCheckedChange={() => toggle(m.id)}
 							/>
-							<span>{m.name}</span>
-							<small>{m.release_date ?? ""}</small>
-						</label>
+							<span className="min-w-0 flex-1 truncate">{m.name}</span>
+							<small className="shrink-0 text-xs text-muted-foreground">
+								{m.release_date ?? ""}
+							</small>
+						</Item>
 					</li>
 				))}
 			</ul>
-		</fieldset>
+		</FieldSet>
 	);
 }

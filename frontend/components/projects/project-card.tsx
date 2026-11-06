@@ -1,6 +1,7 @@
 import { Folder, MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 
 export function ProjectCard({
 	href,
@@ -45,15 +46,16 @@ export function ProjectCard({
 				</div>
 			</Link>
 			{onStar && (
-				<button
-					type="button"
-					className="pr-star"
+				<Button
+					variant="quiet"
+					size="icon-sm"
+					className="absolute top-2 right-2 bg-background aria-pressed:bg-background aria-pressed:text-doc"
 					aria-pressed={starred}
 					aria-label={t("star", { name: title })}
 					onClick={onStar}
 				>
 					<Star fill={starred ? "currentColor" : "none"} />
-				</button>
+				</Button>
 			)}
 		</article>
 	);

@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { memoryApi } from "@/lib/memory-api";
 import type { Overview } from "@/lib/memory-types";
 
@@ -25,20 +27,22 @@ export function Inbox({
 					<span>
 						{t("proposeScene", { name: s.name })} {s.definition}
 					</span>
-					<button
+					<Button
 						type="button"
-						className="lens-act"
+						variant="secondary"
+						size="chip"
 						onClick={() => memoryApi.decideScene(s.id, true).then(onChanged)}
 					>
 						{t("agree")}
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
-						className="lens-act"
+						variant="secondary"
+						size="chip"
 						onClick={() => memoryApi.decideScene(s.id, false).then(onChanged)}
 					>
 						{t("noNeed")}
-					</button>
+					</Button>
 				</div>
 			))}
 			{overview.questions.map((q) => (
@@ -50,16 +54,17 @@ export function Inbox({
 					}}
 				>
 					<span>{q.text}</span>
-					<input
+					<Input
+						className="h-8 min-w-30 flex-1"
 						type="text"
 						aria-label={q.text}
 						placeholder={t("yourAnswer")}
 						value={answers[q.id] ?? ""}
 						onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
 					/>
-					<button type="submit" className="lens-act">
+					<Button type="submit" variant="secondary" size="chip">
 						{t("answer")}
-					</button>
+					</Button>
 				</form>
 			))}
 		</section>

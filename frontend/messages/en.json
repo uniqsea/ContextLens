@@ -119,7 +119,8 @@
 		"remove": "Disconnect {path}",
 		"failed": "Check the folder paths and access permissions, then try again.",
 		"pickFailed": "Could not open the folder picker. Please try again.",
-		"retry": "Retry"
+		"retry": "Retry",
+		"pendingDisconnect": "Saving will disconnect {count, plural, one {# folder} other {# folders}}. Project chats will stop searching them. Files on disk are kept."
 	},
 	"projects": {
 		"recent": "Recently opened",
@@ -129,6 +130,8 @@
 		"search": "Search projects",
 		"searchChats": "Search conversations",
 		"star": "Star {name}",
+		"preview": "Preview",
+		"noNotes": "No project notes yet. Click to start writing",
 		"details": "Project notes",
 		"save": "Save",
 		"failed": "Could not load or save changes.",
@@ -143,7 +146,16 @@
 		"noMatch": "No matches",
 		"emptyChats": "No conversations yet",
 		"empty": "Create your first project",
-		"back": "Back to workspace"
+		"back": "Back to workspace",
+		"edit": "Edit",
+		"detailsHint": "What this project is, its goals, conventions and background.",
+		"notesPlaceholder": "# What this project is\n\nOne or two sentences on the goal.\n\n## Conventions\n- Terms and tone to use\n- Things to avoid",
+		"markdownSupported": "Markdown supported",
+		"chars": "{count, plural, one {# character} other {# characters}}",
+		"isolatedTitle": "Isolate this project",
+		"isolatedHint": "Memories here can't be found from outside, and outside memories can't be found here.",
+		"editNotes": "Edit project notes",
+		"nothingToPreview": "Nothing to preview yet."
 	},
 	"meta": {
 		"description": "See what the model actually sees: traceable, editable AI context and memory"
@@ -308,6 +320,10 @@
 		"flipBack": "Flip back"
 	},
 	"library": {
+		"globalTitle": "Global memories",
+		"projectTitle": "Project memories",
+		"global": "Global",
+		"projectFilter": "Filter by project",
 		"close": "Close",
 		"checkLabel": "Check",
 		"sourceLabel": "Source",
@@ -515,5 +531,11 @@
 		"close": "Close",
 		"noted": "When it was noted (empty means today)",
 		"text": "Memory text"
+	},
+	"status": {
+		"loading": "Loading…",
+		"notFound": "Nothing here",
+		"notFoundBody": "The link may be broken, or what it pointed to has moved.",
+		"backHome": "Back to all projects"
 	}
 }

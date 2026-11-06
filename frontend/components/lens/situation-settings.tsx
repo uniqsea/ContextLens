@@ -3,13 +3,18 @@
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	DialogBody,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { memoryApi } from "@/lib/memory-api";
 import type { Scene } from "@/lib/memory-types";
 
@@ -96,31 +101,30 @@ export function SituationSettings({
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="lens-theme lens-dialog sm:max-w-lg">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{t("situationsTitle")}</DialogTitle>
 					<DialogDescription>{t("situationsBody")}</DialogDescription>
 				</DialogHeader>
-				<div className="lens-situations">
+				<DialogBody className="lens-sections">
 					<section>
 						<h3>{t("situationsAsk")}</h3>
-						<textarea
+						<Textarea
 							rows={3}
-							className="lens-input"
 							value={description}
 							placeholder={t("situationsAskHint")}
 							aria-label={t("situationsAsk")}
 							onChange={(e) => setDescription(e.target.value)}
 						/>
-						<div className="lens-situations-row">
-							<button
+						<div className="mt-2">
+							<Button
 								type="button"
-								className="lens-btn"
+								variant="secondary"
 								disabled={!description.trim() || thinking}
 								onClick={suggest}
 							>
 								{thinking ? t("situationsThinking") : t("situationsSuggest")}
-							</button>
+							</Button>
 						</div>
 					</section>
 					<section>
@@ -128,25 +132,25 @@ export function SituationSettings({
 						<div className="lens-situation-rows">
 							{rows.map((r) => (
 								<div key={r.key} className="lens-situation">
-									<input
+									<Input
 										type="text"
-										className="lens-input"
 										value={r.name}
 										placeholder={t("situationsName")}
 										aria-label={t("situationsName")}
 										onChange={(e) => edit(r.key, { name: e.target.value })}
 									/>
-									<button
+									<Button
 										type="button"
-										className="lens-icon-btn is-danger"
+										variant="quiet"
+										size="icon-sm"
+										className="hover:text-destructive"
 										aria-label={t("situationsRemove", { name: r.name })}
 										onClick={() => setRows(rows.filter((x) => x.key !== r.key))}
 									>
 										<X aria-hidden="true" />
-									</button>
-									<textarea
+									</Button>
+									<Textarea
 										rows={2}
-										className="lens-input"
 										value={r.definition}
 										placeholder={t("situationsDefinition")}
 										aria-label={t("situationsDefinitionOf", { name: r.name })}
@@ -158,10 +162,10 @@ export function SituationSettings({
 								</div>
 							))}
 						</div>
-						<div className="lens-situations-row">
-							<button
+						<div className="mt-2">
+							<Button
 								type="button"
-								className="lens-btn"
+								variant="secondary"
 								onClick={() => {
 									setRows([
 										...rows,
@@ -171,28 +175,24 @@ export function SituationSettings({
 								}}
 							>
 								{t("situationsAdd")}
-							</button>
+							</Button>
 						</div>
 					</section>
 					{error && <p role="alert">{error}</p>}
-					<div className="lens-situations-foot">
-						<button
-							type="button"
-							className="lens-btn outline"
-							onClick={onClose}
-						>
-							{t("close")}
-						</button>
-						<button
-							type="button"
-							className="lens-btn primary"
-							disabled={saving}
-							onClick={save}
-						>
-							{saving ? t("saving") : t("save")}
-						</button>
-					</div>
-				</div>
+				</DialogBody>
+				<DialogFooter>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("close")}
+					</Button>
+					<Button
+						type="button"
+						variant="default"
+						disabled={saving}
+						onClick={save}
+					>
+						{saving ? t("saving") : t("save")}
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);

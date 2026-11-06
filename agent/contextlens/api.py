@@ -196,6 +196,9 @@ async def memories_index(request: Request) -> JSONResponse:
     if request.method == "POST":
         return await _change(lambda body: records.create(body, scope, _USER), request)
     include_trashed = request.query_params.get("include_trashed") == "1"
+    if request.query_params.get("view") == "library":
+        owner = request.query_params.get("scope")
+        return await _read(lambda: {"memories": records.library_records(owner, include_trashed)})
     return await _read(lambda: {"memories": records.records(scope, include_trashed)})
 
 

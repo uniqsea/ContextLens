@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useTransition } from "react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { setLocale } from "@/i18n/actions";
 import { locales } from "@/i18n/config";
 
@@ -13,31 +14,28 @@ export function LocaleSwitch({ className }: { className?: string }) {
 	const router = useRouter();
 	const [pending, start] = useTransition();
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: a segmented control, not a form section
-		<div
+		<ToggleGroup
+			variant="segment"
+			spacing={0.5}
 			className={className}
-			role="group"
 			aria-label={t("label")}
 			aria-busy={pending}
+			disabled={pending}
+			value={[current]}
+			onValueChange={(next) => {
+				const l = next[0];
+				if (!l || l === current) return;
+				start(async () => {
+					await setLocale(l);
+					router.refresh();
+				});
+			}}
 		>
 			{locales.map((l) => (
-				<button
-					key={l}
-					type="button"
-					lang={l === "zh" ? "zh-CN" : "en"}
-					aria-pressed={current === l}
-					disabled={pending}
-					onClick={() => {
-						if (l === current) return;
-						start(async () => {
-							await setLocale(l);
-							router.refresh();
-						});
-					}}
-				>
+				<ToggleGroupItem key={l} value={l} lang={l === "zh" ? "zh-CN" : "en"}>
 					{t(l)}
-				</button>
+				</ToggleGroupItem>
 			))}
-		</div>
+		</ToggleGroup>
 	);
 }

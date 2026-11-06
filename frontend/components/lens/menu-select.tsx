@@ -22,7 +22,7 @@ export function MenuSelect({
 	options,
 	placeholder,
 	onChange,
-	triggerClassName = "lens-select",
+	triggerClassName,
 	chevron = true,
 }: {
 	label: string;
@@ -52,19 +52,10 @@ export function MenuSelect({
 					{selected?.label ?? (value || placeholder)}
 				</SelectValue>
 			</SelectTrigger>
-			<SelectContent
-				align="start"
-				sideOffset={6}
-				alignItemWithTrigger={false}
-				className="lens-theme lens-menu"
-			>
+			<SelectContent align="start" sideOffset={6} alignItemWithTrigger={false}>
 				<SelectGroup>
 					{options.map((option) => (
-						<SelectItem
-							key={option.value}
-							value={option.value}
-							className="lens-menu-item"
-						>
+						<SelectItem key={option.value} value={option.value}>
 							{option.label}
 						</SelectItem>
 					))}

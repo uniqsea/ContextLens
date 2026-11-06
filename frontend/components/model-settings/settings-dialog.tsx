@@ -1,10 +1,17 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
 	Dialog,
+	DialogBody,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
@@ -26,23 +33,22 @@ export function SettingsDialog({
 	settings: ModelSettings;
 }) {
 	const t = useTranslations("settings");
-	const [advanced, setAdvanced] = useState(false);
 	const connected = overview?.providers.filter((p) => p.connected) ?? [];
 	const setRole = (role: Role) => (spec: string | null) =>
 		run(() => settingsApi.setRoles({ [role]: spec }));
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="lens-theme lens-dialog flex max-h-[85dvh] flex-col gap-4 overflow-hidden sm:max-w-xl">
+			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
 					<DialogTitle>{t("title")}</DialogTitle>
 					<DialogDescription>{t("subtitle")}</DialogDescription>
 				</DialogHeader>
-				<div className="lens-dialog-scroll">
+				<DialogBody>
 					{error && (
-						<p role="alert" className="lens-alert">
+						<Alert variant="destructive">
 							{t("error", { message: error })}
-						</p>
+						</Alert>
 					)}
 					{overview && (
 						<ProviderList
@@ -57,36 +63,33 @@ export function SettingsDialog({
 						/>
 					)}
 					{connected.length > 0 && overview && (
-						<section>
-							<button
-								type="button"
-								className="lens-disclosure"
-								aria-expanded={advanced}
-								onClick={() => setAdvanced((a) => !a)}
+						<Collapsible render={<section />}>
+							<CollapsibleTrigger
+								render={
+									<Button variant="quiet" size="sm" className="gap-1 pl-1" />
+								}
 							>
-								<ChevronRight aria-hidden="true" />
+								<CollapsibleChevron />
 								{t("advanced")}
-							</button>
-							{advanced && (
-								<>
-									<p className="lib-hint">{t("advancedNote")}</p>
-									<div className="lens-group mt-2">
-										{(["memory", "embedding"] as const).map((role) => (
-											<RolePicker
-												key={role}
-												forRole={role}
-												value={overview.roles[role]}
-												providers={connected}
-												loadModels={loadModels}
-												onChange={setRole(role)}
-											/>
-										))}
-									</div>
-								</>
-							)}
-						</section>
+							</CollapsibleTrigger>
+							<CollapsibleContent>
+								<p className="lib-hint">{t("advancedNote")}</p>
+								<div className="mt-2 grid rounded-[18px] bg-panel p-1">
+									{(["memory", "embedding"] as const).map((role) => (
+										<RolePicker
+											key={role}
+											forRole={role}
+											value={overview.roles[role]}
+											providers={connected}
+											loadModels={loadModels}
+											onChange={setRole(role)}
+										/>
+									))}
+								</div>
+							</CollapsibleContent>
+						</Collapsible>
 					)}
-				</div>
+				</DialogBody>
 			</DialogContent>
 		</Dialog>
 	);

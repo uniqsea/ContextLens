@@ -26,12 +26,14 @@ export function useMemoryLabels(m: MemoryRecord | undefined) {
  * can do to it is one click away, in its details. While splitting a concept, a click ticks it. */
 export function MemoryCard({
 	memory: m,
+	owner,
 	picking,
 	picked,
 	onOpen,
 	onPick,
 }: {
 	memory: MemoryRecord;
+	owner: string;
 	picking: boolean;
 	picked: boolean;
 	onOpen: () => void;
@@ -61,6 +63,7 @@ export function MemoryCard({
 			<p>{m.content}</p>
 			<div className="lib-meta">
 				<i aria-hidden="true" />
+				<span>{owner}</span>
 				<span>{type}</span>
 				{m.scenes.map((scene) => (
 					<span key={scene}>{scene}</span>

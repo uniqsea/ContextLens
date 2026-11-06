@@ -3,16 +3,18 @@ import {
 	Clock3,
 	Folder,
 	Folders,
+	Library,
 	MessageSquare,
+	PanelsTopLeft,
 	Star,
 	X,
-	PanelsTopLeft,
 } from "lucide-react";
-import { useSessions } from "@/components/lens/session-tabs";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand-logo";
+import { useSessions } from "@/components/lens/session-tabs";
 import { LocaleSwitch } from "@/components/locale-switch";
+import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import {
 	ORDINARY,
@@ -24,16 +26,19 @@ import { useRecentProjects } from "./use-recent-projects";
 
 export function ProjectSidebar({
 	scope,
+	library = false,
 	projects,
 	query,
 	onQuery,
 }: {
 	scope?: string;
+	library?: boolean;
 	projects: WorkspaceProject[];
 	query?: string;
 	onQuery?: (value: string) => void;
 }) {
 	const t = useTranslations("projects");
+	const lib = useTranslations("library");
 	const labels = useTranslations("sessionTabs");
 	const { tabs, close } = useSessions();
 	const recent = useRecentProjects(scope);
@@ -63,7 +68,7 @@ export function ProjectSidebar({
 				/>
 			)}
 			<nav className="pr-project-links" aria-label={t("all")}>
-				<Link href="/" aria-current={!scope ? "page" : undefined}>
+				<Link href="/" aria-current={!scope && !library ? "page" : undefined}>
 					<Folders />
 					{t("all")}
 				</Link>
@@ -73,6 +78,10 @@ export function ProjectSidebar({
 				>
 					<MessageSquare />
 					{t("ordinary")}
+				</Link>
+				<Link href="/memories" aria-current={library ? "page" : undefined}>
+					<Library />
+					{lib("title")}
 				</Link>
 				{projects.some((p) => p.starred) && (
 					<h2>
@@ -107,20 +116,21 @@ export function ProjectSidebar({
 										<span>{tab.title}</span>
 										<small>{project}</small>
 									</Link>
-									<button
-										type="button"
+									<Button
+										variant="quiet"
+										size="icon-sm"
 										aria-label={labels("close", { title: label })}
 										onClick={() => close(tab.href)}
 									>
 										<X />
-									</button>
+									</Button>
 								</li>
 							);
 						})}
 					</ul>
 				</details>
 			)}
-			<LocaleSwitch className="lens-seg" />
+			<LocaleSwitch className="mt-auto self-start max-[700px]:absolute max-[700px]:top-3 max-[700px]:right-4" />
 		</aside>
 	);
 }

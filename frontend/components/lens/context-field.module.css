@@ -6,7 +6,7 @@
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
-	color: var(--l-ink);
+	color: var(--foreground);
 }
 .header {
 	display: flex;
@@ -25,7 +25,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	color: var(--l-muted);
+	color: var(--muted-foreground);
 	border-radius: 8px;
 	padding: 4px 7px;
 	font-size: 12px;
@@ -33,8 +33,8 @@
 }
 .header button:hover,
 .empty button:hover {
-	background: var(--l-fill);
-	color: var(--l-ink);
+	background: var(--muted);
+	color: var(--foreground);
 }
 .canvas {
 	overflow: auto;
@@ -45,15 +45,17 @@
 .group {
 	margin-bottom: 24px;
 }
-.group:last-child { margin-bottom: 0; }
+.group:last-child {
+	margin-bottom: 0;
+}
 .group h3 {
 	margin-bottom: 8px;
-	color: var(--l-ink-2);
+	color: var(--secondary-foreground);
 	font-size: 13px;
 	font-weight: 550;
 }
 .group h3 span {
-	color: var(--l-muted);
+	color: var(--muted-foreground);
 	margin-left: 4px;
 	font-weight: 400;
 }
@@ -64,27 +66,27 @@
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
 }
 .empty {
-	color: var(--l-muted);
+	color: var(--muted-foreground);
 	font-size: 13px;
 }
 .input {
 	padding: 7px 10px;
 	margin-bottom: 8px;
-	border: 1px dashed var(--l-muted);
+	border: 1px dashed var(--muted-foreground);
 	border-radius: 12px;
-	background: var(--l-glass);
+	background: var(--glass);
 	font-size: 12px;
 }
 .input[data-over="true"],
 :global(.over-composer) .input {
-	border-color: var(--l-mem);
-	background: var(--l-glow);
+	border-color: var(--mem);
+	background: var(--glow);
 }
 .input strong {
 	font-weight: 600;
 }
 .input > span {
-	color: var(--l-muted);
+	color: var(--muted-foreground);
 	margin-inline-start: 8px;
 }
 .input ol {
@@ -98,7 +100,7 @@
 	display: flex;
 	align-items: center;
 	gap: 3px;
-	border-top: 1px solid var(--l-line);
+	border-top: 1px solid var(--border);
 }
 .name {
 	flex: 1;
@@ -126,6 +128,13 @@
 	gap: 0;
 	max-width: 42rem;
 }
-.canvas[data-library="true"] .grid { background: var(--l-card); border-radius: 12px; padding: 5px; }
+.canvas[data-library="true"] .grid {
+	background: var(--card);
+	border-radius: 12px;
+	padding: 5px;
+}
 
-.canvas :global([data-slot="breadcrumb"]) { padding: 7px 10px; border-bottom: 1px solid var(--l-line); }
+.canvas :global([data-slot="breadcrumb"]) {
+	padding: 7px 10px;
+	border-bottom: 1px solid var(--border);
+}

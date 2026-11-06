@@ -1,10 +1,20 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Item, ItemGroup } from "@/components/ui/item";
+import { Label } from "@/components/ui/label";
 import { SearchField } from "@/components/ui/search-field";
 import type { ModelInfo, ProviderRow } from "@/lib/model-settings";
+import { cn } from "@/lib/utils";
 import { ModelChooser } from "./model-chooser";
 
 type ChooserProps = {
@@ -54,7 +64,7 @@ export function ProviderList({
 				value={query}
 				onValueChange={setQuery}
 			/>
-			<ul className="lens-group">
+			<ItemGroup variant="panel">
 				{shown.map((p) => (
 					<ProviderItem
 						key={p.id}
@@ -65,17 +75,20 @@ export function ProviderList({
 					/>
 				))}
 				{shown.length === 0 && (
-					<li className="lens-provider-form lib-hint">{t("noMatch")}</li>
+					<p className="px-3 py-2 text-[13px] text-muted-foreground">
+						{t("noMatch")}
+					</p>
 				)}
-			</ul>
+			</ItemGroup>
 			{!q && !all && (
-				<button
+				<Button
 					type="button"
-					className="lens-btn outline block"
+					variant="outline"
+					className="w-full"
 					onClick={() => setAll(true)}
 				>
 					{t("showAll")}
-				</button>
+				</Button>
 			)}
 		</section>
 	);
@@ -115,94 +128,111 @@ function ProviderItem({
 	};
 
 	return (
-		<li>
-			<button
-				type="button"
-				className="lens-provider-row"
-				aria-expanded={open}
-				onClick={() => setOpen((o) => !o)}
+		<Collapsible
+			// biome-ignore lint/a11y/useSemanticElements: ItemGroup is a div list, as in shadcn
+			render={<div role="listitem" />}
+			open={open}
+			onOpenChange={setOpen}
+		>
+			<Item
+				variant="menu"
+				render={<CollapsibleTrigger />}
+				className="min-h-11 flex-nowrap justify-between py-0 pr-2 pl-3"
 			>
-				<span>{p.name}</span>
-				<span>
+				<span className="text-sm font-medium tracking-[-0.005em]">
+					{p.name}
+				</span>
+				<span className="flex items-center gap-3 text-[12.5px] whitespace-nowrap text-muted-foreground">
 					{t("models", { count: p.model_count })}
-					<span className="lens-status" data-on={p.connected}>
+					<span
+						className={cn(
+							"inline-flex items-center gap-1.5",
+							p.connected && "font-medium text-foreground",
+						)}
+					>
+						<span
+							aria-hidden
+							className={cn(
+								"size-[7px] rounded-full",
+								p.connected
+									? "bg-hist"
+									: "ring-1 ring-muted-foreground ring-inset",
+							)}
+						/>
 						{p.connected ? t("connected") : t("notConnected")}
 					</span>
-					<ChevronRight aria-hidden="true" />
+					<CollapsibleChevron className="size-[15px]" />
 				</span>
-			</button>
-			{open && (
-				<div className="lens-provider-form">
-					<form
-						className="grid gap-3"
-						onSubmit={(e) => {
-							e.preventDefault();
-							save();
-						}}
-					>
-						<label className="lens-field">
-							{t("apiKey")}
-							<input
-								type="password"
-								autoComplete="off"
-								value={key}
-								onChange={(e) => setKey(e.target.value)}
-								placeholder={
-									p.connected ? t("apiKeyKeep") : t("apiKeyPlaceholder")
-								}
-								className="lens-input"
-							/>
-						</label>
-						<label className="lens-field">
-							{t("baseUrl")}
-							<input
-								value={url}
-								onChange={(e) => setUrl(e.target.value)}
-								placeholder={t("baseUrlHint", {
-									url: p.default_base_url ?? "",
-								})}
-								className="lens-input lens-code-input"
-							/>
-						</label>
-						<div className="lens-row-end">
-							<button
-								type="submit"
-								disabled={busy || (!key && !p.connected)}
-								className="lens-btn primary"
-							>
-								{t("save")}
-							</button>
-							{p.connected && (
-								<button
-									type="button"
-									className="lens-btn danger"
-									onClick={() => onForget(p.id)}
-								>
-									{t("forget")}
-								</button>
-							)}
-							{p.doc && (
-								<a
-									href={p.doc}
-									target="_blank"
-									rel="noreferrer"
-									className="lens-link"
-								>
-									{t("docs")}
-								</a>
-							)}
-						</div>
-					</form>
-					{p.connected && (
-						<ModelChooser
-							provider={p.id}
-							loadModels={loadModels}
-							modelsVersion={modelsVersion}
-							onChange={onChooseShown}
+			</Item>
+			<CollapsibleContent className="grid gap-3 px-3 pt-1.5 pb-3">
+				<form
+					className="grid gap-3"
+					onSubmit={(e) => {
+						e.preventDefault();
+						save();
+					}}
+				>
+					<Label>
+						{t("apiKey")}
+						<Input
+							type="password"
+							autoComplete="off"
+							value={key}
+							onChange={(e) => setKey(e.target.value)}
+							placeholder={
+								p.connected ? t("apiKeyKeep") : t("apiKeyPlaceholder")
+							}
 						/>
-					)}
-				</div>
-			)}
-		</li>
+					</Label>
+					<Label>
+						{t("baseUrl")}
+						<Input
+							value={url}
+							onChange={(e) => setUrl(e.target.value)}
+							placeholder={t("baseUrlHint", {
+								url: p.default_base_url ?? "",
+							})}
+							className="font-mono text-xs"
+						/>
+					</Label>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							type="submit"
+							disabled={busy || (!key && !p.connected)}
+							variant="default"
+						>
+							{t("save")}
+						</Button>
+						{p.connected && (
+							<Button
+								type="button"
+								variant="danger"
+								onClick={() => onForget(p.id)}
+							>
+								{t("forget")}
+							</Button>
+						)}
+						{p.doc && (
+							<a
+								href={p.doc}
+								target="_blank"
+								rel="noreferrer"
+								className="text-[13px] text-muted-foreground underline-offset-3 hover:text-foreground hover:underline"
+							>
+								{t("docs")}
+							</a>
+						)}
+					</div>
+				</form>
+				{p.connected && (
+					<ModelChooser
+						provider={p.id}
+						loadModels={loadModels}
+						modelsVersion={modelsVersion}
+						onChange={onChooseShown}
+					/>
+				)}
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

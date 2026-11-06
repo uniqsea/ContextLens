@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { MenuSelect } from "@/components/lens/menu-select";
+import { Button } from "@/components/ui/button";
 import {
 	type ModelInfo,
 	type ProviderRow,
@@ -63,7 +64,7 @@ export function RolePicker({
 				<h3>{t(`roles.${role}.name`)}</h3>
 				<p>{t(`roles.${role}.desc`)}</p>
 			</div>
-			<div className="lens-row-end">
+			<div className="flex flex-wrap items-center gap-2">
 				<MenuSelect
 					label={t("pickProvider")}
 					value={provider}
@@ -89,9 +90,9 @@ export function RolePicker({
 					/>
 				)}
 				{value && (
-					<button
+					<Button
 						type="button"
-						className="lens-btn outline"
+						variant="outline"
 						disabled={test === "running"}
 						onClick={async () => {
 							setTest("running");
@@ -99,7 +100,7 @@ export function RolePicker({
 						}}
 					>
 						{test === "running" ? t("testing") : t("test")}
-					</button>
+					</Button>
 				)}
 				{missing && <small className="lens-warn">{t("noModelsOfKind")}</small>}
 				{test && test !== "running" && (

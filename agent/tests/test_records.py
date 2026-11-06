@@ -67,6 +67,22 @@ class LibraryRouteTests(StoreTestCase):
     def create(self):
         return self.client.post("/lens/memories", json={"title": "安排聚餐", "content": "不吃辣", "scenes": ["工作"], "concepts": ["我"]}).json()
 
+    def test_library_filters_by_owner_independently_of_chat_visibility(self):
+        shared = ops.create_project("Fictional observatory", USER, isolated=False).id
+        isolated = ops.create_project("Fictional workshop", USER).id
+        for owner in (memory.ORDINARY, shared, isolated):
+            self.add("Synthetic scope check", scope=owner)
+
+        def scopes(**params):
+            rows = self.client.get("/lens/memories", params=params).json()["memories"]
+            return sorted(row["scope"] for row in rows)
+
+        self.assertEqual(scopes(view="library"), sorted([memory.ORDINARY, shared, isolated]))
+        self.assertEqual(scopes(view="library", scope=shared), [shared])
+        self.assertEqual(scopes(view="library", scope=memory.ORDINARY), [memory.ORDINARY])
+        self.assertEqual(scopes(scope=shared), sorted([memory.ORDINARY, shared]))
+        self.assertEqual(scopes(scope=isolated), [isolated])
+
     def test_refuses_browsers(self):
         self.assertEqual(self.client.get("/lens/memories", headers={"origin": "https://x"}).status_code, 403)
 

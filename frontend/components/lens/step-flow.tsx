@@ -37,7 +37,7 @@ export function StepFlow({
 				const start = elements.get(source);
 				if (!start) return [];
 				const wire = new Wire(parent, {
-					color: "var(--l-mem)",
+					color: "var(--mem)",
 					endArrow: true,
 				});
 				wire.highlight(!!node.highlight && start.dataset.highlight === "true");

@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { folderApi, type ProjectFolder } from "@/lib/projects/folders";
 
 import { FolderContents } from "./folder-contents";
@@ -38,11 +39,13 @@ export function ProjectFolders({ project }: { project: string }) {
 		}
 	}
 	return (
-		<section className="pr-folders">
-			<h2>{t("tab")}</h2>
-			{folders?.length === 0 && <p>{t("hint")}</p>}
+		<section className="max-w-[680px]">
+			<h2 className="text-lg font-medium">{t("tab")}</h2>
+			{folders?.length === 0 && (
+				<p className="mt-1.5 text-muted-foreground">{t("hint")}</p>
+			)}
 			{folders && (
-				<ul>
+				<ul className="mt-2 divide-y divide-border">
 					{folders.map((f) => (
 						<FolderContents
 							key={f.id}
@@ -55,16 +58,16 @@ export function ProjectFolders({ project }: { project: string }) {
 				</ul>
 			)}
 			{error && (
-				<p role="alert">
+				<p role="alert" className="mt-3 text-[13px] text-destructive">
 					{t(error)}{" "}
 					{!folders && (
-						<button
-							type="button"
-							className="lens-chip"
+						<Button
+							variant="secondary"
+							size="sm"
 							onClick={() => setRevision((n) => n + 1)}
 						>
 							{t("retry")}
-						</button>
+						</Button>
 					)}
 				</p>
 			)}

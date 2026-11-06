@@ -3,6 +3,8 @@
 import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { AnswerVersion, Change } from "@/lib/lens/types";
 import type { Concept, Scene } from "@/lib/memory-types";
 import type { Rewrite } from "./answer-card";
@@ -67,18 +69,20 @@ export function TurnReading({
 						setEditing(false);
 					}}
 				>
-					<input
+					<Input
+						className="h-8"
 						type="text"
 						value={doing}
 						aria-label={t("doing")}
 						onChange={(e) => setDoing(e.target.value)}
 					/>
-					<div className="lens-chips">
+					<div className="flex flex-wrap gap-1.5">
 						{scenes.map((s) => (
-							<button
+							<Button
 								key={s.id}
 								type="button"
-								className="lens-chip lib-toggle"
+								variant="secondary"
+								size="sm"
 								title={s.definition}
 								aria-pressed={picked.includes(s.name)}
 								disabled={
@@ -87,12 +91,12 @@ export function TurnReading({
 								onClick={() => setPicked(toggled(picked, s.name))}
 							>
 								{s.name}
-							</button>
+							</Button>
 						))}
 					</div>
-					<button type="submit" className="lens-act">
+					<Button type="submit" variant="secondary" size="chip">
 						{t("confirm")}
-					</button>
+					</Button>
 				</form>
 			) : (
 				<div className="lens-reading-line">
@@ -149,9 +153,10 @@ export function TurnReading({
 					/>
 				)}
 				{dirty && (
-					<button
+					<Button
 						type="button"
-						className="lens-act"
+						variant="secondary"
+						size="chip"
 						title={t("rewriteHint")}
 						disabled={busy}
 						onClick={() => {
@@ -172,7 +177,7 @@ export function TurnReading({
 						}}
 					>
 						{t("rewrite")}
-					</button>
+					</Button>
 				)}
 			</div>
 		</div>

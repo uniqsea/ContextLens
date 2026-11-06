@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useLensText } from "@/lib/lens/text";
 import {
 	type AnswerVersion,
@@ -11,8 +12,7 @@ import {
 	type ToolStep,
 	type TraceMessage,
 } from "@/lib/lens/types";
-
-import { StepFlow, type FlowNode } from "./step-flow";
+import { type FlowNode, StepFlow } from "./step-flow";
 
 function Step({
 	title,
@@ -378,7 +378,9 @@ export function TurnSteps({
 	if (canFold && !expanded) {
 		const summary: FlowNode = {
 			id: "tool-rounds",
-			highlight: columns.flat().some(node => grouped.has(node.id) && node.highlight),
+			highlight: columns
+				.flat()
+				.some((node) => grouped.has(node.id) && node.highlight),
 			from: [],
 			body: (
 				<button
@@ -421,13 +423,14 @@ export function TurnSteps({
 	return (
 		<>
 			{canFold && expanded && (
-				<button
+				<Button
 					type="button"
-					className="lens-text-btn"
+					variant="quiet"
+					size="sm"
 					onClick={() => setExpanded(false)}
 				>
 					{t("collapseTools")}
-				</button>
+				</Button>
 			)}
 			<StepFlow label={t("heading")} columns={columns} />
 		</>

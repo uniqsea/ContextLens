@@ -3,11 +3,14 @@
 import { Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Item } from "@/components/ui/item";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type MemoryLanguage, settingsApi } from "@/lib/model-settings";
 import { LocaleSwitch } from "../locale-switch";
 
@@ -28,79 +31,73 @@ export function SettingsMenu({
 	useEffect(() => {
 		if (open) settingsApi.memoryLanguage().then(setMemoryLanguage, () => {});
 	}, [open]);
+	const row =
+		"flex items-center justify-between gap-4 py-1 pr-1 pl-2.5 text-muted-foreground";
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
-				className="lens-icon-btn"
+				render={<Button variant="quiet" size="icon-sm" />}
 				aria-label={t("settingsMenu")}
 				title={t("settingsMenu")}
 			>
 				<Settings aria-hidden="true" />
 			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				sideOffset={6}
-				className="lens-theme lens-menu"
-			>
-				<div className="lens-menu-row">
-					<span>{t("language")}</span>
-					<LocaleSwitch className="lens-seg" />
+			<PopoverContent align="end" sideOffset={6} variant="menu">
+				<div className={row}>
+					<span className="whitespace-nowrap">{t("language")}</span>
+					<LocaleSwitch />
 				</div>
 				{memoryLanguage && (
 					<div
-						className="lens-menu-row"
+						className={row}
 						title={
 							memoryLanguage.rewriting
 								? t("memoryLanguageRewriting")
 								: undefined
 						}
 					>
-						<span>{t("memoryLanguage")}</span>
-						{/* biome-ignore lint/a11y/useSemanticElements: a segmented control, not a form section */}
-						<div
-							className="lens-seg"
-							role="group"
+						<span className="whitespace-nowrap">{t("memoryLanguage")}</span>
+						<ToggleGroup
+							variant="segment"
+							spacing={0.5}
 							aria-label={t("memoryLanguage")}
 							aria-busy={memoryLanguage.rewriting}
+							value={[memoryLanguage.choice]}
+							onValueChange={(next) => {
+								const c = next[0] as (typeof CHOICES)[number] | undefined;
+								if (!c || c === memoryLanguage.choice) return;
+								settingsApi
+									.setMemoryLanguage(c)
+									.then(setMemoryLanguage, () => {});
+							}}
 						>
 							{CHOICES.map((c) => (
-								<button
-									key={c}
-									type="button"
-									aria-pressed={memoryLanguage.choice === c}
-									onClick={() => {
-										if (c === memoryLanguage.choice) return;
-										settingsApi
-											.setMemoryLanguage(c)
-											.then(setMemoryLanguage, () => {});
-									}}
-								>
+								<ToggleGroupItem key={c} value={c}>
 									{c === "follow" ? t("memoryLanguageFollow") : tl(c)}
-								</button>
+								</ToggleGroupItem>
 							))}
-						</div>
+						</ToggleGroup>
 					</div>
 				)}
-				<button
-					type="button"
-					className="lens-menu-item"
-					onClick={() => {
-						setOpen(false);
-						onManageSituations();
-					}}
-				>
-					{t("manageSituations")}
-				</button>
-				<button
-					type="button"
-					className="lens-menu-item"
-					onClick={() => {
-						setOpen(false);
-						onManageModels();
-					}}
-				>
-					{t("manageModels")}
-				</button>
+				{(
+					[
+						["manageSituations", onManageSituations],
+						["manageModels", onManageModels],
+					] as const
+				).map(([label, act]) => (
+					<Item
+						key={label}
+						variant="menu"
+						size="xs"
+						render={<button type="button" />}
+						onClick={() => {
+							setOpen(false);
+							act();
+						}}
+					>
+						{t(label)}
+					</Item>
+				))}
 			</PopoverContent>
 		</Popover>
 	);

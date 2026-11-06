@@ -6,14 +6,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
 	useRef,
 	useState,
-	type ReactNode,
 } from "react";
 import { NewChat } from "@/components/projects/new-chat";
+import { Button } from "@/components/ui/button";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
 
 type Tab = {
@@ -29,9 +30,23 @@ type Sessions = {
 	register: (tab: Tab) => void;
 	close: (href: string) => void;
 	drafts: Map<string, string>;
+	/** The address that turned out not to exist; it gets no tab. */
+	missing: string | null;
+	setMissing: (path: string | null) => void;
 };
 const Context = createContext<Sessions | null>(null);
 export const useSessions = () => useContext(Context)!;
+
+/** Called by the not-found page, so the tab bar stops waiting for a chat that will never load. */
+export function useMarkMissing() {
+	const setMissing = useContext(Context)?.setMissing;
+	const path = usePathname();
+	useEffect(() => {
+		if (!setMissing) return;
+		setMissing(path);
+		return () => setMissing(null);
+	}, [setMissing, path]);
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
 	const path = usePathname();
@@ -49,6 +64,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		} catch {}
 	}
 	const [tabs, setTabs] = useState<Tab[]>([]);
+	const [missing, setMissing] = useState<string | null>(null);
 	const hasChats = tabs.length > 0;
 	useEffect(() => {
 		if (!hasChats) return;
@@ -58,7 +74,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const projectWorkspace = path === "/" || /^\/projects\/[^/]+\/?$/.test(path);
 	const showTabs =
 		!projectWorkspace &&
-		(tabs.length > 0 || /^\/projects\/[^/]+\/chat\/[^/]+\/?$/.test(path));
+		(tabs.length > 0 ||
+			(path !== missing && /^\/projects\/[^/]+\/chat\/[^/]+\/?$/.test(path)));
 	const [drafts] = useState(() => new Map<string, string>());
 	const register = useCallback((tab: Tab) => {
 		setTabs((previous) => {
@@ -77,7 +94,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		setTabs((previous) => previous.filter((tab) => tab.href !== href));
 	}
 	return (
-		<Context.Provider value={{ tabs, register, close, drafts }}>
+		<Context.Provider
+			value={{ tabs, register, close, drafts, missing, setMissing }}
+		>
 			<div className="session-shell" data-layout={showTabs ? layout : "none"}>
 				{showTabs && (
 					<SessionTabs layout={layout} switchLayout={switchLayout} />
@@ -95,7 +114,7 @@ function SessionTabs({
 	layout: Layout;
 	switchLayout: () => void;
 }) {
-	const { tabs, close } = useSessions();
+	const { tabs, close, missing } = useSessions();
 	const path = usePathname();
 	const router = useRouter();
 	const t = useTranslations("sessionTabs");
@@ -121,6 +140,7 @@ function SessionTabs({
 	const entering =
 		project &&
 		path.includes("/chat/") &&
+		path !== missing &&
 		!tabs.some((tab) => tab.href === path);
 	const visible = entering
 		? [
@@ -137,28 +157,30 @@ function SessionTabs({
 	const layoutLabel = layout === "top" ? t("useSide") : t("useTop");
 	const LayoutIcon = layout === "top" ? PanelLeft : PanelTop;
 	const toggle = (
-		<button
-			type="button"
-			className="session-control"
+		<Button
+			variant="quiet"
+			size="icon"
 			onClick={switchLayout}
 			title={layoutLabel}
 			aria-label={layoutLabel}
 		>
-			<LayoutIcon size={17} />
-		</button>
+			<LayoutIcon />
+		</Button>
 	);
 	function navigation(inDrawer = false) {
 		return (
-			<nav className="session-tabs lens-theme" aria-label={t("label")}>
-				<Link
-					href="/"
-					className="session-home session-control"
-					onClick={() => drawer.current?.close()}
+			<nav className="session-tabs" aria-label={t("label")}>
+				<Button
+					variant="quiet"
+					size="icon"
+					className="session-home"
+					nativeButton={false}
+					render={<Link href="/" onClick={() => drawer.current?.close()} />}
 					title={labels("projects.all")}
 					aria-label={labels("projects.all")}
 				>
 					<img src="/icon.svg" width="25" height="25" alt="" />
-				</Link>
+				</Button>
 				<div className="session-tab-list">
 					{visible.map((tab, index) => {
 						const project =
@@ -203,21 +225,16 @@ function SessionTabs({
 					})}
 				</div>
 				<div className="session-actions">
-					<NewChat
-						key={path}
-						scope={scope}
-						className="session-control session-add"
-						compact
-					/>
+					<NewChat key={path} scope={scope} compact />
 					{inDrawer ? (
-						<button
-							type="button"
-							className="session-control"
+						<Button
+							variant="quiet"
+							size="icon"
 							aria-label={labels("library.close")}
 							onClick={() => drawer.current?.close()}
 						>
-							<X size={17} />
-						</button>
+							<X />
+						</Button>
 					) : (
 						toggle
 					)}
@@ -230,15 +247,11 @@ function SessionTabs({
 			{navigation()}
 			{layout === "side" && (
 				<>
-					<div className="session-mobile lens-theme">
-						<button
-							type="button"
-							className="session-control"
-							onClick={() => drawer.current?.showModal()}
-						>
-							<PanelLeft size={17} />
+					<div className="session-mobile">
+						<Button variant="quiet" onClick={() => drawer.current?.showModal()}>
+							<PanelLeft />
 							{t("label")}
-						</button>
+						</Button>
 						{toggle}
 					</div>
 					<dialog
@@ -254,24 +267,6 @@ function SessionTabs({
 				</>
 			)}
 		</>
-	);
-}
-
-export function SessionProgress() {
-	const t = useTranslations("sessionTabs");
-	return (
-		<div className="session-loading">
-			<div className="session-loading-center">
-				<img src="/icon.svg" width="22" height="22" alt="" />
-				<div
-					className="session-track"
-					role="progressbar"
-					aria-label={t("loading")}
-				>
-					<span />
-				</div>
-			</div>
-		</div>
 	);
 }
 

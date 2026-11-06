@@ -25,6 +25,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { InlineLoading } from "@/components/page-status";
 import {
 	Breadcrumb,
 	DirectoryLink,
@@ -257,10 +258,12 @@ export function ContextField({
 						</button>
 					</p>
 				)}
+				{!error && !candidates && <InlineLoading label={t("loading")} />}
 				{!error &&
+					candidates &&
 					(!groups.length ? (
 						<p className={styles.empty}>
-							{t(!candidates ? "loading" : all.length ? "noMatch" : "empty")}
+							{t(all.length ? "noMatch" : "empty")}
 						</p>
 					) : (
 						groups.map((group) => (

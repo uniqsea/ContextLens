@@ -4,6 +4,7 @@ import { Check, Pencil, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import styles from "./conversation-title.module.css";
 
 export function ConversationTitle({
@@ -69,16 +70,17 @@ export function ConversationTitle({
 				<h1 className={styles.title} title={displayed}>
 					{displayed}
 				</h1>
-				<button
+				<Button
 					ref={trigger}
 					type="button"
-					className="lens-icon-btn"
+					variant="quiet"
+					size="icon-sm"
 					aria-label={t("conversationTitle.rename")}
 					title={t("conversationTitle.rename")}
 					onClick={() => setDraft(displayed)}
 				>
 					<Pencil aria-hidden="true" />
-				</button>
+				</Button>
 			</div>
 		);
 	}
@@ -98,25 +100,27 @@ export function ConversationTitle({
 							close();
 					}}
 				/>
-				<button
+				<Button
 					type="submit"
-					className="lens-icon-btn"
+					variant="quiet"
+					size="icon-sm"
 					disabled={saving || !draft.trim()}
 					aria-label={t("conversationTitle.save")}
 					title={t("conversationTitle.save")}
 				>
 					<Check aria-hidden="true" />
-				</button>
-				<button
+				</Button>
+				<Button
 					type="button"
-					className="lens-icon-btn"
+					variant="quiet"
+					size="icon-sm"
 					disabled={saving}
 					aria-label={t("conversationTitle.cancel")}
 					title={t("conversationTitle.cancel")}
 					onClick={close}
 				>
 					<X aria-hidden="true" />
-				</button>
+				</Button>
 			</form>
 			{failed && (
 				<p className={styles.error} role="alert">

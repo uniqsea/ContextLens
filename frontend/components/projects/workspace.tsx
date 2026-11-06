@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { MenuSelect } from "@/components/lens/menu-select";
+import { InlineLoading, NotFound } from "@/components/page-status";
+import { Button } from "@/components/ui/button";
 import { saveSettings } from "@/lib/projects/settings";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { NewChat } from "./new-chat";
@@ -70,7 +72,7 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				: (b.updated ?? "").localeCompare(a.updated ?? ""),
 		);
 	return (
-		<div className="lens-theme lens-page pr-workspace">
+		<div className="lens-page pr-workspace">
 			<ProjectSidebar
 				scope={scope}
 				projects={projects}
@@ -87,77 +89,91 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 						{scope && title && <span> / {title}</span>}
 					</div>
 				)}
-				<header className="pr-header">
-					<h1>
-						{scope ? <Folder /> : <Folders />}
-						{title}
-					</h1>
-					{!scope ? (
-						<ProjectForm onSaved={(id) => router.push(projectPath(id))} />
-					) : (
-						(project || scope === ORDINARY) && (
-							<div className="pr-folder-actions">
-								{project && (
-									<ProjectForm
-										project={project}
-										onSaved={reload}
-										onRemoved={() => router.push("/")}
-									/>
-								)}
-								<NewChat scope={scope} className="lens-btn primary" />
-							</div>
-						)
-					)}
-				</header>
+				{!missing && (
+					<header className="pr-header">
+						<h1>
+							{scope ? <Folder /> : <Folders />}
+							{title}
+						</h1>
+						{!scope ? (
+							<ProjectForm onSaved={(id) => router.push(projectPath(id))} />
+						) : (
+							(project || scope === ORDINARY) && (
+								<div className="pr-folder-actions">
+									{project && (
+										<ProjectForm
+											project={project}
+											onSaved={reload}
+											onRemoved={() => router.push("/")}
+										/>
+									)}
+									<NewChat scope={scope} />
+								</div>
+							)
+						)}
+					</header>
+				)}
 				{(failed || starFailed) && (
 					<div role="alert">
 						{t("projects.failed")}{" "}
-						<button
-							type="button"
-							className="lens-chip"
+						<Button
+							variant="secondary"
+							size="sm"
 							onClick={() => {
 								setStarFailed(false);
 								reload();
 							}}
 						>
 							{t("projects.retry")}
-						</button>
+						</Button>
 					</div>
 				)}
-				{!data && !failed && <p role="status">{t("library.loading")}</p>}
-				{missing && <p>{t("projects.missing")}</p>}
+				{!data && !failed && <InlineLoading />}
+				{missing && <NotFound title={t("projects.missing")} />}
 				{data && !missing && (
 					<>
 						<div className="pr-tools">
 							{scope && (
 								<nav className="pr-tabs">
-									<button
-										type="button"
+									<Button
+										variant="quiet"
+										size="sm"
 										aria-pressed={tab === "chats"}
 										onClick={() => setTab("chats")}
 									>
 										{t("projects.chats")}
-									</button>
-									<Link href={`${projectPath(scope)}/memories`}>
-										{t("lens.library")}
-									</Link>
+									</Button>
+									<Button
+										variant="quiet"
+										size="sm"
+										render={<Link href={`${projectPath(scope)}/memories`} />}
+										nativeButton={false}
+									>
+										{t(
+											scope === ORDINARY
+												? "library.globalTitle"
+												: "library.projectTitle",
+										)}
+									</Button>
 									{project && (
-										<button
-											type="button"
+										<Button
+											variant="quiet"
+											size="sm"
 											aria-pressed={tab === "files"}
 											onClick={() => setTab("files")}
 										>
 											{t("projectFiles.tab")}
-										</button>
+										</Button>
 									)}
 									{project && (
-										<button
-											type="button"
+										<Button
+											variant="quiet"
+											size="sm"
 											aria-pressed={tab === "details"}
 											onClick={() => setTab("details")}
 										>
 											{t("projects.details")}
-										</button>
+										</Button>
 									)}
 								</nav>
 							)}
@@ -172,22 +188,24 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 											{ value: "name", label: t("projects.name") },
 										]}
 									/>
-									<button
-										type="button"
+									<Button
+										variant="quiet"
+										size="icon-sm"
 										aria-label={t("projects.grid")}
 										aria-pressed={!list}
 										onClick={() => setList(false)}
 									>
 										<LayoutGrid />
-									</button>
-									<button
-										type="button"
+									</Button>
+									<Button
+										variant="quiet"
+										size="icon-sm"
 										aria-label={t("projects.list")}
 										aria-pressed={list}
 										onClick={() => setList(true)}
 									>
 										<List />
-									</button>
+									</Button>
 								</div>
 							)}
 						</div>

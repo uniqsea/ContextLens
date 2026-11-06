@@ -30,8 +30,12 @@ export default async function RootLayout({
 }>) {
 	const locale = await getLocale();
 	return (
-		<html lang={htmlLang(locale)} suppressHydrationWarning>
-			<body className={`${inter.variable} ${geistMono.variable} antialiased`}>
+		<html
+			lang={htmlLang(locale)}
+			className={`${inter.variable} ${geistMono.variable}`}
+			suppressHydrationWarning
+		>
+			<body className="antialiased">
 				<NextIntlClientProvider>
 					<ThemeProvider>
 						<SessionProvider>{children}</SessionProvider>

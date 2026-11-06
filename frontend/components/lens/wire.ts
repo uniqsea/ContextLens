@@ -96,7 +96,13 @@ export class Wire {
 	}
 
 	// Follow the empty gutters around a wrapped row, keeping the arrow outside the cards.
-	moveAcrossRow(x: number, y: number, endX: number, endY: number, gutterY: number) {
+	moveAcrossRow(
+		x: number,
+		y: number,
+		endX: number,
+		endY: number,
+		gutterY: number,
+	) {
 		const path = `M${x} ${y} h10 V${gutterY} H${endX - 10} V${endY} H${endX}`;
 		this.stroke.setAttribute("d", path);
 		this.hit?.setAttribute("d", path);

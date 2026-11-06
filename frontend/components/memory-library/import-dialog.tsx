@@ -3,13 +3,18 @@
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
+	DialogBody,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { ImportCandidate, MemoryEvent } from "@/lib/memory-types";
 
@@ -131,12 +136,12 @@ export function ImportDialog({
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="lens-theme lens-dialog flex max-h-[85dvh] flex-col gap-4 overflow-hidden sm:max-w-xl">
+			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
 					<DialogTitle>{t("title")}</DialogTitle>
 					<DialogDescription>{t("body")}</DialogDescription>
 				</DialogHeader>
-				<div className="lens-dialog-scroll lens-situations">
+				<DialogBody className="lens-sections">
 					{written ? (
 						<section className="lib-import-done" aria-live="polite">
 							<p>
@@ -154,16 +159,15 @@ export function ImportDialog({
 							<ul className="lib-import-list">
 								{found.candidates.map((c) => (
 									<li key={c.key} data-off={!kept.has(c.key) || undefined}>
-										<input
-											type="checkbox"
+										<Checkbox
+											className="mt-2.5 ml-1"
 											checked={kept.has(c.key)}
 											aria-label={t("keep")}
-											onChange={() => toggle(c.key)}
+											onCheckedChange={() => toggle(c.key)}
 										/>
 										<div>
-											<textarea
+											<Textarea
 												rows={1}
-												className="lens-input"
 												value={c.learned}
 												aria-label={t("text")}
 												onChange={(e) =>
@@ -210,21 +214,25 @@ export function ImportDialog({
 								<h3>{t("step1")}</h3>
 								<div className="lib-import-prompt">
 									<pre>{t("prompt")}</pre>
-									<button type="button" className="lens-btn" onClick={copy}>
+									<Button
+										type="button"
+										variant="secondary"
+										className="absolute right-2 bottom-2"
+										onClick={copy}
+									>
 										{copied ? (
 											<Check aria-hidden="true" />
 										) : (
 											<Copy aria-hidden="true" />
 										)}
 										{copied ? t("copied") : t("copy")}
-									</button>
+									</Button>
 								</div>
 							</section>
 							<section>
 								<h3>{t("step2")}</h3>
-								<textarea
+								<Textarea
 									rows={8}
-									className="lens-input"
 									value={text}
 									placeholder={t("pasteHint")}
 									aria-label={t("step2")}
@@ -234,67 +242,59 @@ export function ImportDialog({
 						</>
 					)}
 					{error && <p role="alert">{error}</p>}
-				</div>
-				<div className="lens-situations-foot">
+				</DialogBody>
+				<DialogFooter>
 					{written ? (
 						<>
 							{!undone && written.events.length > 0 && (
-								<button
+								<Button
 									type="button"
-									className="lens-btn outline"
+									variant="outline"
 									disabled={busy}
 									onClick={undo}
 								>
 									{t("undo")}
-								</button>
+								</Button>
 							)}
-							<button
-								type="button"
-								className="lens-btn primary"
-								onClick={onClose}
-							>
+							<Button type="button" variant="default" onClick={onClose}>
 								{t("close")}
-							</button>
+							</Button>
 						</>
 					) : found ? (
 						<>
-							<button
+							<Button
 								type="button"
-								className="lens-btn outline"
+								variant="outline"
 								disabled={busy}
 								onClick={() => setFound(undefined)}
 							>
 								{t("back")}
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
-								className="lens-btn primary"
+								variant="default"
 								disabled={busy || kept.size === 0}
 								onClick={commit}
 							>
 								{busy ? t("committing") : t("commit", { count: kept.size })}
-							</button>
+							</Button>
 						</>
 					) : (
 						<>
-							<button
-								type="button"
-								className="lens-btn outline"
-								onClick={onClose}
-							>
+							<Button type="button" variant="outline" onClick={onClose}>
 								{t("close")}
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
-								className="lens-btn primary"
+								variant="default"
 								disabled={busy || !text.trim()}
 								onClick={read}
 							>
 								{busy ? t("reading") : t("read")}
-							</button>
+							</Button>
 						</>
 					)}
-				</div>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);
