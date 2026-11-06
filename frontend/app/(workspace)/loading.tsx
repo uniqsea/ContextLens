@@ -1,0 +1,9 @@
+import { InlineLoading } from "@/components/page-status";
+
+export default function Loading() {
+	return (
+		<main className="pr-main">
+			<InlineLoading />
+		</main>
+	);
+}

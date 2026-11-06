@@ -14,16 +14,13 @@ import { ProjectCard } from "./project-card";
 import { ProjectDetails } from "./project-details";
 import { ProjectFolders } from "./project-folders";
 import { ProjectForm } from "./project-form";
-import { ProjectSidebar } from "./sidebar";
-import { useDirectory } from "./use-directory";
-import "./workspace.css";
+import { useWorkspaceDirectory } from "./use-directory";
 
 export function ProjectWorkspace({ scope }: { scope?: string }) {
 	const t = useTranslations();
 	const router = useRouter();
-	const { data, failed, reload } = useDirectory(scope);
+	const { data, failed, reload } = useWorkspaceDirectory();
 	const [starFailed, setStarFailed] = useState(false);
-	const [query, setQuery] = useState("");
 	const [list, setList] = useState(false);
 	const [tab, setTab] = useState("chats");
 	const [sort, setSort] = useState("recent");
@@ -45,8 +42,6 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				? project?.name
 				: t("projects.all");
 	const missing = scope && scope !== ORDINARY && data && !project;
-	const matches = (value: string) =>
-		value.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
 	const cards = scope
 		? (data?.conversations ?? []).map((c) => ({
 				id: c.id,
@@ -64,24 +59,13 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				updated: p.updated_at,
 				starred: p.starred,
 			}));
-	const visible = cards
-		.filter((c) => matches(c.title) || matches(c.preview ?? ""))
-		.sort((a, b) =>
-			sort === "name"
-				? a.title.localeCompare(b.title)
-				: (b.updated ?? "").localeCompare(a.updated ?? ""),
-		);
+	const visible = cards.sort((a, b) =>
+		sort === "name"
+			? a.title.localeCompare(b.title)
+			: (b.updated ?? "").localeCompare(a.updated ?? ""),
+	);
 	return (
-		<div className="lens-page pr-workspace">
-			<ProjectSidebar
-				scope={scope}
-				projects={projects}
-				query={query}
-				onQuery={(v) => {
-					setQuery(v);
-					setTab("chats");
-				}}
-			/>
+		<>
 			<main className="pr-main">
 				{scope && (
 					<div className="pr-top">
@@ -229,16 +213,8 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 						) : (
 							<div className="pr-empty">
 								{scope ? <MessageSquare /> : <Folder />}
-								<p>
-									{t(
-										query
-											? "projects.noMatch"
-											: scope
-												? "projects.emptyChats"
-												: "projects.empty",
-									)}
-								</p>
-								{!scope && !query && (
+								<p>{t(scope ? "projects.emptyChats" : "projects.empty")}</p>
+								{!scope && (
 									<ProjectForm onSaved={(id) => router.push(projectPath(id))} />
 								)}
 							</div>
@@ -246,6 +222,6 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 					</>
 				)}
 			</main>
-		</div>
+		</>
 	);
 }

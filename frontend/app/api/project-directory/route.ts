@@ -1,7 +1,8 @@
 import { conversationIndex, listProjects } from "@/lib/projects/server";
 
 export async function GET(request: Request) {
-	const scope = new URL(request.url).searchParams.get("scope");
+	const params = new URL(request.url).searchParams;
+	const scope = params.get("scope");
 	const [projects, threads] = await Promise.all([
 		listProjects(),
 		conversationIndex(),
@@ -22,6 +23,9 @@ export async function GET(request: Request) {
 					.at(-1),
 			};
 		}),
-		conversations: threads.filter((thread) => thread.scope === scope),
+		conversations:
+			params.get("view") === "search"
+				? threads
+				: threads.filter((thread) => thread.scope === scope),
 	});
 }

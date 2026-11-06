@@ -128,6 +128,9 @@
 		"ordinary": "Unfiled conversations",
 		"starred": "Starred",
 		"search": "Search projects",
+		"workspaceSearch": "Search",
+		"projectResults": "Projects",
+		"sessionResults": "Sessions",
 		"searchChats": "Search conversations",
 		"star": "Star {name}",
 		"preview": "Preview",
@@ -156,6 +159,7 @@
 		"isolatedHint": "Memories here can't be found from outside, and outside memories can't be found here.",
 		"editNotes": "Edit project notes",
 		"nothingToPreview": "Nothing to preview yet.",
+		"resizeSidebar": "Drag to resize sidebar",
 		"hideSidebar": "Hide sidebar",
 		"showSidebar": "Show sidebar"
 	},

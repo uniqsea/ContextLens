@@ -382,7 +382,7 @@
 .lens-mark .brand-logo {
 	display: block;
 	flex: none;
-	width: 108px;
+	/* The SVG supplies the width for the full logo or the wordmark. */
 	height: auto;
 	color: #292725;
 }

@@ -71,7 +71,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		const source = new EventSource("/api/lens/chat-presence");
 		return () => source.close();
 	}, [hasChats]);
-	const projectWorkspace = path === "/" || /^\/projects\/[^/]+\/?$/.test(path);
+	const projectWorkspace =
+		path === "/" ||
+		path === "/memories" ||
+		/^\/projects\/[^/]+(?:\/memories)?\/?$/.test(path);
 	const showTabs =
 		!projectWorkspace &&
 		(tabs.length > 0 ||

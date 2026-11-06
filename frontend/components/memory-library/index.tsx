@@ -4,9 +4,7 @@ import { Import, Library, Plus } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { ProjectSidebar } from "@/components/projects/sidebar";
-import { useDirectory } from "@/components/projects/use-directory";
-import "@/components/projects/workspace.css";
+import { useWorkspaceDirectory } from "@/components/projects/use-directory";
 import { MenuSelect } from "@/components/lens/menu-select";
 import { useOverview } from "@/components/lens/use-overview";
 import { Alert } from "@/components/ui/alert";
@@ -30,7 +28,7 @@ export function MemoryLibrary(props: LibraryProps) {
 	const [selected, setSelected] = useState("all");
 	const owner =
 		props.projectScope ?? (selected === "all" ? undefined : selected);
-	const directory = useDirectory();
+	const directory = useWorkspaceDirectory();
 	return (
 		<LibraryView
 			key={owner ?? "all"}
@@ -56,7 +54,7 @@ function LibraryView({
 	view: "memories" | "timeline";
 	setView: (view: "memories" | "timeline") => void;
 	owner?: string;
-	directory: ReturnType<typeof useDirectory>;
+	directory: ReturnType<typeof useWorkspaceDirectory>;
 	onSelect: (value: string) => void;
 }) {
 	const nav = useTranslations("projects");
@@ -166,12 +164,7 @@ function LibraryView({
 	};
 
 	return (
-		<div className="lens-page pr-workspace">
-			<ProjectSidebar
-				scope={projectScope}
-				library={!projectScope}
-				projects={projects}
-			/>
+		<>
 			<main className="pr-main">
 				<nav className="pr-top lib-path" aria-label={nav("all")}>
 					<Link href="/">{nav("all")}</Link>
@@ -343,6 +336,6 @@ function LibraryView({
 					onChanged={() => void refreshMemories()}
 				/>
 			)}
-		</div>
+		</>
 	);
 }

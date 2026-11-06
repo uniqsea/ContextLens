@@ -128,6 +128,9 @@
 		"ordinary": "未归档对话",
 		"starred": "星标项目",
 		"search": "搜索项目",
+		"workspaceSearch": "搜索",
+		"projectResults": "项目",
+		"sessionResults": "会话",
 		"searchChats": "搜索对话",
 		"star": "星标 {name}",
 		"preview": "预览",
@@ -156,6 +159,7 @@
 		"isolatedHint": "项目里的记忆不会在外面被找到，项目里也找不到外面的记忆。",
 		"editNotes": "编辑项目说明",
 		"nothingToPreview": "还没有内容可预览。",
+		"resizeSidebar": "拖动调整侧栏宽度",
 		"hideSidebar": "收起侧栏",
 		"showSidebar": "展开侧栏"
 	},

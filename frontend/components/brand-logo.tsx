@@ -1,48 +1,61 @@
 /** Approved vector logo; wordmark outlines preserve the selected lettering. */
-export function BrandLogo() {
+export function BrandLogo({
+	wordmarkOnly = false,
+}: {
+	wordmarkOnly?: boolean;
+} = {}) {
 	return (
 		<svg
 			className="brand-logo"
-			viewBox="80 165 2077 429"
-			width="108"
-			height="22"
+			viewBox={wordmarkOnly ? "555 165 1602 429" : "80 165 2077 429"}
+			width={wordmarkOnly ? 100 : 108}
+			height={wordmarkOnly ? 27 : 22}
 			role="img"
 			aria-label="ContextLens"
 			focusable="false"
 		>
 			<title>ContextLens</title>
-			<g fill="none">
-				<path
-					d="M 432 517 L 488 573"
-					stroke="currentColor"
-					strokeWidth="42"
-					strokeLinecap="round"
-				/>
-				<circle
-					cx="294"
-					cy="379"
-					r="193"
-					stroke="currentColor"
-					strokeWidth="42"
-				/>
-				<rect
-					x="208"
-					y="289"
-					width="174"
-					height="45"
-					rx="22.5"
-					fill="currentColor"
-				/>
-				<rect x="164" y="360" width="260" height="48" rx="24" fill="#E45C40" />
-				<rect
-					x="208"
-					y="432"
-					width="174"
-					height="45"
-					rx="22.5"
-					fill="currentColor"
-				/>
-			</g>
+			{!wordmarkOnly && (
+				<g fill="none">
+					<path
+						d="M 432 517 L 488 573"
+						stroke="currentColor"
+						strokeWidth="42"
+						strokeLinecap="round"
+					/>
+					<circle
+						cx="294"
+						cy="379"
+						r="193"
+						stroke="currentColor"
+						strokeWidth="42"
+					/>
+					<rect
+						x="208"
+						y="289"
+						width="174"
+						height="45"
+						rx="22.5"
+						fill="currentColor"
+					/>
+					<rect
+						x="164"
+						y="360"
+						width="260"
+						height="48"
+						rx="24"
+						fill="#E45C40"
+					/>
+					<rect
+						x="208"
+						y="432"
+						width="174"
+						height="45"
+						rx="22.5"
+						fill="currentColor"
+					/>
+				</g>
+			)}
 
 			<g
 				transform="translate(60,732) scale(0.100000,-0.100000)"
