@@ -1,14 +1,15 @@
 "use client";
 
-import { Import, Plus } from "lucide-react";
+import { Import, Library, Plus } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { BrandLogo } from "@/components/brand-logo";
+import { ProjectSidebar } from "@/components/projects/sidebar";
+import { useDirectory } from "@/components/projects/use-directory";
+import "@/components/projects/workspace.css";
 import { ScopeBar } from "@/components/lens/scope-bar";
 import { useOverview } from "@/components/lens/use-overview";
 import { useScope } from "@/components/lens/use-scope";
-import { LocaleSwitch } from "@/components/locale-switch";
 import { projectPath } from "@/lib/projects/types";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord } from "@/lib/memory-types";
@@ -30,6 +31,7 @@ export function MemoryLibrary({
 	const legacy = useScope();
 	const scope = projectScope ?? legacy.scope;
 	const overview = useOverview(scope);
+	const directory = useDirectory();
 	const [view, setView] = useState<"memories" | "timeline">("memories");
 	const [version, setVersion] = useState(0);
 	// The memory whose details are open, or "new" for the form that adds one.
@@ -103,63 +105,39 @@ export function MemoryLibrary({
 	};
 
 	return (
-		<main className="lens-theme lens-page">
-			<div className="lib">
-				<header className="lib-top">
-					<Link href="/" className="lens-mark">
-						<BrandLogo />
-					</Link>
+		<div className="lens-theme lens-page pr-workspace">
+			<ProjectSidebar scope={scope} projects={directory.data?.projects ?? []} />
+			<main className="pr-main">
+				<nav className="pr-top lib-path" aria-label={nav("all")}>
+					<Link href="/">{nav("all")}</Link>
+					<span aria-hidden="true">/</span>
 					{projectScope ? (
-						<Link className="lens-scope" href={projectPath(scope)}>
+						<Link href={projectPath(scope)}>
 							{projectName ?? nav("ordinary")}
 						</Link>
+					) : overview.data ? (
+						<ScopeBar
+							projects={overview.data.projects}
+							scope={scope}
+							onScope={(next) => {
+								legacy.chooseScope(next);
+								setConcept(null);
+								setFilter("all");
+							}}
+							onChanged={overview.reload}
+						/>
 					) : (
-						overview.data && (
-							<ScopeBar
-								projects={overview.data.projects}
-								scope={scope}
-								onScope={(next) => {
-									legacy.chooseScope(next);
-									setConcept(null);
-									setFilter("all");
-								}}
-								onChanged={overview.reload}
-							/>
-						)
+						<Link href={projectPath(scope)}>{nav("back")}</Link>
 					)}
-					<div className="lib-top-right">
-						<LocaleSwitch className="lens-seg" />
-						<Link href={projectPath(scope)} className="lens-btn outline">
-							{nav("back")}
-						</Link>
-					</div>
-				</header>
-
-				<div className="lib-hero">
+					<span aria-hidden="true">/</span>
+					<span aria-current="page">{t("title")}</span>
+				</nav>
+				<header className="pr-header">
 					<h1>
+						<Library aria-hidden="true" />
 						{t("title")}
-						{view === "memories" && (
-							<small aria-live="polite">
-								{isPending
-									? t("loading")
-									: t("count", { count: visibleMemories.length })}
-							</small>
-						)}
 					</h1>
 					<div className="lib-hero-tools">
-						<div role="tablist" className="lens-seg">
-							{(["memories", "timeline"] as const).map((v) => (
-								<button
-									key={v}
-									type="button"
-									role="tab"
-									aria-selected={view === v}
-									onClick={() => setView(v)}
-								>
-									{t(v === "memories" ? "tabMemories" : "tabTimeline")}
-								</button>
-							))}
-						</div>
 						{view === "memories" && (
 							<>
 								<button
@@ -181,6 +159,27 @@ export function MemoryLibrary({
 							</>
 						)}
 					</div>
+				</header>
+				<div className="pr-tools">
+					<div role="group" aria-label={t("title")} className="pr-tabs">
+						{(["memories", "timeline"] as const).map((v) => (
+							<button
+								key={v}
+								type="button"
+								aria-pressed={view === v}
+								onClick={() => setView(v)}
+							>
+								{t(v === "memories" ? "tabMemories" : "tabTimeline")}
+							</button>
+						))}
+					</div>
+					{view === "memories" && (
+						<small className="lib-count" aria-live="polite">
+							{isPending
+								? t("loading")
+								: t("count", { count: visibleMemories.length })}
+						</small>
+					)}
 				</div>
 				{error && (
 					<p role="alert" className="lens-alert">
@@ -227,7 +226,10 @@ export function MemoryLibrary({
 							onChange={(change) => void runAction(change)}
 						/>
 						{visibleMemories.length === 0 ? (
-							<div className="lib-empty">{t("empty")}</div>
+							<div className="pr-empty">
+								<Library aria-hidden="true" />
+								<p>{t("empty")}</p>
+							</div>
 						) : (
 							<div className="lib-grid">
 								{visibleMemories.map((memory) => (
@@ -250,7 +252,7 @@ export function MemoryLibrary({
 						)}
 					</>
 				)}
-			</div>
+			</main>
 			{importing && (
 				<ImportDialog
 					scope={scope}
@@ -271,6 +273,6 @@ export function MemoryLibrary({
 					onChanged={() => void refreshMemories()}
 				/>
 			)}
-		</main>
+		</div>
 	);
 }

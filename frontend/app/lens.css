@@ -40,7 +40,7 @@
    tight for Latin crowds Han, so Chinese sets it back to zero; and where Han meets Latin or digits with no
    space between (memories are often written that way), the browser adds a hair of one. */
 .lens-root, .lens-page, .lens-theme { text-autospace: normal; }
-:lang(zh) :is(.lib-hero h1, .lens-empty b, .lens-card .t, .lib-card h2, .lens-btn, .lens-provider-row, .lens-answer) { letter-spacing: 0; }
+:lang(zh) :is(.lens-empty b, .lens-card .t, .lib-card h2, .lens-btn, .lens-provider-row, .lens-answer) { letter-spacing: 0; }
 /* :where keeps this reset at zero weight, so any component rule overrides it. */
 :where(.lens-root) button { font: inherit; color: inherit; }
 :is(.lens-root, .lens-theme) :focus-visible:where(:not([data-slot="input-group-control"])) { outline: 2px solid var(--l-ink); outline-offset: 2px; }
@@ -480,20 +480,16 @@ textarea.lens-input { resize: vertical; }
 .lens-group { display: grid; gap: 0; margin: 0; padding: 4px; list-style: none; border-radius: 18px; background: var(--l-panel); }
 
 /* ---------- memory library ---------- */
-.lib { max-width: 1240px; margin: 0 auto; padding: 12px 20px 64px; }
-.lib-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-height: 44px; }
-.lib-top .lens-mark { color: var(--l-ink); text-decoration: none; }
-.lib-top-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.lib-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; margin: 36px 0 20px; }
-.lib-hero h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; font-size: 34px; font-weight: 500; line-height: 1.15; letter-spacing: -.03em; }
-.lib-hero h1 small { font-size: 14px; font-weight: 400; letter-spacing: 0; color: var(--l-muted); }
+.lib-path { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; overflow-wrap: anywhere; }
+.lib-path a:hover { text-decoration: underline; }
+.lib-count { color: var(--l-muted); font-size: 13px; }
 .lib-hero-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .lib-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .lib-filters .lens-chip { min-height: 36px; padding: 0 14px; font-size: 13.5px; }
 .lib-filters .lens-chip[aria-pressed="true"] { background: var(--l-ink); color: var(--l-card); }
-.lib-grid { columns: 280px; column-gap: 12px; margin-top: 16px; }
-.lib-card { position: relative; display: block; width: 100%; margin: 0 0 12px; padding: 14px 16px 12px; break-inside: avoid; border: 0; border-radius: 20px; background: var(--l-card); color: var(--l-ink); font: inherit; text-align: left; cursor: pointer; transition: box-shadow .18s, background .18s; }
-.lib-card:hover { box-shadow: inset 0 0 0 1.5px var(--l-line); }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-top: 16px; }
+.lib-card { position: relative; display: block; width: 100%; margin: 0; padding: 14px 16px 12px; align-content: start; border: 1px solid var(--l-line); border-radius: 16px; background: var(--l-card); color: var(--l-ink); font: inherit; text-align: left; cursor: pointer; transition: box-shadow .18s, background .18s; }
+.lib-card:hover { border-color: var(--l-muted); }
 .lib-card h2 { margin: 0; padding-right: 22px; font-size: 14px; font-weight: 500; letter-spacing: -.01em; line-height: 1.4; }
 .lib-card p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--l-muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: anywhere; }
 .lib-card.is-trashed { background: color-mix(in srgb, var(--l-card) 55%, transparent); }
@@ -542,7 +538,6 @@ textarea.lens-input { resize: vertical; }
   .lib-detail-side { order: -1; width: auto; flex: none; }
   .lib-detail-main { flex: none; overflow: visible; }
   .lib-detail-scroll { overflow: visible; }
-  .lib-hero { margin-top: 20px; }
 }
 
 /* ---------- settings ---------- */

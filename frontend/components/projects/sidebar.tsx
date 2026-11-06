@@ -30,8 +30,8 @@ export function ProjectSidebar({
 }: {
 	scope?: string;
 	projects: WorkspaceProject[];
-	query: string;
-	onQuery: (value: string) => void;
+	query?: string;
+	onQuery?: (value: string) => void;
 }) {
 	const t = useTranslations("projects");
 	const labels = useTranslations("sessionTabs");
@@ -55,11 +55,13 @@ export function ProjectSidebar({
 			<Link href="/" className="lens-mark">
 				<BrandLogo />
 			</Link>
-			<SearchField
-				label={t(scope ? "searchChats" : "search")}
-				value={query}
-				onValueChange={onQuery}
-			/>
+			{onQuery && (
+				<SearchField
+					label={t(scope ? "searchChats" : "search")}
+					value={query ?? ""}
+					onValueChange={onQuery}
+				/>
+			)}
 			<nav className="pr-project-links" aria-label={t("all")}>
 				<Link href="/" aria-current={!scope ? "page" : undefined}>
 					<Folders />
