@@ -51,12 +51,17 @@ def _bind(conn, project_id, roots):
                      [(uuid.uuid4().hex, project_id, *root) for root in roots])
 
 
-def create_with_folders(name, source, paths):
+def create_with_folders(name, source, paths, *, instructions="", isolated=True):
     from contextlens.memory.operations import create_project
 
+    if not isinstance(instructions, str) or not isinstance(isolated, bool):
+        raise MemoryError("Invalid project settings.")
     roots = _validated_roots(paths)
     with session() as conn:
-        project = create_project(name, source, conn=conn)
+        project = create_project(name, source, isolated=isolated, conn=conn)
+        if instructions:
+            conn.execute("INSERT INTO project_settings(project_id, instructions) VALUES (?, ?)",
+                         (project.id, instructions))
         _bind(conn, project.id, roots)
     return project
 

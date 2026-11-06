@@ -318,7 +318,9 @@ async def projects_index(request: Request) -> JSONResponse:
     if request.method == "GET":
         return await _read(projects.directory)
     body = await request.json()
-    return await _read(lambda: asdict(project_files.create_with_folders(body.get("name", ""), _USER, body.get("paths", []))))
+    return await _read(lambda: asdict(project_files.create_with_folders(
+        body.get("name", ""), _USER, body.get("paths", []),
+        instructions=body.get("instructions", ""), isolated=body.get("isolated", True))))
 
 
 async def project_item(request: Request) -> JSONResponse:

@@ -133,10 +133,15 @@ export const memoryApi = {
 		}).then((r) => r.situations),
 	decideScene: (id: string, accept: boolean) =>
 		post(`/scenes/${id}/${accept ? "accept" : "dismiss"}`),
-	createProject: (name: string, paths: string[] = []) =>
+	createProject: (
+		name: string,
+		paths: string[] = [],
+		instructions = "",
+		isolated = true,
+	) =>
 		call<Project>("/projects", {
 			method: "POST",
-			body: JSON.stringify({ name, paths }),
+			body: JSON.stringify({ name, paths, instructions, isolated }),
 		}),
 	setIsolated: (id: string, isolated: boolean) =>
 		patch(`/projects/${id}`, { isolated }),

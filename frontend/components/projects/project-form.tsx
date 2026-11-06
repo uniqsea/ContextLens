@@ -120,7 +120,12 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 				);
 				onSaved(project.id);
 			} else {
-				const created = await memoryApi.createProject(draft.name, draft.paths);
+				const created = await memoryApi.createProject(
+					draft.name,
+					draft.paths,
+					instructions,
+					isolated,
+				);
 				onSaved(created.id);
 			}
 			setOpen(false);
@@ -190,13 +195,11 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 						/>
 					</div>
 
-					{project && (
-						<ProjectInstructions
-							draft={instructions}
-							onChange={setInstructions}
-							legacyNotes={project.description}
-						/>
-					)}
+					<ProjectInstructions
+						draft={instructions}
+						onChange={setInstructions}
+						legacyNotes={project?.description}
+					/>
 					<FieldSet disabled={busy || !ready} className="min-w-0 gap-1.5">
 						<FieldLegend variant="label">
 							{t("projectFiles.sources")}
@@ -259,24 +262,22 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 						)}
 					</FieldSet>
 
-					{project && (
-						<label className="flex items-center justify-between gap-4">
-							<span>
-								<span className="block text-sm font-medium">
-									{t("projects.isolatedTitle")}
-								</span>
-								<span className="text-xs text-muted-foreground">
-									{t("projects.isolatedHint")}
-								</span>
+					<label className="flex items-center justify-between gap-4">
+						<span>
+							<span className="block text-sm font-medium">
+								{t("projects.isolatedTitle")}
 							</span>
-							<Switch
-								checked={isolated}
-								disabled={busy}
-								onCheckedChange={setIsolated}
-								aria-label={t("projects.isolatedTitle")}
-							/>
-						</label>
-					)}
+							<span className="text-xs text-muted-foreground">
+								{t("projects.isolatedHint")}
+							</span>
+						</span>
+						<Switch
+							checked={isolated}
+							disabled={busy}
+							onCheckedChange={setIsolated}
+							aria-label={t("projects.isolatedTitle")}
+						/>
+					</label>
 					{error && (
 						<p role="alert" className="text-[13px] text-destructive">
 							{error}

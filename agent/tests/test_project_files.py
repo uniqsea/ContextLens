@@ -252,6 +252,18 @@ class ProjectFilesTests(StoreTestCase):
         self.assertEqual(created.status_code, 200)
         self.assertEqual(len(project_files.folders(created.json()["id"])), 2)
 
+    def test_new_project_uses_its_settings_from_the_first_turn(self):
+        client = TestClient(app)
+        directive = "Use fictional chart labels."
+        created = client.post("/lens/projects", json={"name": "Fictional charts", "paths": [str(self.first)],
+                              "instructions": directive, "isolated": False})
+        self.assertEqual(created.status_code, 200)
+        project = created.json()
+        self.assertFalse(project["isolated"])
+        self.assertEqual(len(project_files.folders(project["id"])), 1)
+        snapshot = prepare_snapshot({"project_id": project["id"], "messages": []})
+        self.assertIn(directive, snapshot["messages"][0]["content"])
+
     def test_edit_notes_and_isolation_preserves_concurrent_changes(self):
         client = TestClient(app)
         url = f"/lens/projects/{self.project}"
