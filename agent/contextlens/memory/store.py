@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, isolated INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS removed_projects (id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS project_settings (
-  project_id TEXT PRIMARY KEY, starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', updated_at TEXT);
+  project_id TEXT PRIMARY KEY, starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', instructions TEXT NOT NULL DEFAULT '', updated_at TEXT);
 CREATE TABLE IF NOT EXISTS project_folders (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, path TEXT NOT NULL, device INTEGER NOT NULL,
   inode TEXT NOT NULL, UNIQUE(project_id, path));
@@ -83,6 +83,11 @@ def connect() -> sqlite3.Connection:
         conn.execute("ALTER TABLE scenes ADD COLUMN definition TEXT NOT NULL DEFAULT ''")
     if "updated_at" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
         conn.execute("ALTER TABLE project_settings ADD COLUMN updated_at TEXT")
+    if "instructions" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
+        conn.execute("BEGIN IMMEDIATE")
+        if "instructions" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
+            conn.execute("ALTER TABLE project_settings ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
+        conn.commit()
     if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
         conn.execute("BEGIN IMMEDIATE")
         if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:

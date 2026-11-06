@@ -43,6 +43,14 @@ export function stripItems(
 			tokens: sys?.tokens ?? 100,
 			layer: "system",
 		},
+		...candidates
+			.filter((c) => c.id === "sys-project" && selected.includes(c.id))
+			.map((c) => ({
+				id: c.id,
+				label: text.title(c),
+				tokens: c.tokens,
+				layer: c.layer,
+			})),
 		...picked.map((c) => ({
 			id: c.id,
 			label: text.title(c),

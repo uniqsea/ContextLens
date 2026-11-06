@@ -2,6 +2,8 @@
 import { Folder, FolderPlus, Pencil, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
+import { ProjectInstructions } from "./project-details";
+import { Switch } from "@/components/ui/switch";
 import { InlineConfirm } from "@/components/inline-confirm";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,8 +47,15 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 	const nameId = useId();
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
+	const [instructions, setInstructions] = useState("");
+	const [isolated, setIsolated] = useState(true);
 	const [paths, setPaths] = useState<string[]>([]);
-	const [original, setOriginal] = useState({ name: "", paths: [] as string[] });
+	const [original, setOriginal] = useState({
+		name: "",
+		paths: [] as string[],
+		instructions: "",
+		isolated: true,
+	});
 	const [busy, setBusy] = useState(false);
 	const [ready, setReady] = useState(false);
 	const [confirming, setConfirming] = useState(false);
@@ -60,7 +69,8 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 		if (!next) return;
 		setName(project?.name ?? "");
 		setPaths([]);
-		setOriginal({ name: "", paths: [] });
+		setInstructions(project?.instructions ?? "");
+		setIsolated(project?.isolated ?? true);
 		setConfirming(false);
 		setError("");
 		setReady(!project);
@@ -69,7 +79,12 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 		try {
 			const saved = (await folderApi.list(project.id)).map((f) => f.path);
 			setPaths(saved);
-			setOriginal({ name: project.name, paths: saved });
+			setOriginal({
+				name: project.name,
+				paths: saved,
+				instructions: project.instructions ?? "",
+				isolated: project.isolated,
+			});
 			setReady(true);
 		} catch {
 			setError(t("projects.failed"));
@@ -98,7 +113,11 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 		try {
 			const draft = { name: name.trim(), paths };
 			if (project) {
-				await updateLocalProject(project.id, draft, original);
+				await updateLocalProject(
+					project.id,
+					{ ...draft, instructions, isolated },
+					original,
+				);
 				onSaved(project.id);
 			} else {
 				const created = await memoryApi.createProject(draft.name, draft.paths);
@@ -130,10 +149,17 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 	return (
 		<Dialog open={open} onOpenChange={toggle}>
 			<DialogTrigger
-				render={<Button variant={project ? "outline" : "default"} />}
+				render={
+					<Button
+						variant={project ? "quiet" : "default"}
+						size={project ? "icon-sm" : "default"}
+						aria-label={title}
+						title={title}
+					/>
+				}
 			>
 				{project ? <Pencil /> : <Plus />}
-				{title}
+				{!project && title}
 			</DialogTrigger>
 			<DialogContent
 				className="overflow-y-auto sm:max-w-[560px]"
@@ -164,6 +190,13 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 						/>
 					</div>
 
+					{project && (
+						<ProjectInstructions
+							draft={instructions}
+							onChange={setInstructions}
+							legacyNotes={project.description}
+						/>
+					)}
 					<FieldSet disabled={busy || !ready} className="min-w-0 gap-1.5">
 						<FieldLegend variant="label">
 							{t("projectFiles.sources")}
@@ -226,6 +259,24 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 						)}
 					</FieldSet>
 
+					{project && (
+						<label className="flex items-center justify-between gap-4">
+							<span>
+								<span className="block text-sm font-medium">
+									{t("projects.isolatedTitle")}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									{t("projects.isolatedHint")}
+								</span>
+							</span>
+							<Switch
+								checked={isolated}
+								disabled={busy}
+								onCheckedChange={setIsolated}
+								aria-label={t("projects.isolatedTitle")}
+							/>
+						</label>
+					)}
 					{error && (
 						<p role="alert" className="text-[13px] text-destructive">
 							{error}

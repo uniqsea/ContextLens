@@ -9,13 +9,20 @@ def directory() -> list[dict]:
     with session() as conn:
         rows = conn.execute("""
             SELECT p.id, p.name, p.isolated, COALESCE(s.starred, 0) AS starred,
-                   COALESCE(s.description, '') AS description,
+                   COALESCE(s.description, '') AS description, COALESCE(s.instructions, '') AS instructions,
                    MAX(COALESCE(s.updated_at, ''), COALESCE((SELECT MAX(created_at) FROM events
                        WHERE entity = 'projects' AND entity_id = p.id), '')) AS updated_at
             FROM projects p LEFT JOIN project_settings s ON s.project_id = p.id
             WHERE p.id NOT IN (SELECT id FROM removed_projects)
         """)
         return [{**dict(row), "isolated": bool(row["isolated"]), "starred": bool(row["starred"])} for row in rows]
+
+
+def instructions(project_id: str) -> str:
+    with session() as conn:
+        row = conn.execute("SELECT instructions FROM project_settings WHERE project_id = ? "
+                           "AND project_id NOT IN (SELECT id FROM removed_projects)", (project_id,)).fetchone()
+        return row["instructions"].strip() if row else ""
 
 
 def configure(project_id: str, fields: dict) -> dict:

@@ -7,11 +7,12 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useWorkspaceDirectory } from "@/components/projects/use-directory";
 import { MenuSelect } from "@/components/lens/menu-select";
 import { useOverview } from "@/components/lens/use-overview";
+import { WorkspaceLoading } from "@/components/page-status";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord } from "@/lib/memory-types";
-import { ORDINARY, projectPath } from "@/lib/projects/types";
+import { ORDINARY } from "@/lib/projects/types";
 import { ConceptBar } from "./concept-bar";
 import { ImportDialog } from "./import-dialog";
 import { MemoryCard } from "./memory-card";
@@ -20,7 +21,6 @@ import { Timeline } from "./timeline";
 
 interface LibraryProps {
 	projectScope?: string;
-	projectName?: string | null;
 }
 
 export function MemoryLibrary(props: LibraryProps) {
@@ -44,7 +44,6 @@ export function MemoryLibrary(props: LibraryProps) {
 
 function LibraryView({
 	projectScope,
-	projectName,
 	owner,
 	directory,
 	onSelect,
@@ -72,6 +71,7 @@ function LibraryView({
 	// The memory whose details are open, or "new" for the form that adds one.
 	const [opened, setOpened] = useState<string | null>(null);
 	const [error, setError] = useState("");
+	const [loaded, setLoaded] = useState(false);
 	const [memories, setMemories] = useState<MemoryRecord[]>([]);
 	// "all", "trashed", or the name of a scene.
 	const [filter, setFilter] = useState("all");
@@ -88,7 +88,10 @@ function LibraryView({
 			await memoryApi
 				.list(owner)
 				.then((list) => {
-					if (!cancelled) setMemories(list);
+					if (!cancelled) {
+						setMemories(list);
+						setLoaded(true);
+					}
 				})
 				.catch(() => setError(t("actionFailed")));
 		});
@@ -163,29 +166,43 @@ function LibraryView({
 		await refreshMemories();
 	};
 
+	const emptyProject =
+		Boolean(projectScope) && loaded && memories.length === 0 && !error;
+	const actions = owner && view === "memories" && (
+		<div className="lib-hero-tools">
+			<Button
+				type="button"
+				variant="outline"
+				onClick={() => setImporting(true)}
+			>
+				<Import aria-hidden="true" />
+				{t("import")}
+			</Button>
+			<Button type="button" variant="default" onClick={() => setOpened("new")}>
+				<Plus aria-hidden="true" />
+				{t("add")}
+			</Button>
+		</div>
+	);
+
 	return (
 		<>
-			<main className="pr-main">
-				<nav className="pr-top lib-path" aria-label={nav("all")}>
-					<Link href="/">{nav("all")}</Link>
-					<span aria-hidden="true">/</span>
-					{projectScope && (
-						<>
-							<Link href={projectPath(projectScope)}>
-								{projectName ?? nav("ordinary")}
-							</Link>
-							<span aria-hidden="true">/</span>
-						</>
-					)}
-					<span aria-current="page">{title}</span>
-				</nav>
-				<header className="pr-header">
-					<h1>
-						<Library aria-hidden="true" />
-						{title}
-					</h1>
-					<div className="lib-hero-tools">
-						{!projectScope && (
+			<section aria-label={title}>
+				{!projectScope && (
+					<nav className="pr-top lib-path" aria-label={nav("all")}>
+						<Link href="/">{nav("all")}</Link>
+						<span aria-hidden="true">/</span>
+						<span aria-current="page">{title}</span>
+					</nav>
+				)}
+				{!projectScope && (
+					<header className="pr-header">
+						<h1>
+							<Library aria-hidden="true" />
+							{title}
+						</h1>
+
+						<div className="lib-hero-tools">
 							<MenuSelect
 								label={t("projectFilter")}
 								value={owner ?? "all"}
@@ -196,44 +213,43 @@ function LibraryView({
 									...projects.map((p) => ({ value: p.id, label: p.name })),
 								]}
 							/>
-						)}
-						{owner && view === "memories" && (
-							<>
+
+							{actions}
+						</div>
+					</header>
+				)}
+				<div
+					className={
+						projectScope
+							? "flex flex-wrap items-center justify-between gap-3 border-t border-border py-3"
+							: "pr-tools"
+					}
+				>
+					<div className="flex flex-wrap items-center gap-2">
+						<fieldset aria-label={title} className="pr-tabs">
+							{(["memories", "timeline"] as const).map((v) => (
 								<Button
-									type="button"
-									variant="outline"
-									onClick={() => setImporting(true)}
+									key={v}
+									variant="quiet"
+									size="sm"
+									aria-pressed={view === v}
+									onClick={() => setView(v)}
 								>
-									<Import aria-hidden="true" />
-									{t("import")}
+									{t(v === "memories" ? "tabMemories" : "tabTimeline")}
 								</Button>
-								<Button
-									type="button"
-									variant="default"
-									onClick={() => setOpened("new")}
-								>
-									<Plus aria-hidden="true" />
-									{t("add")}
-								</Button>
-							</>
+							))}
+						</fieldset>
+						{projectScope && view === "memories" && memories.length > 0 && (
+							<MenuSelect
+								label={t("filterMemories")}
+								value={filter}
+								onChange={setFilter}
+								options={filters.map((f) => ({ value: f.id, label: f.label }))}
+							/>
 						)}
 					</div>
-				</header>
-				<div className="pr-tools">
-					<fieldset aria-label={title} className="pr-tabs">
-						{(["memories", "timeline"] as const).map((v) => (
-							<Button
-								key={v}
-								variant="quiet"
-								size="sm"
-								aria-pressed={view === v}
-								onClick={() => setView(v)}
-							>
-								{t(v === "memories" ? "tabMemories" : "tabTimeline")}
-							</Button>
-						))}
-					</fieldset>
-					{view === "memories" && (
+					{projectScope && !emptyProject && (loaded || error) && actions}
+					{!projectScope && loaded && view === "memories" && (
 						<small className="lib-count" aria-live="polite">
 							{isPending
 								? t("loading")
@@ -252,21 +268,22 @@ function LibraryView({
 					</div>
 				) : (
 					<>
-						{/* biome-ignore lint/a11y/useSemanticElements: a filter strip, not a form section */}
-						<div className="lib-filters" role="group" aria-label={t("title")}>
-							{filters.map(({ id: item, label }) => (
-								<Button
-									key={item}
-									type="button"
-									variant="secondary"
-									size="sm"
-									aria-pressed={filter === item}
-									onClick={() => setFilter(item)}
-								>
-									{label}
-								</Button>
-							))}
-						</div>
+						{!projectScope && (
+							<fieldset className="lib-filters" aria-label={t("title")}>
+								{filters.map(({ id: item, label }) => (
+									<Button
+										key={item}
+										type="button"
+										variant="secondary"
+										size="sm"
+										aria-pressed={filter === item}
+										onClick={() => setFilter(item)}
+									>
+										{label}
+									</Button>
+								))}
+							</fieldset>
+						)}
 						<ConceptBar
 							concepts={concepts}
 							selected={concept}
@@ -282,10 +299,29 @@ function LibraryView({
 							}}
 							onChange={(change) => void runAction(change)}
 						/>
-						{visibleMemories.length === 0 ? (
-							<div className="pr-empty">
+						{!loaded ? (
+							error ? null : (
+								<WorkspaceLoading />
+							)
+						) : visibleMemories.length === 0 ? (
+							<div
+								className={
+									projectScope
+										? "grid justify-items-center gap-3 py-12 text-muted-foreground"
+										: "pr-empty"
+								}
+							>
 								<Library aria-hidden="true" />
-								<p>{t("empty")}</p>
+								<p>
+									{emptyProject
+										? t(
+												projectScope === ORDINARY
+													? "emptyGlobal"
+													: "emptyProject",
+											)
+										: t("empty")}
+								</p>
+								{emptyProject && actions}
 							</div>
 						) : (
 							<div className="lib-grid">
@@ -315,7 +351,7 @@ function LibraryView({
 						)}
 					</>
 				)}
-			</main>
+			</section>
 			{importing && (
 				<ImportDialog
 					scope={scope}

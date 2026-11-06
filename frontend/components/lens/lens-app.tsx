@@ -840,7 +840,7 @@ export function LensApp({
 									size="sm"
 									className="lens-fold-btn"
 									nativeButton={false}
-									render={<Link href={projectPath(scope) + "/memories"} />}
+									render={<Link href={projectPath(scope) + "?tab=memories"} />}
 									title={t(
 										scope === ORDINARY
 											? "library.globalTitle"

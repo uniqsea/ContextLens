@@ -15,7 +15,12 @@ export async function saveSettings(
 	if (!res.ok) throw new Error("Project settings could not be saved");
 }
 
-type ProjectDraft = { name: string; paths: string[] };
+type ProjectDraft = {
+	name: string;
+	paths: string[];
+	instructions: string;
+	isolated: boolean;
+};
 
 export async function updateLocalProject(
 	id: string,

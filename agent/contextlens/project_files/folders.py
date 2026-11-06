@@ -5,6 +5,7 @@ import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from contextlens.memory.store import session
@@ -72,14 +73,27 @@ def edit_project(project_id, source, body):
         _require_project(conn, project_id)
         project = get(Project, project_id, conn)
         current = {r["path"] for r in conn.execute("SELECT path FROM project_folders WHERE project_id = ?", (project_id,))}
-        if body.get("previous") != {"name": project.name, "paths": sorted(current)}:
+        expected = {"name": project.name, "paths": sorted(current)}
+        # Older editors update private notes; only the instructions field is sent to the model.
+        field = "instructions" if "instructions" in body else "description"
+        if field in body or "isolated" in body:
+            if not isinstance(body.get(field), str) or not isinstance(body.get("isolated"), bool):
+                raise MemoryError("Invalid project settings.")
+            row = conn.execute("SELECT description, instructions FROM project_settings WHERE project_id = ?", (project_id,)).fetchone()
+            expected[field] = row[field] if row else ""
+            expected["isolated"] = project.isolated
+        if body.get("previous") != expected:
             raise MemoryError("Project changed. Reopen the editor.")
         roots = _validated_roots([path for path in paths if path not in current])
         keep = set(paths) | {root[0] for root in roots}
         _bind(conn, project_id, roots)
         conn.executemany("DELETE FROM project_folders WHERE project_id = ? AND path = ?",
                          [(project_id, path) for path in current - keep])
-        commit(source, "revised", replace(project, name=name.strip()), conn=conn)
+        if field in body and body[field] != expected[field]:
+            conn.execute(f"INSERT INTO project_settings(project_id, {field}, updated_at) VALUES (?, ?, ?) "
+                         f"ON CONFLICT(project_id) DO UPDATE SET {field}=excluded.{field}, updated_at=excluded.updated_at",
+                         (project_id, body[field], datetime.now(timezone.utc).isoformat()))
+        commit(source, "revised", replace(project, name=name.strip(), isolated=body.get("isolated", project.isolated)), conn=conn)
     return {}
 
 

@@ -1,5 +1,5 @@
-import { MemoryLibrary } from "@/components/memory-library";
-import { projectName } from "@/lib/projects/server";
+import { redirect } from "next/navigation";
+import { projectPath } from "@/lib/projects/types";
 
 export default async function ProjectMemories({
 	params,
@@ -7,6 +7,5 @@ export default async function ProjectMemories({
 	params: Promise<{ scope: string }>;
 }) {
 	const { scope } = await params;
-	const name = await projectName(scope);
-	return <MemoryLibrary key={scope} projectScope={scope} projectName={name} />;
+	redirect(`${projectPath(scope)}?tab=memories`);
 }

@@ -20,6 +20,7 @@ export function useLensText() {
 			s.charAt(0).toLocaleUpperCase(locale) + s.slice(1);
 		const layer = (l: Layer) => t(`layers.${l}`);
 		const title = (c: Item) => {
+			if (c.id === "sys-project") return t("projects.instructions");
 			if (c.layer === "system") return t("items.system");
 			if (c.layer === "user") return t("items.question");
 			if (c.id.startsWith("st-"))

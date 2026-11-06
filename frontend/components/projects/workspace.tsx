@@ -1,17 +1,17 @@
 "use client";
 import { Folder, Folders, LayoutGrid, List, MessageSquare } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { MemoryLibrary } from "@/components/memory-library";
 import { MenuSelect } from "@/components/lens/menu-select";
-import { InlineLoading, NotFound } from "@/components/page-status";
+import { WorkspaceLoading, NotFound } from "@/components/page-status";
 import { Button } from "@/components/ui/button";
 import { saveSettings } from "@/lib/projects/settings";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { NewChat } from "./new-chat";
 import { ProjectCard } from "./project-card";
-import { ProjectDetails } from "./project-details";
 import { ProjectFolders } from "./project-folders";
 import { ProjectForm } from "./project-form";
 import { useWorkspaceDirectory } from "./use-directory";
@@ -22,7 +22,19 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 	const { data, failed, reload } = useWorkspaceDirectory();
 	const [starFailed, setStarFailed] = useState(false);
 	const [list, setList] = useState(false);
-	const [tab, setTab] = useState("chats");
+	const params = useSearchParams();
+	const requested = scope ? params.get("tab") : null;
+	const tab =
+		requested === "memories" || (scope !== ORDINARY && requested === "files")
+			? requested
+			: "chats";
+	function setTab(next: string) {
+		if (next === tab) return;
+		const url = new URL(window.location.href);
+		if (next === "chats") url.searchParams.delete("tab");
+		else url.searchParams.set("tab", next);
+		window.history.pushState(null, "", url);
+	}
 	const [sort, setSort] = useState("recent");
 	async function toggleStar(id: string, starred: boolean) {
 		setStarFailed(false);
@@ -75,25 +87,24 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				)}
 				{!missing && (
 					<header className="pr-header">
-						<h1>
-							{scope ? <Folder /> : <Folders />}
-							{title}
-						</h1>
-						{!scope ? (
+						<div className="flex min-w-0 items-center gap-2">
+							<h1>
+								{scope ? <Folder /> : <Folders />}
+								{title}
+							</h1>
+							{project && (
+								<ProjectForm
+									project={project}
+									onSaved={reload}
+									onRemoved={() => router.push("/")}
+								/>
+							)}
+						</div>
+						{!scope && (
 							<ProjectForm onSaved={(id) => router.push(projectPath(id))} />
-						) : (
-							(project || scope === ORDINARY) && (
-								<div className="pr-folder-actions">
-									{project && (
-										<ProjectForm
-											project={project}
-											onSaved={reload}
-											onRemoved={() => router.push("/")}
-										/>
-									)}
-									<NewChat scope={scope} />
-								</div>
-							)
+						)}
+						{tab === "chats" && scope && (project || scope === ORDINARY) && (
+							<NewChat scope={scope} />
 						)}
 					</header>
 				)}
@@ -112,7 +123,7 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 						</Button>
 					</div>
 				)}
-				{!data && !failed && <InlineLoading />}
+				{!data && !failed && <WorkspaceLoading />}
 				{missing && <NotFound title={t("projects.missing")} />}
 				{data && !missing && (
 					<>
@@ -130,8 +141,8 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 									<Button
 										variant="quiet"
 										size="sm"
-										render={<Link href={`${projectPath(scope)}/memories`} />}
-										nativeButton={false}
+										aria-pressed={tab === "memories"}
+										onClick={() => setTab("memories")}
 									>
 										{t(
 											scope === ORDINARY
@@ -147,16 +158,6 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 											onClick={() => setTab("files")}
 										>
 											{t("projectFiles.tab")}
-										</Button>
-									)}
-									{project && (
-										<Button
-											variant="quiet"
-											size="sm"
-											aria-pressed={tab === "details"}
-											onClick={() => setTab("details")}
-										>
-											{t("projects.details")}
 										</Button>
 									)}
 								</nav>
@@ -193,10 +194,10 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 								</div>
 							)}
 						</div>
-						{tab === "files" && project ? (
+						{tab === "memories" && scope ? (
+							<MemoryLibrary projectScope={scope} />
+						) : tab === "files" && project ? (
 							<ProjectFolders project={project.id} />
-						) : tab === "details" && project ? (
-							<ProjectDetails project={project} onChanged={reload} />
 						) : visible.length ? (
 							<div className={`pr-grid${list ? " pr-list" : ""}`}>
 								{visible.map((c) => (

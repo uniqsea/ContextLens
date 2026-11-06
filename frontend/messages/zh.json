@@ -151,6 +151,11 @@
 		"empty": "创建你的第一个项目",
 		"back": "返回工作区",
 		"edit": "编辑",
+		"instructions": "项目指令",
+		"instructionsHint": "保存后，这些指令会加入本项目每次对话的上下文。清空并保存即可停用。",
+		"instructionsPlaceholder": "例如：先给结论，再列出依据；日期统一用 YYYY-MM-DD。",
+		"legacyNotes": "旧项目说明（仅供查看）",
+		"copyNotes": "复制到项目指令",
 		"detailsHint": "写下项目是什么、目标、约定和背景。",
 		"notesPlaceholder": "# 这个项目是什么\n\n一两句话说明目标。\n\n## 约定\n- 用什么术语、什么风格\n- 哪些事情不要做",
 		"markdownSupported": "支持 Markdown",
@@ -326,6 +331,9 @@
 		"flipBack": "翻回正面"
 	},
 	"library": {
+		"emptyProject": "这个项目还没有记忆",
+		"emptyGlobal": "还没有全局记忆",
+		"filterMemories": "筛选记忆",
 		"globalTitle": "全局记忆",
 		"projectTitle": "项目记忆",
 		"global": "全局",

@@ -238,6 +238,7 @@ export function TurnSteps({
 	const materialFocus =
 		materials.some((c) => sourceFocus?.includes(c.id)) ||
 		sourceFocus?.includes("sys-001") ||
+		sourceFocus?.includes("sys-project") ||
 		sourceFocus?.includes("usr-001");
 	columns.push([
 		{

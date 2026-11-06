@@ -70,6 +70,13 @@ export function InlineLoading({
 	);
 }
 
+/** Center the page-level wait indicator within the workspace's main pane. */
+export function WorkspaceLoading() {
+	return (
+		<InlineLoading className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 py-0" />
+	);
+}
+
 /** Nothing lives at this address: say so, and offer the way home. */
 export function NotFound({
 	title,

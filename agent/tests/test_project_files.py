@@ -252,6 +252,16 @@ class ProjectFilesTests(StoreTestCase):
         self.assertEqual(created.status_code, 200)
         self.assertEqual(len(project_files.folders(created.json()["id"])), 2)
 
+    def test_edit_notes_and_isolation_preserves_concurrent_changes(self):
+        client = TestClient(app)
+        url = f"/lens/projects/{self.project}"
+        original = {"name": "Fictional lighthouse", "paths": [], "description": "", "isolated": True}
+        draft = {**original, "description": "# Fictional exhibit", "isolated": False, "previous": original}
+        self.assertEqual(client.put(url, json=draft).status_code, 200)
+        self.assertEqual(client.put(url, json={**draft, "description": "Stale draft"}).status_code, 400)
+        project = next(p for p in client.get("/lens/projects").json() if p["id"] == self.project)
+        self.assertEqual((project["description"], project["isolated"]), ("# Fictional exhibit", False))
+
     def test_edit_then_remove_local_project_keeps_original_files(self):
         client = TestClient(app)
         url = f"/lens/projects/{self.project}"

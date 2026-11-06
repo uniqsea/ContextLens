@@ -10,7 +10,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from contextlens import memory, project_files, records as memory_records
+from contextlens import memory, project_files, projects, records as memory_records
 from contextlens.provenance import INSTRUCTION
 
 from .sources import current_question, message_pairs, search_documents
@@ -42,6 +42,10 @@ def prepare_snapshot(state: dict) -> dict:
 
     system = f"{SYSTEM_PROMPT} Write memories in {memory.language.name()}, whatever language the user writes in."
     items = [_item("sys-001", "system", "System prompt", system, "Built-in", ignored)]
+    if scope != memory.ORDINARY:
+        instructions = projects.instructions(scope)
+        if instructions:
+            items.append(_item("sys-project", "system", "Project instructions", instructions, "Project settings", ignored))
     if scope == memory.ORDINARY:
         documents = search_documents(question) if order is None else []
     else:
@@ -98,8 +102,9 @@ def render_prompt(selected: list[dict], *, ordered=False) -> str:
     sections = []
     by_layer = {layer: [it for it in selected if it["layer"] == layer]
                 for layer in ("system", "short_term", "memory", "retrieval")}
-    if by_layer["system"]:
-        sections.append(by_layer["system"][0]["content"])
+    for item in by_layer["system"]:
+        prefix = "## Project instructions (set by the user for this project)\n" if item["id"] == "sys-project" else ""
+        sections.append(prefix + item["content"])
     if by_layer["short_term"]:
         parts = [f"[{it['id']}] {it['source_label']}\n{it['content']}" for it in by_layer["short_term"]]
         sections.append("## Recent conversation\n\n" + "\n\n---\n\n".join(parts))

@@ -46,6 +46,31 @@ class GraphTests(StoreTestCase):
         for stage, call in zip(("reading_calls", "writing_calls"), self.memory_model.calls, strict=True):
             self.assertEqual([m["content"] for m in version[stage][0]["messages"]], [m.content for m in call])
 
+    def test_saved_project_instructions_reach_only_its_chat_and_preview(self):
+        from contextlens import projects
+        from contextlens.context import prepare_snapshot
+
+        project = ops.create_project("Fictional observatory", USER)
+        other = ops.create_project("Fictional theater", USER)
+        projects.configure(project.id, {"description": "Unpublished fictional note"})
+        fields = {"name": project.name, "paths": [], "isolated": project.isolated, "instructions": ""}
+        directive = "Use fictional constellation names in examples."
+        client = TestClient(app)
+        url = f"/lens/projects/{project.id}"
+        saved = {**fields, "instructions": directive}
+        self.assertEqual(client.put(url, json={**saved, "previous": fields}).status_code, 200)
+        state = {**self.state, "project_id": project.id, "input_order": []}
+        preview = prepare_snapshot(state)
+        self.assertIn("sys-project", preview["selected_ids"])
+        self.assertNotIn("Unpublished fictional note", str(preview))
+        model = self.script("ok.", memory=self.memory_replies())
+        self.run_graph()(state)
+        self.assertIn(directive, model.calls[0][0].content)
+        for scope in (other.id, None):
+            self.assertNotIn(directive, str(prepare_snapshot({**state, "project_id": scope})))
+        self.assertEqual(client.put(url, json={**fields, "previous": saved}).status_code, 200)
+        self.assertNotIn("sys-project", prepare_snapshot(state)["selected_ids"])
+
     def test_the_turn_is_read_before_memory_is_used_and_kept_with_what_it_wrote(self):
         self.script("ok.", memory=[reading("planning the offsite dinner"), structured(
             "Lessons", lessons=[{"learned": "budget doubled this year", "concepts": ["team"]}])])

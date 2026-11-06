@@ -151,6 +151,11 @@
 		"empty": "Create your first project",
 		"back": "Back to workspace",
 		"edit": "Edit",
+		"instructions": "Project instructions",
+		"instructionsHint": "Saved instructions are included in each chat in this project. Clear and save to turn them off.",
+		"instructionsPlaceholder": "For example: lead with the conclusion and use YYYY-MM-DD for dates.",
+		"legacyNotes": "Previous project notes (reference only)",
+		"copyNotes": "Copy into instructions",
 		"detailsHint": "What this project is, its goals, conventions and background.",
 		"notesPlaceholder": "# What this project is\n\nOne or two sentences on the goal.\n\n## Conventions\n- Terms and tone to use\n- Things to avoid",
 		"markdownSupported": "Markdown supported",
@@ -326,6 +331,9 @@
 		"flipBack": "Flip back"
 	},
 	"library": {
+		"emptyProject": "No project memories yet",
+		"emptyGlobal": "No global memories yet",
+		"filterMemories": "Filter memories",
 		"globalTitle": "Global memories",
 		"projectTitle": "Project memories",
 		"global": "Global",

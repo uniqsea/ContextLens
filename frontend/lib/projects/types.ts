@@ -13,6 +13,7 @@ export interface Conversation {
 export interface WorkspaceProject extends Project {
 	latest: string;
 	description: string;
+	instructions: string;
 	starred: boolean;
 	updated_at: string | null;
 }
