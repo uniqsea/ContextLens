@@ -410,7 +410,7 @@
 		"saveFailed": "保存失败",
 		"type": "类型",
 		"conflict": "这条记忆刚在别处被改过。刷新后再试。",
-		"scenes": "情境",
+		"scenes": "适用情境",
 		"concepts": "概念",
 		"conceptsHint": "人、项目等，用逗号隔开"
 	},

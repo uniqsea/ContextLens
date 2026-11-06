@@ -44,15 +44,13 @@ export function WorkspaceSearch({ onNavigate }: { onNavigate: () => void }) {
 			</DialogTrigger>
 			<DialogContent className="gap-0 p-3 sm:max-w-lg">
 				<DialogTitle className="sr-only">{t("workspaceSearch")}</DialogTitle>
-				{open && (
-					<SearchResults
-						onSelect={(href) => {
-							setOpen(false);
-							onNavigate();
-							router.push(href);
-						}}
-					/>
-				)}
+				<SearchResults
+					onSelect={(href) => {
+						setOpen(false);
+						onNavigate();
+						router.push(href);
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

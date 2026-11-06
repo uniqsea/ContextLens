@@ -73,7 +73,7 @@ class GraphTests(StoreTestCase):
 
     def test_the_turn_is_read_before_memory_is_used_and_kept_with_what_it_wrote(self):
         self.script("ok.", memory=[reading("planning the offsite dinner"), structured(
-            "Lessons", lessons=[{"learned": "budget doubled this year", "concepts": ["team"]}])])
+            "Lessons", lessons=[{"learned": "budget doubled this year", "concepts": ["team"], "scenes": ["工作"]}])])
         memory.operations.save_scenes([{"name": "工作"}], USER)
         self.memory_model.replies[0] = reading("planning the offsite dinner", scenes=["工作"])
         record = self.run_graph()(self.state)["turn_records"]["0"]
@@ -178,8 +178,9 @@ class GraphTests(StoreTestCase):
         self.assertIn(QUESTION, str(self.memory_model.calls[1]))
 
     def test_correcting_the_reading_rewrites_the_answer_and_moves_what_the_turn_wrote(self):
+        ops.save_scenes([{"name": "学习"}], USER)
         self.script("first.", "second.", memory=[reading("chatting"), structured(
-            "Lessons", lessons=[{"learned": "budget doubled this year"}])])
+            "Lessons", lessons=[{"learned": "The fictional seminar uses paper models", "scenes": ["学习","unconfigured"]}])])
         run = self.run_graph()
         written = run(self.state)["turn_records"]["0"]["memory_changes"][0]["memory_id"]
         fixed = {"doing": "planning the offsite", "scenes": ["工作"]}
@@ -187,7 +188,7 @@ class GraphTests(StoreTestCase):
         self.assertEqual(out["messages"][-1].content, "second.")
         self.assertEqual(out["turn_records"]["0"]["versions"][-1]["situation"]["doing"], "planning the offsite")
         kept = memory.get(memory.Memory, written)
-        self.assertEqual((kept.situation, kept.scenes), ("planning the offsite", ["工作"]))
+        self.assertEqual((kept.situation, kept.scenes), ("planning the offsite", ["学习"]))
 
     def test_rewriting_with_a_dimmed_concept_keeps_it_out(self):
         lit = self.add("CONCEPT_FACT", concepts=["晴川"])

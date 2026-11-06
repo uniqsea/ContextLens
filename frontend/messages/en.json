@@ -410,7 +410,7 @@
 		"saveFailed": "Save failed",
 		"type": "Type",
 		"conflict": "This memory was just changed elsewhere. Reload and try again.",
-		"scenes": "Situations",
+		"scenes": "Applicable scenes",
 		"concepts": "Concepts",
 		"conceptsHint": "People, projects, comma separated"
 	},

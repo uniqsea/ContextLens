@@ -13,7 +13,7 @@ from .types import ORDINARY, Concept, Memory, MemoryError, Project, Question, Sc
 
 SELF = "我"
 _SELF_ALIASES = ["me", "i", "user", "用户"]
-_EDITABLE = ("learned", "situation", "always_on", "check_at")
+_EDITABLE = ("scenes", "learned", "situation", "always_on", "check_at")
 
 
 def _id(prefix: str) -> str:
@@ -76,11 +76,11 @@ def supersede_with(memory_id: str, by_id: str, source: Source) -> list[dict]:
     return ledger.commit(source, "superseded", older)
 
 
-def relabel(memory_ids: list[str], situation: str, scenes: list[str], source: Source) -> list[dict]:
+def relabel(memory_ids: list[str], situation: str, source: Source) -> list[dict]:
     """The user corrected what was going on: memories written in that moment follow."""
     # Some may have been undone or deleted since.
     held = [m for m in (get(Memory, i) for i in memory_ids) if m]
-    return ledger.commit(source, "revised", *[replace(m, situation=situation, scenes=scenes) for m in held])
+    return ledger.commit(source, "revised", *[replace(m, situation=situation) for m in held])
 
 
 def forget(memory_id: str, source: Source) -> list[dict]:

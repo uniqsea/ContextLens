@@ -2,7 +2,7 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,18 @@ function Dialog({
 	...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
 	return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+}
+
+/** A dialog mounted on demand keeps its content until the closing transition finishes. */
+export function useDialogDismiss(onDismiss: () => void) {
+	const [open, setOpen] = React.useState(true);
+	return {
+		open,
+		dismiss: () => setOpen(false),
+		onOpenChangeComplete: (visible: boolean) => {
+			if (!visible) onDismiss();
+		},
+	};
 }
 
 function DialogTrigger({
@@ -38,7 +50,7 @@ function DialogOverlay({
 		<DialogPrimitive.Backdrop
 			data-slot="dialog-overlay"
 			className={cn(
-				"fixed inset-0 z-50 bg-stage/72 backdrop-blur-md backdrop-saturate-[1.2] data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0",
+				"fixed inset-0 z-50 bg-stage/72 backdrop-blur-md backdrop-saturate-[1.2] data-closed:animate-out data-closed:[animation-fill-mode:forwards] data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0",
 				className,
 			)}
 			{...props}
@@ -62,7 +74,7 @@ function DialogContent({
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"
 				className={cn(
-					"fixed top-[50%] left-[50%] z-50 flex max-h-[85dvh] w-full flex-col text-foreground max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[28px] bg-background p-6 duration-200 outline-none data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 sm:max-w-lg",
+					"fixed top-[50%] left-[50%] z-50 flex max-h-[85dvh] w-full flex-col text-foreground max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[28px] bg-background p-6 duration-200 outline-none data-closed:animate-out data-closed:[animation-fill-mode:forwards] data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 sm:max-w-lg",
 					className,
 				)}
 				{...props}

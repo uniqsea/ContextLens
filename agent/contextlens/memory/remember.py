@@ -1,5 +1,4 @@
-"""After each turn, write down what the user's words taught, where they were said, without judging
-where else it might matter. Only the user's words are shown: an answer carries the assistant's own
+"""After each turn, write down what the user's words taught, with applicable scenes chosen for each fact. Only the user's words are shown: an answer carries the assistant's own
 advice and text from documents, which a small model records as facts however it is told not to. What
 the agent itself works out, it saves with its `remember` tool. Tidying up across memories belongs to
 `upkeep`. Failures are logged, not raised: an answer must never be lost because memory failed.
@@ -31,6 +30,9 @@ messages teach nothing: then return none. A request or a question is not somethi
 - concepts: at most three independently standing things it is about, each something you could point at:
   a person, a project, a work, an organisation; "我" for the user themself. Use existing names where they
   fit. Never an abstract noun or topic such as a deadline, a structure, a strategy or a review.
+- scenes: choose from the supplied scene names and definitions for each learned fact on its own.
+  Where would the fact itself apply? Do not copy the topic or purpose of this conversation.
+  Leave empty for general facts or when no definition fits.
 - check_at: for a fact bound to time, the ISO date to look at it again: its stated date if it has one
   ("the defence is on 16 October"), else a fair estimate for a passing state ("applying for jobs now").
   Work relative dates out from today. Leave empty for facts with no bearing on time.
@@ -54,6 +56,7 @@ class Lesson(BaseModel):
     learned: str
     source: Literal["said", "inferred"] = "said"
     concepts: list[str] = Field(default_factory=list)
+    scenes: list[str] = Field(default_factory=list)
     check_at: str | None = None
     replaces: str | None = None
     corrects: str | None = None
@@ -68,18 +71,21 @@ def remember_turn(question: str, situation: dict, scope: str, source: Source, *,
     try:
         nearby = nearest(question, scope, allowed_ids)
         shown = "\n".join(f"[{m.id}] {m.learned}" for m in nearby) or "none"
+        active = operations.active_scenes()
+        definitions = "\n".join(f"- {s.name}: {s.definition}" for s in active) or "none"
         prompt = (f"Today: {date.today():%Y-%m-%d, %A}\nWhat was going on: {situation.get('doing', '')}\n"
-                  f"Existing memories:\n{shown}\n\n"
+                  f"Available scenes for individual facts:\n{definitions}\nExisting memories:\n{shown}\n\n"
                   f"The user said:\n{question}")
         lessons = llm.structured(Lessons, _INSTRUCTIONS.format(language=language.name()), prompt).lessons
     except Exception as e:
         log.warning("nothing written for this turn: %s: %s", type(e).__name__, str(e)[:300])
         return []
     allowed = {m.id for m in nearby}
+    names = {s.name for s in active}
     events = []
     for lesson in lessons:
         try:
-            events += _write(lesson, allowed, situation, scope, source)
+            events += _write(lesson, allowed, situation, scope, source, names)
         except MemoryError as e:
             log.info("memory not written: %s", e)
     return events
@@ -95,10 +101,11 @@ def nearest(text: str, scope: str, allowed_ids: set[str] | None = None):
     return sorted(pool, key=lambda m: -scores.get(m.id, 0.0))[:_NEARBY]  # newest first breaks ties
 
 
-def _write(lesson: Lesson, allowed: set[str], situation: dict, scope: str, source: Source) -> list[dict]:
+def _write(lesson: Lesson, allowed: set[str], situation: dict, scope: str, source: Source, names: set[str]) -> list[dict]:
+    scenes = [s for s in dict.fromkeys(lesson.scenes) if s in names][:2]
     if lesson.corrects in allowed:
-        return operations.revise(lesson.corrects, {"learned": lesson.learned}, source)
+        return operations.revise(lesson.corrects, {"learned": lesson.learned, "scenes": scenes}, source)
     return operations.add_memory(
         lesson.learned, source, scope=scope, situation=situation.get("doing", ""), origin=lesson.source,
-        concepts=lesson.concepts, scenes=situation.get("scenes", []), check_at=lesson.check_at,
+        concepts=lesson.concepts, scenes=scenes, check_at=lesson.check_at,
         replaces=lesson.replaces if lesson.replaces in allowed else None)

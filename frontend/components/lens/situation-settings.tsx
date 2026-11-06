@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	useDialogDismiss,
 	DialogBody,
 	DialogContent,
 	DialogDescription,
@@ -37,6 +38,7 @@ export function SituationSettings({
 	onClose: () => void;
 	onSaved: () => void;
 }) {
+	const { open, dismiss, onOpenChangeComplete } = useDialogDismiss(onClose);
 	const t = useTranslations("lens");
 	const [rows, setRows] = useState<Row[]>(
 		current.map((s, key) => ({
@@ -92,7 +94,7 @@ export function SituationSettings({
 				kept.map(({ id, name, definition }) => ({ id, name, definition })),
 			);
 			onSaved();
-			onClose();
+			dismiss();
 		} catch {
 			setError(t("saveFailed"));
 			setSaving(false);
@@ -100,7 +102,11 @@ export function SituationSettings({
 	};
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog
+			open={open}
+			onOpenChange={(next) => !next && dismiss()}
+			onOpenChangeComplete={onOpenChangeComplete}
+		>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{t("situationsTitle")}</DialogTitle>
@@ -181,7 +187,7 @@ export function SituationSettings({
 					{error && <p role="alert">{error}</p>}
 				</DialogBody>
 				<DialogFooter>
-					<Button type="button" variant="outline" onClick={onClose}>
+					<Button type="button" variant="outline" onClick={dismiss}>
 						{t("close")}
 					</Button>
 					<Button

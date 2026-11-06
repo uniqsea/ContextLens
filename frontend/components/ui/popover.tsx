@@ -39,7 +39,7 @@ function PopoverContent({
 				<PopoverPrimitive.Popup
 					data-slot="popover-content"
 					className={cn(
-						"w-72 origin-(--transform-origin) rounded-[18px] bg-popover p-4 text-[13px] text-popover-foreground shadow-lift outline-hidden data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
+						"w-72 origin-(--transform-origin) rounded-[18px] bg-popover p-4 text-[13px] text-popover-foreground shadow-lift outline-hidden data-closed:animate-out data-closed:[animation-fill-mode:forwards] data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
 						variant === "menu" &&
 							"grid w-max min-w-60 max-w-[min(340px,calc(100vw-24px))] gap-0.5 p-1.5",
 						className,

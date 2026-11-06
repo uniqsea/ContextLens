@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	useDialogDismiss,
 	DialogClose,
 	DialogContent,
 	DialogTitle,
@@ -40,6 +41,7 @@ export function MemoryDetail({
 	onChange: (change: () => Promise<unknown>) => void;
 	onChanged: () => void;
 }) {
+	const { open, dismiss, onOpenChangeComplete } = useDialogDismiss(onClose);
 	const t = useTranslations("library");
 	const te = useTranslations("editor");
 	const { type, source } = useMemoryLabels(m);
@@ -68,7 +70,7 @@ export function MemoryDetail({
 	/** A change that takes the memory out of this view. */
 	const andClose = (change: () => Promise<unknown>) => {
 		onChange(change);
-		onClose();
+		dismiss();
 	};
 	const close = (
 		<DialogClose
@@ -80,11 +82,12 @@ export function MemoryDetail({
 	);
 	return (
 		<Dialog
-			open
+			open={open}
+			onOpenChangeComplete={onOpenChangeComplete}
 			disablePointerDismissal={editing}
 			onOpenChange={(open, details) => {
 				if (editing && details.reason === "escape-key") details.cancel();
-				else if (!open) onClose();
+				else if (!open) dismiss();
 			}}
 		>
 			<DialogContent
@@ -122,11 +125,11 @@ export function MemoryDetail({
 								memory={m}
 								scope={scope}
 								sceneOptions={sceneOptions}
-								onCancel={m ? () => setEditing(false) : onClose}
+								onCancel={m ? () => setEditing(false) : dismiss}
 								onSaved={() => {
 									onChanged();
 									if (m) setEditing(false);
-									else onClose();
+									else dismiss();
 								}}
 							/>
 						</>

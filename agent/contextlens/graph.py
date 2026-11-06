@@ -119,7 +119,7 @@ def _follow_correction(req: dict, record: dict, situation: dict, config: Runnabl
         return []
     written = [c["memory_id"] for c in record.get("memory_changes", []) if c["kind"] == "created"]
     source = memory.Source("user", thread_id=_thread(config), turn=turn, reason="corrected what was going on")
-    events = memory.operations.relabel(written, situation["doing"], situation.get("scenes", []), source)
+    events = memory.operations.relabel(written, situation["doing"], source)
     return [_change(e) for e in records.changes(events)]
 
 

@@ -46,6 +46,7 @@ export function ConversationActions({
 	const t = useTranslations();
 	const router = useRouter();
 	const { tabs, register, close } = useSessions();
+	const [dialogOpen, setDialogOpen] = useState(false);
 	const [action, setAction] = useState<"rename" | "delete" | null>(null);
 	const [draft, setDraft] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -54,6 +55,7 @@ export function ConversationActions({
 		setDraft(title);
 		setFailed(false);
 		setAction(next);
+		setDialogOpen(true);
 	}
 	async function toggleArchived() {
 		if (busy) return;
@@ -82,7 +84,7 @@ export function ConversationActions({
 				await deleteConversation(id);
 				close(href);
 			}
-			setAction(null);
+			setDialogOpen(false);
 			onChanged();
 			router.refresh();
 		} catch {
@@ -133,10 +135,13 @@ export function ConversationActions({
 				<p role="alert">{t("conversationTitle.archiveFailed")}</p>
 			)}
 			<Dialog
-				open={action !== null}
+				open={dialogOpen}
+				onOpenChangeComplete={(open) => {
+					if (!open) setAction(null);
+				}}
 				onOpenChange={(v) => {
 					if (!v && !busy) {
-						setAction(null);
+						setDialogOpen(false);
 						setFailed(false);
 					}
 				}}
@@ -186,7 +191,7 @@ export function ConversationActions({
 								variant="outline"
 								disabled={busy}
 								onClick={() => {
-									setAction(null);
+									setDialogOpen(false);
 									setFailed(false);
 								}}
 							>

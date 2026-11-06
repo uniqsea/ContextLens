@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
+	useDialogDismiss,
 	DialogBody,
 	DialogContent,
 	DialogDescription,
@@ -36,6 +37,7 @@ export function ImportDialog({
 	onClose: () => void;
 	onChanged: () => void;
 }) {
+	const { open, dismiss, onOpenChangeComplete } = useDialogDismiss(onClose);
 	const t = useTranslations("import");
 	const [text, setText] = useState("");
 	const [copied, setCopied] = useState(false);
@@ -135,7 +137,11 @@ export function ImportDialog({
 	};
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog
+			open={open}
+			onOpenChange={(next) => !next && dismiss()}
+			onOpenChangeComplete={onOpenChangeComplete}
+		>
 			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
 					<DialogTitle>{t("title")}</DialogTitle>
@@ -256,7 +262,7 @@ export function ImportDialog({
 									{t("undo")}
 								</Button>
 							)}
-							<Button type="button" variant="default" onClick={onClose}>
+							<Button type="button" variant="default" onClick={dismiss}>
 								{t("close")}
 							</Button>
 						</>
@@ -281,7 +287,7 @@ export function ImportDialog({
 						</>
 					) : (
 						<>
-							<Button type="button" variant="outline" onClick={onClose}>
+							<Button type="button" variant="outline" onClick={dismiss}>
 								{t("close")}
 							</Button>
 							<Button
