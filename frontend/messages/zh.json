@@ -83,6 +83,17 @@
 		}
 	},
 	"conversationTitle": {
+		"archive": "归档",
+		"restore": "取消归档",
+		"status": "对话状态",
+		"active": "当前对话",
+		"archived": "已归档",
+		"emptyArchive": "还没有已归档的对话",
+		"archiveFailed": "归档状态未能更新，请重试。",
+		"actions": "「{title}」的对话操作",
+		"remove": "删除对话",
+		"confirmRemove": "确定删除「{title}」及其对话记录吗？删除后无法恢复。",
+		"deleteFailed": "未能删除对话，请重试。",
 		"rename": "重命名对话",
 		"label": "对话标题",
 		"save": "保存标题",
@@ -125,7 +136,7 @@
 	"projects": {
 		"recent": "最近使用",
 		"all": "全部项目",
-		"ordinary": "未归档对话",
+		"ordinary": "非项目对话",
 		"starred": "星标项目",
 		"search": "搜索项目",
 		"workspaceSearch": "搜索",

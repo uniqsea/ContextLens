@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { renameConversation } from "@/lib/projects/conversations";
 import styles from "./conversation-title.module.css";
 
 export function ConversationTitle({
@@ -45,15 +46,7 @@ export function ConversationTitle({
 		setSaving(true);
 		setFailed(false);
 		try {
-			const response = await fetch(
-				`/api/threads/${encodeURIComponent(threadId)}`,
-				{
-					method: "PATCH",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ metadata: { title: next } }),
-				},
-			);
-			if (!response.ok) throw new Error();
+			await renameConversation(threadId, next);
 			setSaved(next);
 			close();
 			router.refresh();

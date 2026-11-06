@@ -1,6 +1,7 @@
 import { Folder, MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
 export function ProjectCard({
@@ -11,6 +12,7 @@ export function ProjectCard({
 	project,
 	starred,
 	onStar,
+	children,
 }: {
 	href: string;
 	title: string;
@@ -19,6 +21,7 @@ export function ProjectCard({
 	project?: boolean;
 	starred?: boolean;
 	onStar?: () => void;
+	children?: ReactNode;
 }) {
 	const t = useTranslations("projects");
 	const format = useFormatter();
@@ -57,6 +60,7 @@ export function ProjectCard({
 					<Star fill={starred ? "currentColor" : "none"} />
 				</Button>
 			)}
+			{children}
 		</article>
 	);
 }

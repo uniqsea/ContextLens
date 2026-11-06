@@ -9,7 +9,8 @@ export async function GET(request: Request) {
 	]);
 	const recent = new Map<string, (typeof threads)[number]>();
 	for (const thread of threads) {
-		if (!recent.has(thread.scope)) recent.set(thread.scope, thread);
+		if (!thread.archived && !recent.has(thread.scope))
+			recent.set(thread.scope, thread);
 	}
 	return Response.json({
 		projects: projects.map((project) => {
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
 		}),
 		conversations:
 			params.get("view") === "search"
-				? threads
+				? threads.filter((thread) => !thread.archived)
 				: threads.filter((thread) => thread.scope === scope),
 	});
 }

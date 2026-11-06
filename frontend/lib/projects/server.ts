@@ -25,6 +25,7 @@ interface ThreadSummary {
 	thread_id: string;
 	updated_at: string;
 	extracted: {
+		archived?: boolean;
 		project?: string;
 		scope?: string;
 		title?: string;
@@ -45,6 +46,7 @@ async function threads(filter: {
 			...filter,
 			select: ["thread_id", "updated_at"],
 			extract: {
+				archived: "metadata.archived",
 				scope: "metadata.project_scope",
 				project: "values.project_id",
 				title: "metadata.title",
@@ -85,6 +87,7 @@ export async function conversationIndex(): Promise<Conversation[]> {
 			conversations.push({
 				id: thread.thread_id,
 				scope: owner(thread),
+				archived: thread.extracted.archived === true,
 				updated_at: thread.updated_at,
 				title: threadTitle(thread),
 				preview:

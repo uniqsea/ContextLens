@@ -3,6 +3,7 @@ import type { Project } from "@/lib/memory-types";
 export const ORDINARY = "ordinary";
 
 export interface Conversation {
+	archived: boolean;
 	id: string;
 	scope: string;
 	title: string;

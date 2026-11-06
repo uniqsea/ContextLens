@@ -83,6 +83,17 @@
 		}
 	},
 	"conversationTitle": {
+		"archive": "Archive",
+		"restore": "Unarchive",
+		"status": "Conversation status",
+		"active": "Active chats",
+		"archived": "Archived",
+		"emptyArchive": "No archived conversations yet",
+		"archiveFailed": "Could not update archive status. Try again.",
+		"actions": "Actions for {title}",
+		"remove": "Delete conversation",
+		"confirmRemove": "Delete “{title}” and its conversation history? This cannot be undone.",
+		"deleteFailed": "Could not delete the conversation. Try again.",
 		"rename": "Rename conversation",
 		"label": "Conversation title",
 		"save": "Save title",

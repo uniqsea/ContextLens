@@ -30,11 +30,13 @@ const PAGE_SIZE = 100;
 export function FolderContents({
 	project,
 	folder,
+	list,
 	busy,
 	onRemove,
 }: {
 	project: string;
 	folder: ProjectFolder;
+	list: boolean;
 	busy: boolean;
 	onRemove: () => void;
 }) {
@@ -169,7 +171,13 @@ export function FolderContents({
 					</p>
 				) : (
 					<>
-						<ul className="grid">
+						<ul
+							className={
+								list
+									? "grid"
+									: "grid grid-cols-[repeat(auto-fill,minmax(min(100%,180px),1fr))] gap-2 [&_[data-slot=item]]:h-full [&_[data-slot=item]]:min-h-16 [&_[data-slot=item]]:border-border [&_[data-slot=item]]:bg-card"
+							}
+						>
 							{files.slice(0, limit).map((entry) => (
 								<li key={entry.path}>
 									{entry.directory ? (

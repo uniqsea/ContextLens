@@ -5,7 +5,13 @@ import { folderApi, type ProjectFolder } from "@/lib/projects/folders";
 
 import { FolderContents } from "./folder-contents";
 
-export function ProjectFolders({ project }: { project: string }) {
+export function ProjectFolders({
+	project,
+	list,
+}: {
+	project: string;
+	list: boolean;
+}) {
 	const t = useTranslations("projectFiles");
 	const [folders, setFolders] = useState<ProjectFolder[] | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -39,8 +45,10 @@ export function ProjectFolders({ project }: { project: string }) {
 		}
 	}
 	return (
-		<section className="max-w-[680px]">
-			<h2 className="text-lg font-medium">{t("tab")}</h2>
+		<section
+			aria-label={t("tab")}
+			className={list ? "max-w-[680px]" : undefined}
+		>
 			{folders?.length === 0 && (
 				<p className="mt-1.5 text-muted-foreground">{t("hint")}</p>
 			)}
@@ -51,6 +59,7 @@ export function ProjectFolders({ project }: { project: string }) {
 							key={f.id}
 							project={project}
 							folder={f}
+							list={list}
 							busy={busy}
 							onRemove={() => removeFolder(f.id)}
 						/>

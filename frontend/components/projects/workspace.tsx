@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { MemoryLibrary } from "@/components/memory-library";
 import { MenuSelect } from "@/components/lens/menu-select";
-import { WorkspaceLoading, NotFound } from "@/components/page-status";
+import { MemoryLibrary } from "@/components/memory-library";
+import { NotFound, WorkspaceLoading } from "@/components/page-status";
 import { Button } from "@/components/ui/button";
 import { saveSettings } from "@/lib/projects/settings";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
+import { ConversationActions } from "./conversation-actions";
 import { NewChat } from "./new-chat";
 import { ProjectCard } from "./project-card";
 import { ProjectFolders } from "./project-folders";
@@ -21,13 +22,15 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 	const router = useRouter();
 	const { data, failed, reload } = useWorkspaceDirectory();
 	const [starFailed, setStarFailed] = useState(false);
-	const [list, setList] = useState(false);
+	const chatLayout = useState(false);
+	const fileLayout = useState(false);
 	const params = useSearchParams();
 	const requested = scope ? params.get("tab") : null;
 	const tab =
 		requested === "memories" || (scope !== ORDINARY && requested === "files")
 			? requested
 			: "chats";
+	const [list, setList] = tab === "files" ? fileLayout : chatLayout;
 	function setTab(next: string) {
 		if (next === tab) return;
 		const url = new URL(window.location.href);
@@ -35,6 +38,7 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 		else url.searchParams.set("tab", next);
 		window.history.pushState(null, "", url);
 	}
+	const [archived, setArchived] = useState(false);
 	const [sort, setSort] = useState("recent");
 	async function toggleStar(id: string, starred: boolean) {
 		setStarFailed(false);
@@ -55,14 +59,16 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				: t("projects.all");
 	const missing = scope && scope !== ORDINARY && data && !project;
 	const cards = scope
-		? (data?.conversations ?? []).map((c) => ({
-				id: c.id,
-				href: `${projectPath(scope)}/chat/${c.id}`,
-				title: c.title || t("lens.newChat"),
-				preview: c.preview,
-				updated: c.updated_at,
-				starred: false,
-			}))
+		? (data?.conversations ?? [])
+				.filter((c) => Boolean(c.archived) === archived)
+				.map((c) => ({
+					id: c.id,
+					href: `${projectPath(scope)}/chat/${c.id}`,
+					title: c.title || t("lens.newChat"),
+					preview: c.preview,
+					updated: c.updated_at,
+					starred: false,
+				}))
 		: projects.map((p) => ({
 				id: p.id,
 				href: projectPath(p.id),
@@ -162,17 +168,36 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 									)}
 								</nav>
 							)}
-							{tab === "chats" && (
+							{tab !== "memories" && (
 								<div className="pr-layout">
-									<MenuSelect
-										label={t("projects.sort")}
-										value={sort}
-										onChange={setSort}
-										options={[
-											{ value: "recent", label: t("projects.modified") },
-											{ value: "name", label: t("projects.name") },
-										]}
-									/>
+									{scope && tab === "chats" && (
+										<MenuSelect
+											label={t("conversationTitle.status")}
+											value={archived ? "archived" : "active"}
+											onChange={(v) => setArchived(v === "archived")}
+											options={[
+												{
+													value: "active",
+													label: t("conversationTitle.active"),
+												},
+												{
+													value: "archived",
+													label: t("conversationTitle.archived"),
+												},
+											]}
+										/>
+									)}
+									{tab === "chats" && (
+										<MenuSelect
+											label={t("projects.sort")}
+											value={sort}
+											onChange={setSort}
+											options={[
+												{ value: "recent", label: t("projects.modified") },
+												{ value: "name", label: t("projects.name") },
+											]}
+										/>
+									)}
 									<Button
 										variant="quiet"
 										size="icon-sm"
@@ -197,7 +222,7 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 						{tab === "memories" && scope ? (
 							<MemoryLibrary projectScope={scope} />
 						) : tab === "files" && project ? (
-							<ProjectFolders project={project.id} />
+							<ProjectFolders project={project.id} list={list} />
 						) : visible.length ? (
 							<div className={`pr-grid${list ? " pr-list" : ""}`}>
 								{visible.map((c) => (
@@ -208,13 +233,31 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 										onStar={
 											scope ? undefined : () => toggleStar(c.id, !c.starred)
 										}
-									/>
+									>
+										{scope && (
+											<ConversationActions
+												id={c.id}
+												archived={archived}
+												title={c.title}
+												href={c.href}
+												onChanged={reload}
+											/>
+										)}
+									</ProjectCard>
 								))}
 							</div>
 						) : (
 							<div className="pr-empty">
 								{scope ? <MessageSquare /> : <Folder />}
-								<p>{t(scope ? "projects.emptyChats" : "projects.empty")}</p>
+								<p>
+									{t(
+										scope
+											? archived
+												? "conversationTitle.emptyArchive"
+												: "projects.emptyChats"
+											: "projects.empty",
+									)}
+								</p>
 								{!scope && (
 									<ProjectForm onSaved={(id) => router.push(projectPath(id))} />
 								)}
