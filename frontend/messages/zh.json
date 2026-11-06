@@ -155,7 +155,9 @@
 		"isolatedTitle": "隔离此项目",
 		"isolatedHint": "项目里的记忆不会在外面被找到，项目里也找不到外面的记忆。",
 		"editNotes": "编辑项目说明",
-		"nothingToPreview": "还没有内容可预览。"
+		"nothingToPreview": "还没有内容可预览。",
+		"hideSidebar": "收起侧栏",
+		"showSidebar": "展开侧栏"
 	},
 	"meta": {
 		"description": "看见模型真正看到的：可追溯、可修改的 AI 上下文与记忆"

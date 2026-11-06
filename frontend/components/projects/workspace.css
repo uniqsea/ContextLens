@@ -1,10 +1,11 @@
 .pr-workspace {
 	position: relative;
 	display: grid;
-	grid-template-columns: 224px minmax(0, 1fr);
+	grid-template-columns: auto minmax(0, 1fr);
 	background: var(--background);
 }
 .pr-side {
+	width: 224px;
 	position: sticky;
 	top: var(--session-bar-height);
 	height: calc(100dvh - var(--session-bar-height));
@@ -16,9 +17,46 @@
 	border-right: 1px solid var(--border);
 	background: var(--panel);
 }
-.pr-side .lens-mark {
-	align-self: start;
-	margin-inline: 10px;
+.pr-side .pr-side-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: -6px 0 0 10px;
+}
+/* The search button exists only for the folded rail. */
+.pr-side .pr-rail-search {
+	display: none;
+}
+/* Folded: an icon rail. The toggle, search and the three main places stay; names move into tooltips. */
+@media (min-width: 701px) {
+	:root[data-sidebar-collapsed] .pr-side {
+		width: 57px;
+		align-items: center;
+		gap: 12px;
+		padding-inline: 10px;
+	}
+	:root[data-sidebar-collapsed] .pr-side
+		> :not(.pr-side-head, .pr-project-links, .pr-rail-search),
+	:root[data-sidebar-collapsed] .pr-side .lens-mark,
+	:root[data-sidebar-collapsed] .pr-side .pr-project-links > :not(.pr-main-link) {
+		display: none;
+	}
+	:root[data-sidebar-collapsed] .pr-side .pr-side-head {
+		margin: -6px 0 0;
+	}
+	:root[data-sidebar-collapsed] .pr-side .pr-rail-search {
+		display: inline-flex;
+	}
+	:root[data-sidebar-collapsed] .pr-side .pr-project-links a {
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		padding: 0;
+	}
+	:root[data-sidebar-collapsed] .pr-side .pr-project-links a span {
+		display: none;
+	}
 }
 .pr-workspace svg:not(.brand-logo) {
 	width: 16px;
@@ -208,12 +246,16 @@
 		display: block;
 	}
 	.pr-side {
+		width: auto;
 		position: static;
 		height: auto;
 		padding: 14px 16px;
 		gap: 12px;
 		border-right: 0;
 		border-bottom: 1px solid var(--border);
+	}
+	.pr-side .pr-side-head > button {
+		display: none;
 	}
 	.pr-side .pr-project-links {
 		display: flex;

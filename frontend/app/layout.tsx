@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { SessionProvider } from "@/components/lens/session-tabs";
+import { sidebarFoldScript } from "@/components/projects/sidebar-fold";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { htmlLang } from "@/i18n/config";
 import "./globals.css";
@@ -35,6 +36,10 @@ export default async function RootLayout({
 			className={`${inter.variable} ${geistMono.variable}`}
 			suppressHydrationWarning
 		>
+			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed string of our own, needed before paint */}
+				<script dangerouslySetInnerHTML={{ __html: sidebarFoldScript }} />
+			</head>
 			<body className="antialiased">
 				<NextIntlClientProvider>
 					<ThemeProvider>

@@ -155,7 +155,9 @@
 		"isolatedTitle": "Isolate this project",
 		"isolatedHint": "Memories here can't be found from outside, and outside memories can't be found here.",
 		"editNotes": "Edit project notes",
-		"nothingToPreview": "Nothing to preview yet."
+		"nothingToPreview": "Nothing to preview yet.",
+		"hideSidebar": "Hide sidebar",
+		"showSidebar": "Show sidebar"
 	},
 	"meta": {
 		"description": "See what the model actually sees: traceable, editable AI context and memory"
