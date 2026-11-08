@@ -65,12 +65,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}
 	const [tabs, setTabs] = useState<Tab[]>([]);
 	const [missing, setMissing] = useState<string | null>(null);
-	const hasChats = tabs.length > 0;
-	useEffect(() => {
-		if (!hasChats) return;
-		const source = new EventSource("/api/lens/chat-presence");
-		return () => source.close();
-	}, [hasChats]);
 	const projectWorkspace =
 		path === "/" ||
 		path === "/memories" ||

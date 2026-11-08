@@ -26,10 +26,6 @@ async function forward(req: NextRequest): Promise<Response> {
 	const hasBody = !["GET", "HEAD"].includes(req.method);
 	const upstream = await fetch(target, {
 		method: req.method,
-		...(path === "lens/chat-presence" && {
-			signal: req.signal,
-			cache: "no-store",
-		}),
 		headers: hasBody ? { "Content-Type": "application/json" } : undefined,
 		body: hasBody ? await req.text() : undefined,
 	});
