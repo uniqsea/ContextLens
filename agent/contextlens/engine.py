@@ -63,9 +63,11 @@ def build():
     # Deep Agents' file tools: the project's folders under /projects/, read only; anything else is
     # the harness's own scratch space for the run (large tool results it sets aside, for one).
     backend = CompositeBackend(default=StateBackend(), routes={MOUNT: ProjectFiles()})
+    # Never saved: a run lives for one answer, and the turn record keeps what it did. Without this
+    # the run would take on the app graph's checkpointer and save every step into the conversation.
     return create_deep_agent(model=model, tools=memory.TOOLS, backend=backend,
                              middleware=[SettingsModel(), SnapshotPrompt(), ReadOnlyFiles(), FileCitations()],
-                             context_schema=Request, name="contextlens-engine")
+                             context_schema=Request, name="contextlens-engine", checkpointer=False)
 
 
 def answer(prompt: str, question: str, *, situation: dict, scope: str = memory.ORDINARY,

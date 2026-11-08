@@ -237,6 +237,10 @@
 		"conversation": "对话",
 		"emptyTitle": "问点什么",
 		"emptyBody": "输入问题查看相关来源，再把需要的卡片加入本轮输入。",
+		"noAnswer": "没有收到回答",
+		"unreachable": "连不上服务，没有发出去",
+		"answerFailed": "回答时出错了",
+		"retry": "重试",
 		"error": "请求失败：{message}",
 		"examples": [
 			"推荐一家周五团队聚餐的餐厅",

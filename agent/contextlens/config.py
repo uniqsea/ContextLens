@@ -31,3 +31,9 @@ def ensure_home() -> Path:
 
 def db_path() -> Path:
     return Path(os.environ.get("CONTEXTLENS_DB_PATH", AGENT_DIR / "data" / "contextlens.sqlite3")).resolve()
+
+
+def conversations_path() -> Path:
+    """Where conversations are kept: one checkpoint per answered turn, in SQLite."""
+    return Path(os.environ.get("CONTEXTLENS_CONVERSATIONS_PATH",
+                               AGENT_DIR / "data" / "conversations.sqlite3")).resolve()

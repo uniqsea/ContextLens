@@ -47,6 +47,7 @@ import { Inbox } from "./inbox";
 import { useHistoryLoading, useSessions } from "./session-tabs";
 import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
+import { UnsentQuestion } from "./unsent-question";
 import { useFold } from "./use-fold";
 import { useOverview } from "./use-overview";
 
@@ -127,15 +128,28 @@ export function LensApp({
 		() => stream.values?.turn_records ?? {},
 		[stream.values],
 	);
-	const turns = useMemo(() => {
-		const out: Array<{ q: string; a: string | null }> = [];
+	// A turn is a question with its answer, numbered as the server numbers its records. A question
+	// left without one (its run failed or was cancelled) is not a turn: it is shown as not sent, in
+	// place, after the turns before it.
+	const { turns, unsent } = useMemo(() => {
+		const turns: Array<{ q: string; a: string | null }> = [];
+		const unsent: Array<{ q: string; id?: string; after: number }> = [];
+		let open: { q: string; id?: string } | null = null;
 		for (const m of stream.messages) {
-			if (m.type === "human") out.push({ q: plain(m.content), a: null });
-			else if (m.type === "ai" && out.length && out[out.length - 1].a === null)
-				out[out.length - 1].a = plain(m.content);
+			if (m.type === "human") {
+				if (open) unsent.push({ ...open, after: turns.length });
+				open = { q: plain(m.content), id: m.id };
+			} else if (m.type === "ai" && open) {
+				turns.push({ q: open.q, a: plain(m.content) });
+				open = null;
+			}
 		}
-		return out;
-	}, [stream.messages]);
+		if (open) {
+			if (stream.isLoading) turns.push({ q: open.q, a: null });
+			else unsent.push({ ...open, after: turns.length });
+		}
+		return { turns, unsent };
+	}, [stream.messages, stream.isLoading]);
 	const sessionTitle =
 		initialTitle || turns[0]?.q.trim().slice(0, 100) || t("lens.newChat");
 	useEffect(() => {
@@ -552,10 +566,11 @@ export function LensApp({
 	const submitRegen = useCallback(
 		(turn: number, req: Record<string, unknown>) => {
 			setRegenTurn(turn);
-			stream.submit({
-				regen_request: { turn, ...req },
-				locale,
-			} as Partial<LensState>);
+			stream.submit(
+				{ regen_request: { turn, ...req }, locale } as Partial<LensState>,
+				// One checkpoint per turn: the server saves when the run ends.
+				{ durability: "exit" },
+			);
 		},
 		[stream, locale],
 	);
@@ -704,6 +719,44 @@ export function LensApp({
 	}, [toast]);
 
 	// ---------- send ----------
+	// `replacing` is a question that was not sent: it leaves the conversation as the new one goes in.
+	const ask = (q: string, choices: Draft, replacing?: string) => {
+		const pendingId = `pending-${Date.now()}`;
+		stream.submit(
+			{
+				messages: [
+					...(replacing
+						? [{ type: "remove", id: replacing, content: "" }]
+						: []),
+					{ type: "human", content: q },
+				],
+				project_id: projectId,
+				context_policies: choices.excluded.map((id) => ({
+					item_id: id,
+					status: "temporarily_ignored",
+				})),
+				input_order: choices.inputOrder,
+				regen_request: null,
+				locale,
+			} as Partial<LensState>,
+			{
+				durability: "exit",
+				optimisticValues: (prev) => ({
+					...prev,
+					messages: [
+						...(prev.messages ?? []).filter((m) => m.id !== replacing),
+						{ type: "human", content: q, id: pendingId },
+					],
+				}),
+			},
+		);
+		setInspecting(true);
+		setStepView("latest");
+		requestAnimationFrame(() => {
+			msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight });
+		});
+	};
+
 	const send = (e: React.FormEvent) => {
 		e.preventDefault();
 		const q = input.trim();
@@ -714,36 +767,16 @@ export function LensApp({
 			effectiveOrder.some((id) => !available.has(id))
 		)
 			return;
-		stream.submit(
-			{
-				messages: [{ type: "human", content: q }],
-				project_id: projectId,
-				context_policies: draft.excluded.map((id) => ({
-					item_id: id,
-					status: "temporarily_ignored",
-				})),
-				input_order: draft.inputOrder,
-				regen_request: null,
-				locale,
-			} as Partial<LensState>,
-			{
-				optimisticValues: (prev) => ({
-					...prev,
-					messages: [
-						...(prev.messages ?? []),
-						{ type: "human", content: q, id: `pending-${Date.now()}` },
-					],
-				}),
-			},
-		);
-
-		setInspecting(true);
-		setStepView("latest");
+		ask(q, draft);
 		setInput("");
 		setDraft(EMPTY);
-		requestAnimationFrame(() => {
-			msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight });
-		});
+	};
+
+	// Only the latest question is sent again, where it stands, with its context chosen afresh; the
+	// draft being composed stays. An earlier one is behind a conversation that went on without it.
+	const retry = (u: { q: string; id?: string }) => {
+		if (stream.isThreadLoading || stream.isLoading) return;
+		ask(u.q, EMPTY, u.id);
 	};
 
 	const usage = useCallback(
@@ -765,6 +798,24 @@ export function LensApp({
 	const headRef = useFold<HTMLDivElement>(
 		JSON.stringify([locale, scope, overview.data?.projects.map((p) => p.name)]),
 	);
+
+	// The question just sent failed: its error is told beside it rather than below the conversation.
+	const lastUnsent =
+		unsent.at(-1)?.after === turns.length ? unsent.at(-1) : undefined;
+	const unsentAfter = (n: number) =>
+		unsent
+			.filter((u) => u.after === n)
+			.map((u, k) => (
+				<UnsentQuestion
+					// biome-ignore lint/suspicious/noArrayIndexKey: an unsent question may have no id yet
+					key={u.id ?? `unsent-${n}-${k}`}
+					question={u.q}
+					latest={u === lastUnsent}
+					error={u === lastUnsent ? stream.error : undefined}
+					busy={stream.isLoading || stream.isThreadLoading}
+					onRetry={() => retry(u)}
+				/>
+			));
 
 	const entering = useHistoryLoading(stream.isThreadLoading);
 	return (
@@ -906,6 +957,7 @@ export function LensApp({
 							return (
 								// biome-ignore lint/suspicious/noArrayIndexKey: a turn is identified by its position
 								<div key={i} style={{ display: "contents" }}>
+									{unsentAfter(i)}
 									<div className="lens-q">{t.q}</div>
 									{(rec || streaming !== null) && (
 										<AnswerCard
@@ -937,7 +989,8 @@ export function LensApp({
 								</div>
 							);
 						})}
-						{stream.error ? (
+						{unsentAfter(turns.length)}
+						{stream.error && !lastUnsent ? (
 							<div className="lens-error">
 								{t("lens.error", {
 									message: String(

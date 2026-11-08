@@ -8,5 +8,8 @@
     "cors": {
       "allow_origins": []
     }
+  },
+  "checkpointer": {
+    "path": "./contextlens/checkpointer.py:create"
   }
 }

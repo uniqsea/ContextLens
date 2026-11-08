@@ -164,6 +164,83 @@ class GraphTests(StoreTestCase):
         out = run({"messages": [HumanMessage(content=QUESTION + " again")]})
         self.assertIn(self.work, out["turn_records"]["1"]["versions"][-1]["selected_ids"])
 
+    def test_conversation_is_kept_on_disk_one_checkpoint_per_turn_without_resaving_it(self):
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        answers = [f"ANSWER_{n} long enough to find." for n in range(3)]
+        self.script(*answers, "REWRITTEN.", memory=self.memory_replies(3))
+        path = Path(tempfile.mkdtemp()) / "conversations.sqlite3"
+        config = {"configurable": {"thread_id": "t"}}
+
+        def in_checkpoints(text):  # checkpoints that hold this text themselves, not as a turn's write
+            with sqlite3.connect(path) as db:
+                return db.execute("SELECT count(*) FROM checkpoints WHERE instr(checkpoint, ?) > 0",
+                                  (text.encode(),)).fetchone()[0]
+
+        with SqliteSaver.from_conn_string(str(path)) as saver:
+            graph = _builder.compile(checkpointer=saver)
+            graph.invoke(self.state, config, durability="exit")
+            for n in (1, 2):
+                graph.invoke({"messages": [HumanMessage(content=f"{QUESTION} {n}")]}, config, durability="exit")
+            graph.invoke({"regen_request": {"turn": 0, "note": []}}, config, durability="exit")
+            # One checkpoint per run, past the empty one the thread starts from.
+            self.assertEqual(sum(c.metadata.get("source") == "loop" for c in saver.list(config)), 4)
+        self.assertEqual(in_checkpoints(answers[0]), 0)  # each checkpoint keeps what it added, not the conversation
+        with SqliteSaver.from_conn_string(str(path)) as saver:
+            values = _builder.compile(checkpointer=saver).get_state(config).values
+        self.assertEqual([m.content for m in values["messages"] if m.type == "ai"], ["REWRITTEN.", *answers[1:]])
+        self.assertEqual(sorted(values["turn_records"]), ["0", "1", "2"])
+        self.assertEqual(len(values["turn_records"]["0"]["versions"]), 2)
+        self.assertEqual(sorted(values["history_lineage"]), ["0", "1", "2"])
+
+    def test_a_turn_runs_under_the_servers_async_checkpointer(self):
+        import asyncio
+        import tempfile
+        from pathlib import Path
+
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        self.script("ok.", memory=self.memory_replies())
+        path = Path(tempfile.mkdtemp()) / "conversations.sqlite3"
+        config = {"configurable": {"thread_id": "t"}}
+
+        class AsyncOnly(AsyncSqliteSaver):  # as the server hands it over: no sync methods
+            def get_tuple(self, config):
+                raise NotImplementedError
+
+            def put(self, *args, **kwargs):
+                raise NotImplementedError
+
+        async def turn():
+            async with AsyncSqliteSaver.from_conn_string(str(path)) as plain:
+                saver = AsyncOnly(plain.conn)
+                graph = _builder.compile(checkpointer=saver)
+                await graph.ainvoke(self.state, config, durability="exit")
+                return [c async for c in saver.alist(config)]
+
+        saved = asyncio.run(turn())
+        # The engine's own run is not saved into the conversation: only the app graph's checkpoints.
+        self.assertEqual({c.config["configurable"]["checkpoint_ns"] for c in saved}, {""})
+
+    def test_retrying_an_unsent_question_takes_its_place(self):
+        self.script("first.", "again.", memory=self.memory_replies(2))
+        graph = _builder.compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "t"}}
+        graph.invoke(self.state, config)
+        # A run that failed leaves its question behind, unanswered.
+        graph.update_state(config, {"messages": [HumanMessage(content="LOST", id="lost")]}, as_node="remember")
+        # Retry, as the client sends it: the unsent question out, the same words in again.
+        out = graph.invoke({"messages": [{"type": "remove", "id": "lost", "content": ""}, {"type": "human", "content": "LOST"}]},
+                           config)
+        self.assertEqual([(m.type, m.content) for m in out["messages"]],
+                         [("human", QUESTION), ("ai", "first."), ("human", "LOST"), ("ai", "again.")])
+        self.assertEqual(sorted(out["turn_records"]), ["0", "1"])
+        self.assertEqual(out["turn_records"]["1"]["query"], "LOST")
+
     def test_rewrite_one_answer_and_undo_it(self):
         model = self.script(f"first.[[{self.work}]]", "second.", memory=self.memory_replies())
         run = self.run_graph()

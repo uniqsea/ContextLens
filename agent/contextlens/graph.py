@@ -12,7 +12,8 @@ from typing import Annotated, NotRequired, TypedDict
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
-from langgraph.graph.message import add_messages
+from langgraph.channels.delta import DeltaChannel
+from langgraph.graph.message import _messages_delta_reducer
 
 from contextlens import engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
@@ -21,8 +22,17 @@ from contextlens.provenance import Labels, parse_segments
 from contextlens.turn_trace import capture_calls
 
 
+def _by_turn(state: dict | None, writes: list[dict]) -> dict:
+    """Per-turn entries, the latest write for a turn winning: a checkpoint keeps only the turns it changed."""
+    merged = dict(state or {})
+    for write in writes:
+        merged.update(write)
+    return merged
+
+
+# DeltaChannels store what each checkpoint added, so a long conversation is not saved over and over.
 class LensState(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
+    messages: Annotated[list[AnyMessage], DeltaChannel(_messages_delta_reducer, snapshot_frequency=50)]
     # The project this conversation belongs to; none means ordinary sessions.
     project_id: NotRequired[str | None]
     # Request-local choices for the next send: ids to leave out and memories to add.
@@ -30,9 +40,9 @@ class LensState(TypedDict):
     manual_memory_ids: NotRequired[list[str]]
     input_order: NotRequired[list[str] | None]
     # Per answered turn: which memories and earlier turns it relied on (drives history validity).
-    history_lineage: NotRequired[dict]
+    history_lineage: NotRequired[Annotated[dict, DeltaChannel(_by_turn, snapshot_frequency=50)]]
     # Per answered turn: every version of the answer with the request it came from.
-    turn_records: NotRequired[dict]
+    turn_records: NotRequired[Annotated[dict, DeltaChannel(_by_turn, snapshot_frequency=50)]]
     # Rewrite (or undo) one earlier answer instead of answering a new message.
     regen_request: NotRequired[dict | None]
     # The interface language the turn was sent from; memories follow it unless the user chose one.
@@ -54,12 +64,10 @@ def answer_turn(state: LensState, config: RunnableConfig) -> dict:
     version = _make_version(snapshot, excluded, sorted(set(state.get("manual_memory_ids", []))), note=[],
                             situation=situation, scope=_scope(state), thread_id=_thread(config), turn=index)
     version["reading_calls"] = list(reading_calls)
-    lineage = {**state.get("history_lineage", {}), str(index): version["lineage"]}
-    records = {**state.get("turn_records", {}),
-               str(index): {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
-                            "memory_changes": _tool_changes(version)}}
-    return {"messages": [AIMessage(content=version["content"])], "history_lineage": lineage,
-            "turn_records": records, "context_policies": [], "manual_memory_ids": [], "input_order": None}
+    record = {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
+              "memory_changes": _tool_changes(version)}
+    return {"messages": [AIMessage(content=version["content"])], "history_lineage": {str(index): version["lineage"]},
+            "turn_records": {str(index): record}, "context_policies": [], "manual_memory_ids": [], "input_order": None}
 
 
 def remember_turn(state: LensState, config: RunnableConfig) -> dict:
@@ -76,7 +84,7 @@ def remember_turn(state: LensState, config: RunnableConfig) -> dict:
     version = {**version, "writing_calls": list(writing_calls), "written_changes": changes}
     record = {**record, "versions": [*record["versions"][:-1], version],
               "memory_changes": record.get("memory_changes", []) + changes}
-    return {"turn_records": {**state["turn_records"], str(index): record}}
+    return {"turn_records": {str(index): record}}
 
 
 def rewrite_turn(state: LensState, config: RunnableConfig) -> dict:
@@ -108,8 +116,8 @@ def rewrite_turn(state: LensState, config: RunnableConfig) -> dict:
                                     + _follow_correction(req, record, situation, config, i))
     latest = record["versions"][-1]
     return {"messages": [AIMessage(content=latest["content"], id=ai.id)],
-            "turn_records": {**state["turn_records"], str(i): record},
-            "history_lineage": {**state.get("history_lineage", {}), str(i): latest["lineage"]},
+            "turn_records": {str(i): record},
+            "history_lineage": {str(i): latest["lineage"]},
             "regen_request": None}
 
 

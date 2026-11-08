@@ -237,6 +237,10 @@
 		"conversation": "Conversation",
 		"emptyTitle": "Ask anything",
 		"emptyBody": "Type a question to see matching sources, then add the ones you want to send.",
+		"noAnswer": "No answer came back",
+		"unreachable": "Couldn't reach the server",
+		"answerFailed": "Something went wrong while answering",
+		"retry": "Retry",
 		"error": "Request failed: {message}",
 		"examples": [
 			"Recommend a restaurant for Friday's team dinner",
