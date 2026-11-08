@@ -1,0 +1,183 @@
+.field {
+	position: relative;
+	background: #f8faf5;
+	border: 1px solid #dce2d8;
+	border-radius: 20px;
+	padding: 16px clamp(12px, 2.5vw, 38px) 22px;
+	color: #34473e;
+}
+.toolbar,
+.tabs,
+.toolbar button,
+.back,
+.library button,
+.peers button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.toolbar {
+	justify-content: space-between;
+}
+.toolbar button,
+.library button,
+.peers button,
+.back {
+	padding: 7px 10px;
+	font-size: 13px;
+	border-radius: 8px;
+}
+.tabs {
+	background: #eaeee6;
+	padding: 3px;
+	border-radius: 12px;
+}
+.tabs button[aria-pressed="true"] {
+	background: white;
+	box-shadow: 0 1px 4px #334c3c16;
+}
+.layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.55fr) minmax(215px, 0.75fr);
+	align-items: center;
+	max-width: 1160px;
+	margin: auto;
+	gap: clamp(15px, 4vw, 68px);
+}
+.plot svg {
+	display: block;
+	margin: auto;
+	width: min(100%, 65svh);
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 50%;
+	cursor: zoom-out;
+}
+.plot circle {
+	vector-effect: non-scaling-stroke;
+}
+.plot circle[data-depth="0"] {
+	fill: #e7eee5;
+}
+.plot circle[data-depth="1"] {
+	fill: #b9d0be;
+}
+.plot circle[data-depth="2"] {
+	fill: #8eafa4;
+}
+.plot circle[data-depth="3"] {
+	fill: #f4f7ed;
+}
+.plot circle[data-hot="true"] {
+	cursor: zoom-in;
+}
+.plot circle[data-depth="3"][data-hot="true"] {
+	cursor: pointer;
+}
+.plot circle[data-on="true"] {
+	fill: #ebc1a7;
+}
+.plot circle[data-hot="true"]:hover,
+.plot circle:focus-visible {
+	stroke: #516653;
+	stroke-width: 2;
+	outline: none;
+}
+.plot text {
+	pointer-events: none;
+	text-anchor: middle;
+	dominant-baseline: central;
+	font-weight: 550;
+	fill: #273c32;
+	paint-order: stroke;
+	stroke: #f1f5ed;
+	stroke-linejoin: round;
+}
+.panel {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.panel h2 {
+	font-size: clamp(22px, 2.6vw, 37px);
+	line-height: 1.25;
+	letter-spacing: -0.04em;
+}
+.panel p {
+	font-size: 15px;
+	line-height: 1.75;
+	margin: 12px 0;
+	color: #506054;
+}
+.back {
+	margin: 0 0 13px;
+	background: white;
+}
+.panel details,
+.peers small {
+	font-size: 12px;
+	color: #617166;
+}
+.panel summary {
+	cursor: pointer;
+}
+.peers {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px;
+	margin-top: 16px;
+}
+.peers small {
+	width: 100%;
+}
+.peers button,
+.library {
+	border: 1px solid #d5ded2;
+	background: white;
+}
+.library {
+	z-index: 3;
+	position: absolute;
+	right: 12px;
+	top: 56px;
+	padding: 12px;
+	border-radius: 12px;
+	max-height: 52svh;
+	overflow: auto;
+	width: min(340px, 92%);
+}
+.library input {
+	padding: 8px;
+	width: 100%;
+}
+.library button {
+	width: 100%;
+	justify-content: space-between;
+	text-align: left;
+}
+.library button:hover {
+	background: #eef3ea;
+}
+@media (max-width: 700px) {
+	.layout {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+	.plot {
+		margin-top: 12px;
+	}
+	.plot svg {
+		width: min(100%, 51svh);
+	}
+	.panel {
+		padding: 0 8px;
+	}
+	.panel h2 {
+		font-size: 21px;
+	}
+	.panel p {
+		margin: 7px 0;
+	}
+	.back {
+		margin: 0 0 6px;
+	}
+}

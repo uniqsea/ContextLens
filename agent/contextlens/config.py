@@ -7,8 +7,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 AGENT_DIR = Path(__file__).resolve().parents[1]
-REPO_DIR = AGENT_DIR.parent
-SHARED_DIR = REPO_DIR / "shared"
 
 load_dotenv(AGENT_DIR / ".env")
 
@@ -33,7 +31,3 @@ def ensure_home() -> Path:
 
 def db_path() -> Path:
     return Path(os.environ.get("CONTEXTLENS_DB_PATH", AGENT_DIR / "data" / "contextlens.sqlite3")).resolve()
-
-
-def seed_path() -> Path:
-    return Path(os.environ.get("CONTEXTLENS_SEED_PATH", SHARED_DIR / "memory-seeds.json")).resolve()

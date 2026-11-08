@@ -69,8 +69,8 @@ def recall(question: str, situation: dict, scope: str, *, brighten: list[str] | 
     return {"always_on": [_brief(m) for m in always_on], "memories": chosen, "crowded": crowded, "scores": scores}
 
 
-def render(memories: list[dict]) -> str:
-    return "\n".join(f"- [{m['id']}] {m['learned']} ({note(m)})" for m in memories)
+def render(memories: list[dict], label=lambda memory_id: memory_id) -> str:
+    return "\n".join(f"- [{label(m['id'])}] {m['learned']} ({note(m)})" for m in memories)
 
 
 def _concept_weights(memories: list[Memory]) -> dict[str, float]:

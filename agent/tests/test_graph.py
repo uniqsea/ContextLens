@@ -108,7 +108,9 @@ class GraphTests(StoreTestCase):
         self.assertEqual(first["output"]["tool_calls"][0]["id"], step["call_id"])
         self.assertEqual(second["messages"][-1], {"role": "tool", "content": step["result"], "tool_call_id": step["call_id"]})
 
-    def test_explicit_empty_selection_scopes_all_chat_models_and_nested_reading(self):
+    def test_explicit_empty_selection_scopes_prompt_and_writer_but_not_tools(self):
+        # A hand-picked selection is what the turn must use, not all it may look at: the agent's own
+        # lookups still see the rest of the scope.
         hidden_name = "Fictional orchard parcel"
         hidden = self.add("The synthetic parcel number is 36.", concepts=[hidden_name])
         reread = AIMessage(content="", tool_calls=[{"name": "identify_situation", "id": "again",
@@ -120,9 +122,11 @@ class GraphTests(StoreTestCase):
             version = self.run_graph()({**self.state, "input_order": []})["turn_records"]["0"]["versions"][0]
         self.assertEqual(len(agent.calls), 2)
         self.assertEqual(len(self.memory_model.calls), 3)
-        for messages in [*agent.calls, *self.memory_model.calls]:
+        before, nested, writer_call = self.memory_model.calls
+        for messages in (agent.calls[0], before, writer_call):
             for forbidden in (hidden_name, hidden, "parcel number is 36", "WORK_SECRET", "PERSONAL_SECRET", "GENERAL_FACT"):
                 self.assertNotIn(forbidden, str(messages))
+        self.assertIn(hidden_name, str(nested))
         self.assertEqual(len(version["agent_calls"]), 2)
         self.assertEqual(len(version["steps"][0]["artifact"]["reading_calls"]), 1)
         self.assertEqual(memory.get(memory.Memory, hidden).learned, "The synthetic parcel number is 36.")
@@ -131,8 +135,9 @@ class GraphTests(StoreTestCase):
     def test_explicit_selection_scopes_writer_and_reading_to_chosen_memory(self):
         model = self.script("Done.", memory=self.memory_replies())
         self.run_graph()({**self.state, "input_order": [self.work]})
+        self.assertIn("WORK_SECRET", str(model.calls[0]))
+        self.assertIn(self.work, str(self.memory_model.calls[-1]))
         for messages in (model.calls[0], self.memory_model.calls[-1]):
-            self.assertIn(self.work, str(messages))
             self.assertNotIn("PERSONAL_SECRET", str(messages))
             self.assertNotIn("GENERAL_FACT", str(messages))
 
@@ -143,6 +148,12 @@ class GraphTests(StoreTestCase):
         self.script(call, "ok.", memory=self.memory_replies())
         self.run_graph()({**self.state, "project_id": project.id})
         self.assertEqual(memory.get(memory.Memory, self.work).state, "active")
+
+    def test_memory_tools_take_the_short_id_shown(self):
+        call = AIMessage(content="", tool_calls=[{"name": "forget", "id": "1", "args": {"memory_id": "m1", "reason": "x"}}])
+        self.script(call, "ok.", memory=self.memory_replies())
+        self.run_graph()({**self.state, "input_order": [self.work]})
+        self.assertEqual(memory.get(memory.Memory, self.work).state, "forgotten")
 
     def test_request_choices_apply_once(self):
         model = self.script("first.", "second.", memory=self.memory_replies(2))
@@ -227,6 +238,18 @@ class GraphTests(StoreTestCase):
 
 
 class ProvenanceTests(unittest.TestCase):
+    def test_short_ids_map_back_to_store_ids(self):
+        from contextlens.provenance import Labels
+
+        labels = Labels()
+        self.assertEqual([labels.short("mem-x", "memory"), labels.short("doc-y", "retrieval"),
+                          labels.short("mem-z", "memory"), labels.short("mem-x", "memory")], ["m1", "f1", "m2", "m1"])
+        again = Labels(labels.table)
+        self.assertEqual(again.short("st-0001", "short_term"), "t1")
+        self.assertEqual(again.short("mem-w", "memory"), "m3")
+        text, segments = parse_segments("用了它。[[m2]] 也用了。[[ f1 , mem-x]] 编的。[[m9]]", ["mem-x", "mem-z", "doc-y"], again)
+        self.assertEqual([s["src"] for s in segments], [["mem-z"], ["doc-y", "mem-x"], []])
+
     def test_sentences_keep_their_sources(self):
         text, segments = parse_segments("先说结论：订素菜。[[a]][[b]]人均150元。没有依据。", ["a", "b"])
         self.assertEqual(text, "先说结论：订素菜。人均150元。没有依据。")

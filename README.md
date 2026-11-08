@@ -37,7 +37,7 @@ npm run dev:demo   # 独立演示数据库，位于 agent/data/lens-demo-memorie
 npm run dev        # 你自己的记忆，数据库在 agent/data/contextlens.sqlite3
 ```
 
-新数据库默认从空记忆开始。本地可选的初始化文件为 `shared/memory-seeds.json`（普通模式）和 `shared/lens-demo-seeds.json`（演示模式）；两者均不纳入版本控制，已有本地文件仍会用于初始化新数据库。缺少文件时应用正常启动，不导入示例记忆。
+普通模式和演示模式的新数据库都从零条记忆开始。
 
 打开 [http://localhost:3001](http://localhost:3001)。端口可用 `LANGGRAPH_PORT`、`FRONTEND_PORT` 覆盖。两个服务都只监听本机。
 

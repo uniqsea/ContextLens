@@ -17,7 +17,7 @@ from langgraph.graph.message import add_messages
 from contextlens import engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
 from contextlens.context.snapshot import estimate_tokens
-from contextlens.provenance import parse_segments
+from contextlens.provenance import Labels, parse_segments
 from contextlens.turn_trace import capture_calls
 
 
@@ -126,19 +126,16 @@ def _follow_correction(req: dict, record: dict, situation: dict, config: Runnabl
 def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, *, situation, scope, thread_id,
                   turn, bright=(), dim=()) -> dict:
     prompt, question = snapshot["messages"][0]["content"], snapshot["messages"][1]["content"]
+    labels = Labels(snapshot.get("labels"))
     with capture_calls() as agent_calls:
         text, steps = engine.answer(prompt, question, situation=situation, scope=scope, thread_id=thread_id, turn=turn,
-                                    excluded_files=excluded, allowed_context=(
-                                        set(snapshot["input_order"]) if "input_order" in snapshot else None))
+                                    excluded_files=excluded, labels=labels)
     # Memories the agent looked up itself are sources too.
     recalled = [m["id"] if isinstance(m, dict) else m for s in steps for m in (s["artifact"] or {}).get("memories", [])]
     file_dependencies = list(snapshot.get("file_dependencies", []))
     candidates = {item["id"]: dict(item) for item in snapshot["candidates"]}
     selected = list(snapshot["selected_ids"])
-    for step in steps:
-        doc = (step["artifact"] or {}).get("document")
-        if not doc:
-            continue
+    for doc in (d for step in steps for d in (step["artifact"] or {}).get("documents", [])):
         for dep in doc["files"]:
             if dep not in file_dependencies:
                 file_dependencies.append(dep)
@@ -150,9 +147,9 @@ def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, 
         elif doc["content"] not in item["content"]:
             item["content"] += "\n…\n" + doc["content"]
             item["tokens"] = estimate_tokens(item["content"])
-    content, segments = parse_segments(text, [*selected, *recalled])
+    content, segments = parse_segments(text, [*selected, *recalled], labels)
     return {**({"input_order": snapshot["input_order"]} if "input_order" in snapshot else {}),
-            "note": note, "content": content, "segments": segments, "steps": steps,
+            "note": note, "content": content, "segments": segments, "steps": steps, "labels": labels.table,
             "agent_calls": list(agent_calls), "assembled_ids": list(snapshot["selected_ids"]),
             "selected_ids": selected, "candidates": list(candidates.values()),
             "payload": snapshot["messages"], "fingerprint": snapshot["fingerprint"], "situation": situation,

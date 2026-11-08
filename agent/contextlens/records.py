@@ -9,12 +9,11 @@ import json
 from dataclasses import asdict, replace
 from datetime import date
 
-from contextlens import config, memory
+from contextlens import memory
 from contextlens.memory import operations
 from contextlens.projects import directory as project_directory
 
 _ACTORS = {"after_turn": "consolidation", "upkeep": "consolidation", "seed": "import", "import": "import"}
-_SEED_SCENES = {"work": "工作", "study": "学习", "personal": "生活", "life": "生活"}
 _TITLE_FROM_LEARNED = 20
 _SOURCE_LABELS = {"said": "你说的", "inferred": "推断", "read": "读到的"}
 
@@ -34,7 +33,6 @@ def library_records(owner: str | None, include_trashed: bool) -> list[dict]:
 
 
 def _records_in(scopes: set[str] | None, include_trashed: bool) -> list[dict]:
-    _seed_if_new()
     states = {"active", "forgotten"} if include_trashed else {"active"}
     found = [m for m in memory.all_of(memory.Memory) if (scopes is None or m.scope in scopes) and m.state in states]
     activity, names = memory.memory_activity(), _concept_names()
@@ -54,7 +52,6 @@ def timeline(memory_id: str) -> list[dict]:
 
 def overview(scope: str) -> dict:
     """What the Lens needs around the memories: where it can look, and what waits on the user."""
-    _seed_if_new()
     operations.preset_scenes_if_never_chosen()
     scenes = memory.all_of(memory.Scene)
     return {"projects": [{k: p[k] for k in ("id", "name", "isolated")} for p in project_directory()],
@@ -146,17 +143,3 @@ def _snapshot(row: dict | None) -> dict | None:
             "content": learned, "memory_type": "semantic", "confidence": "high" if row["source"] == "said" else "low",
             "scenes": json.loads(row["scenes"]),
             "lifecycle_state": "active" if row["state"] == "active" else "trashed"}
-
-
-def _seed_if_new() -> None:
-    """A store that has never seen a change may start from a local seed file."""
-    if memory.list_events(limit=1):
-        return
-    try:
-        seeds = json.loads(config.seed_path().read_text())
-    except FileNotFoundError:
-        return
-    for seed in seeds:
-        scene = _SEED_SCENES.get(seed["context_scope"])
-        operations.add_memory(seed["content"], memory.Source("seed"), situation=seed["title"],
-                              scenes=[scene] if scene else [])

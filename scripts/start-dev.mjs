@@ -14,7 +14,6 @@ const child = spawn(process.execPath, [
   env: demo ? {
     ...process.env,
     CONTEXTLENS_DB_PATH: resolve('agent/data/lens-demo-memories.sqlite3'),
-    CONTEXTLENS_SEED_PATH: resolve('shared/lens-demo-seeds.json'),
   } : process.env,
 });
 

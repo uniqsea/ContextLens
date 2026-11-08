@@ -8,12 +8,14 @@ from __future__ import annotations
 from functools import cache
 
 from deepagents import create_deep_agent
+from deepagents.backends import CompositeBackend, StateBackend
 from deepagents.profiles import GeneralPurposeSubagentProfile, HarnessProfile, register_harness_profile
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from contextlens import memory, models
-from contextlens.project_files.tools import browse_project_files
+from contextlens.project_files.backend import MOUNT, FileCitations, ProjectFiles
+from contextlens.provenance import Labels
 from contextlens.turn import Request
 
 # Context reaches the model only through the governed snapshot, so the harness must not add its own
@@ -33,6 +35,16 @@ class SnapshotPrompt(AgentMiddleware):
         return handler(request.override(system_prompt=prompt))
 
 
+class ReadOnlyFiles(AgentMiddleware):
+    """The agent reads files and never changes them: the tools that write are not offered at all."""
+
+    HIDDEN = frozenset({"write_file", "edit_file", "delete"})
+
+    def wrap_model_call(self, request, handler):
+        tools = [t for t in request.tools if (t.get("name") if isinstance(t, dict) else t.name) not in self.HIDDEN]
+        return handler(request.override(tools=tools))
+
+
 class SettingsModel(AgentMiddleware):
     """Every model call uses the agent model chosen in settings now, so a change applies to the
     next call without rebuilding the agent (the runtime model selection pattern in the Deep Agents
@@ -48,18 +60,23 @@ def build():
     provider = model._get_ls_params().get("ls_provider")
     if provider:
         register_harness_profile(provider, _PROFILE)
-    return create_deep_agent(model=model, tools=[*memory.TOOLS, browse_project_files], middleware=[SettingsModel(), SnapshotPrompt()],
+    # Deep Agents' file tools: the project's folders under /projects/, read only; anything else is
+    # the harness's own scratch space for the run (large tool results it sets aside, for one).
+    backend = CompositeBackend(default=StateBackend(), routes={MOUNT: ProjectFiles()})
+    return create_deep_agent(model=model, tools=memory.TOOLS, backend=backend,
+                             middleware=[SettingsModel(), SnapshotPrompt(), ReadOnlyFiles(), FileCitations()],
                              context_schema=Request, name="contextlens-engine")
 
 
 def answer(prompt: str, question: str, *, situation: dict, scope: str = memory.ORDINARY,
            thread_id: str | None = None, turn: int | None = None, config=None, excluded_files=(),
-           allowed_context=None) -> tuple[str, list[dict]]:
-    """Run the engine once. Returns the final text and the tool steps taken on the way."""
+           labels: Labels | None = None) -> tuple[str, list[dict]]:
+    """Run the engine once. Returns the final text and the tool steps taken on the way. `labels` is the
+    turn's table of short ids; sources the agent comes across on the way are added to it."""
     result = build().invoke({"messages": [HumanMessage(content=question)]}, config,
                             context=Request(prompt=prompt, question=question, scope=scope, situation=situation,
                                             thread_id=thread_id, turn=turn, excluded_files=set(excluded_files),
-                                            allowed_context=allowed_context))
+                                            labels=labels if labels is not None else Labels()))
     messages = result["messages"]
     final = next(m for m in reversed(messages) if isinstance(m, AIMessage))
     return str(final.text if hasattr(final, "text") else final.content), _steps(messages)

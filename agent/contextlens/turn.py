@@ -1,5 +1,6 @@
 """Context shared by the agent harness and its scoped tools for a single turn."""
 from dataclasses import dataclass, field
+from typing import Any
 
 from contextlens.memory import TurnContext
 
@@ -10,3 +11,5 @@ class Request(TurnContext):
     belongs (question, scope, situation, thread, turn), which the memory tools use and record."""
     prompt: str = ""
     excluded_files: set[str] = field(default_factory=set)
+    # What the turn may see of its project's folders, made when a file tool first needs it.
+    files: Any = None

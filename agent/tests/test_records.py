@@ -1,7 +1,3 @@
-import json
-import os
-from pathlib import Path
-
 from starlette.testclient import TestClient
 
 from contextlens import memory, records
@@ -47,16 +43,12 @@ class RecordsTests(StoreTestCase):
         ops.add_memory("a", USER, concepts=["周老师"])
         self.assertEqual([e["kind"] for e in records.events()], ["created"])
 
-    def test_a_new_store_starts_from_the_seed_file(self):
-        Path(os.environ["CONTEXTLENS_SEED_PATH"]).write_text(json.dumps(
-            [{"title": "团队", "content": "团队在上海", "context_scope": "work"}]))
-        self.assertEqual([r["content"] for r in records.records()], ["团队在上海"])
-        self.assertEqual(len(records.records()), 1)
-
-    def test_a_new_store_without_local_seeds_starts_empty(self):
-        Path(os.environ["CONTEXTLENS_SEED_PATH"]).unlink()
+    def test_a_new_store_starts_with_an_empty_memory_library(self):
         self.assertEqual(records.records(), [])
         self.assertEqual(memory.list_events(limit=1), [])
+        records.overview(memory.ORDINARY)
+        self.assertEqual(records.library_records(None, include_trashed=True), [])
+        self.assertEqual(records.events(), [])
 
 
 class LibraryRouteTests(StoreTestCase):

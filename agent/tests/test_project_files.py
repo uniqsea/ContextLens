@@ -51,7 +51,8 @@ class ProjectFilesTests(StoreTestCase):
             self.assertEqual(result["input_order"], order)
             self.assertEqual(result["selected_ids"], ["sys-001", *order, "usr-001"])
             prompt = result["messages"][0]["content"]
-            positions = [prompt.index(f"[{source_id}]") for source_id in order]
+            short = {real: label for label, real in result["labels"].items()}
+            positions = [prompt.index(f"[{short[source_id]}]") for source_id in order]
             self.assertEqual(positions, sorted(positions))
             self.assertNotIn("indigo ink", prompt)
             self.assertNotIn("Private scope fixture", prompt)
@@ -68,16 +69,57 @@ class ProjectFilesTests(StoreTestCase):
             self.assertEqual(snapshot["input_order"], [file["id"]])
             self.assertEqual(len(snapshot["file_dependencies"]), 1)
 
-    def test_explicit_file_tools_enforce_read_and_listing_selection(self):
-        from contextlens.project_files.index import browse
+    def files(self, scope=None, excluded=()):
+        from contextlens.project_files.backend import ProjectFiles, View
 
+        view = View(scope or self.project, set(excluded))
+        return ProjectFiles(current=lambda: view), view
+
+    def test_file_backend_is_scoped_read_only_and_honours_exclusions(self):
+        from contextlens.project_files.backend import READ_ONLY
+
+        (self.first / "alias.md").symlink_to(self.second / "notes.txt")
         project_files.attach(self.project, [str(self.first), str(self.second)])
-        first, second = self.search()
-        allowed = {first["id"]}
-        self.assertEqual(browse(self.project, "", second["id"], 0, set(), allowed)[1], {})
-        listing, _ = browse(self.project, "", "", 0, set(), allowed)
-        self.assertIn(first["title"], listing)
-        self.assertNotIn(second["title"], listing)
+        notes = next(d for d in self.search() if d["title"] == "rules/notes.txt")
+        files, view = self.files(excluded={notes["id"]})
+        self.assertEqual([e["path"] for e in files.ls("/").entries], ["/maps/", "/rules/"])
+        self.assertEqual(files.read("/maps/nested/layout.md").file_data["content"], "Fictional lanterns use indigo ink.")
+        # Excluded from the turn, reached through a symlink, or outside the folder: as if not there.
+        for path in ("/rules/notes.txt", "/maps/alias.md", "/maps/../rules/notes.txt"):
+            self.assertIsNotNone(files.read(path).error)
+        self.assertEqual({m["path"] for m in files.grep("anterns").matches}, {"/maps/nested/layout.md"})
+        self.assertEqual([m["path"] for m in files.glob("*.md").matches], ["/maps/nested/layout.md"])
+        self.assertEqual(files.write("/maps/new.md", "x").error, READ_ONLY)
+        self.assertEqual(files.edit("/maps/nested/layout.md", "indigo", "red").error, READ_ONLY)
+        self.assertEqual(self.plan.read_text(), "Fictional lanterns use indigo ink.")
+        other, _ = self.files(self.other)
+        self.assertEqual(other.ls("/").entries, [])
+        self.assertEqual(other.grep("anterns").matches, [])
+
+    def test_agent_is_offered_file_tools_that_only_read(self):
+        from langgraph.checkpoint.memory import InMemorySaver
+
+        from contextlens import models
+        from contextlens.graph import _builder
+        from tests.support import ScriptedModel, reading, structured
+
+        offered = []
+
+        class Recording(ScriptedModel):
+            def bind_tools(self, tools, **kwargs):
+                offered.append({t["name"] if isinstance(t, dict) else t.name for t in tools})
+                return self
+
+        project_files.attach(self.project, [str(self.first)])
+        agent = Recording(replies=["Done."], calls=[])
+        writer = ScriptedModel(replies=[reading("reading a fictional plan"), structured("Lessons", lessons=[])], calls=[])
+        models.use(lambda role: writer if role == "memory" else agent)
+        _builder.compile(checkpointer=InMemorySaver()).invoke(
+            {"messages": [HumanMessage(content="lanterns")], "project_id": self.project},
+            {"configurable": {"thread_id": "fictional-tools"}})
+        self.assertTrue({"ls", "read_file", "grep", "glob"} <= offered[0])
+        self.assertFalse({"write_file", "edit_file", "delete", "execute", "browse_project_files"} & offered[0])
+        self.assertIn("/projects/", agent.calls[0][0].content)
 
     def test_multi_folder_picker_and_live_scoped_retrieval(self):
         client = TestClient(app)
@@ -124,24 +166,26 @@ class ProjectFilesTests(StoreTestCase):
         self.plan.write_text("Fictional staging area. " * 100 + "The beacon is amber.")
         [folder] = project_files.attach(self.project, [str(self.first)])
         file_id = self.search("staging")[0]["id"]
-        tool_call = AIMessage(content="", tool_calls=[{"name": "browse_project_files", "id": "page",
-                              "args": {"file_id": file_id, "offset": 1}}])
-        self.script(tool_call, f"It is amber.[[{file_id}]]", memory=[
+        tool_call = AIMessage(content="", tool_calls=[{"name": "read_file", "id": "page",
+                              "args": {"file_path": "/projects/maps/nested/layout.md"}}])
+        # The file is already in the prompt as f1; reading it again keeps that id.
+        self.script(tool_call, "It is amber.[[f1]]", memory=[
             reading("reading a fictional plan"), structured("Lessons", lessons=[])])
         graph = _builder.compile(checkpointer=InMemorySaver())
         out = graph.invoke({"messages": [HumanMessage(content="staging")], "project_id": self.project},
                            {"configurable": {"thread_id": "fictional-files"}})
         version = out["turn_records"]["0"]["versions"][0]
         self.assertIn("The beacon is amber.", version["steps"][0]["result"])
+        self.assertIn("[f1] /projects/maps/nested/layout.md", version["steps"][0]["result"])
+        self.assertEqual(version["labels"]["f1"], file_id)
         self.assertEqual(version["segments"][0]["src"], [file_id])
+        self.assertEqual(version["lineage"]["files"][0]["path"], "nested/layout.md")
         project_files.detach(self.project, folder["id"])
         preview = prepare_snapshot({**out, "messages": out["messages"] + [HumanMessage(content="Repeat it")]})
         self.assertNotIn("It is amber.", preview["messages"][0]["content"])
 
     def test_docx_and_binary_inventory(self):
         import zipfile
-
-        from contextlens.project_files.index import browse
 
         with zipfile.ZipFile(self.first / "sample.docx", "w") as document:
             document.writestr("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/'
@@ -150,9 +194,14 @@ class ProjectFilesTests(StoreTestCase):
         project_files.attach(self.project, [str(self.first)])
         [doc] = self.search("灯塔")
         self.assertEqual(doc["content"], "虚构的青铜灯塔")
-        self.assertEqual(browse(self.project, "", doc["id"], 0, {doc["id"]})[1], {})
-        listing, _ = browse(self.project, ".png", "", 0, set())
-        self.assertIn("sample.png", listing)
+        files, _ = self.files()
+        self.assertEqual(files.read("/maps/sample.docx").file_data["content"], "虚构的青铜灯塔")
+        self.assertEqual([m["line"] for m in files.grep("青铜").matches], [1])
+        self.assertIn("/maps/sample.png", [e["path"] for e in files.ls("/maps").entries])
+        self.assertIsNotNone(files.read("/maps/sample.png").error)
+        excluded, _ = self.files(excluded={doc["id"]})
+        self.assertIsNotNone(excluded.read("/maps/sample.docx").error)
+        self.assertEqual(excluded.grep("青铜").matches, [])
 
     def test_thumbnail_reads_document_start_and_is_project_scoped(self):
         from contextlens.project_files.thumbnails import thumbnail
