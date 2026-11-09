@@ -9,6 +9,11 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
+from functools import cache
+
+import tiktoken
+from langchain_core.messages import HumanMessage
+from langchain_core.messages.utils import count_tokens_approximately
 
 from contextlens import memory, project_files, projects, records as memory_records
 from contextlens.provenance import INSTRUCTION, Labels
@@ -233,9 +238,23 @@ def memory_stamp(record) -> str:
     return digest({k: record[k] for k in ("id", "revision", "content", "title", "lifecycle_state")})
 
 
+@cache
+def _encoding():
+    """The o200k tokenizer (current OpenAI models; close enough for others to show proportions). It is
+    fetched once and cached on disk; offline before that, there is none."""
+    try:
+        return tiktoken.get_encoding("o200k_base")
+    except Exception:
+        return None
+
+
 def estimate_tokens(text: str) -> int:
-    """Rough count for display; CJK runs about one token per character."""
-    return max(1, round(len(text) * 1.3))
+    """Token count for display. Without the tokenizer, LangChain's estimate, which counts four
+    characters a token and so undercounts Chinese."""
+    encoding = _encoding()
+    if encoding is not None:
+        return max(1, len(encoding.encode(text, disallowed_special=())))
+    return max(1, count_tokens_approximately([HumanMessage(content=text)], extra_tokens_per_message=0))
 
 
 def is_stale(updated_at) -> bool:

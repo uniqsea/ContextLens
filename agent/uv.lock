@@ -382,6 +382,7 @@ dependencies = [
     { name = "setproctitle" },
     { name = "sqlite-vec" },
     { name = "stop-words" },
+    { name = "tiktoken" },
 ]
 
 [package.metadata]
@@ -398,6 +399,7 @@ requires-dist = [
     { name = "setproctitle", specifier = ">=1.3.7,<2" },
     { name = "sqlite-vec", specifier = "==0.1.9" },
     { name = "stop-words", specifier = "==2025.11.4" },
+    { name = "tiktoken", specifier = ">=0.14,<1" },
 ]
 
 [[package]]

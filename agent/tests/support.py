@@ -56,12 +56,14 @@ class StoreTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         os.environ["CONTEXTLENS_DB_PATH"] = str(Path(self._tmp.name) / "test.sqlite3")
         os.environ["CONTEXTLENS_HOME"] = str(Path(self._tmp.name) / "home")  # the user's own settings stay out
+        os.environ["CONTEXTLENS_CONVERSATIONS_PATH"] = str(Path(self._tmp.name) / "conversations.sqlite3")
         models.use(_no_model)  # no real settings or embedding model unless a test scripts one
 
     def tearDown(self):
         models.use(None)
         os.environ.pop("CONTEXTLENS_DB_PATH", None)
         os.environ.pop("CONTEXTLENS_HOME", None)
+        os.environ.pop("CONTEXTLENS_CONVERSATIONS_PATH", None)
         self._tmp.cleanup()
 
     def script(self, *replies, memory: list | None = None) -> ScriptedModel:

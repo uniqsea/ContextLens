@@ -1,27 +1,28 @@
-const threadUrl = (id: string) => `/api/threads/${encodeURIComponent(id)}`;
+const conversationUrl = (id: string) =>
+	`/api/lens/conversations/${encodeURIComponent(id)}`;
 
-async function updateMetadata(
+async function update(
 	id: string,
-	metadata: { title: string } | { archived: boolean },
+	change: { title: string } | { archived: boolean },
 ) {
-	const res = await fetch(threadUrl(id), {
+	const res = await fetch(conversationUrl(id), {
 		method: "PATCH",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ metadata }),
+		body: JSON.stringify(change),
 	});
 	if (!res.ok) throw new Error("Conversation could not be updated");
 }
 
 export function renameConversation(id: string, title: string) {
-	return updateMetadata(id, { title });
+	return update(id, { title });
 }
 
 export function setConversationArchived(id: string, archived: boolean) {
-	return updateMetadata(id, { archived });
+	return update(id, { archived });
 }
 
 export async function deleteConversation(id: string) {
-	const res = await fetch(threadUrl(id), { method: "DELETE" });
+	const res = await fetch(conversationUrl(id), { method: "DELETE" });
 	if (!res.ok && res.status !== 404)
 		throw new Error("Conversation could not be deleted");
 }

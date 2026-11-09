@@ -15,7 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.channels.delta import DeltaChannel
 from langgraph.graph.message import _messages_delta_reducer
 
-from contextlens import engine, memory, models, records
+from contextlens import conversations, engine, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
 from contextlens.context.snapshot import estimate_tokens
 from contextlens.provenance import Labels, parse_segments
@@ -66,6 +66,7 @@ def answer_turn(state: LensState, config: RunnableConfig) -> dict:
     version["reading_calls"] = list(reading_calls)
     record = {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
               "memory_changes": _tool_changes(version)}
+    conversations.record_turn(_thread(config), state.get("project_id"), record["query"], version["content"])
     return {"messages": [AIMessage(content=version["content"])], "history_lineage": {str(index): version["lineage"]},
             "turn_records": {str(index): record}, "context_policies": [], "manual_memory_ids": [], "input_order": None}
 

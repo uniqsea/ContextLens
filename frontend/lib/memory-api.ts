@@ -71,6 +71,11 @@ export const memoryApi = {
 			body: JSON.stringify({ ...fields, revision }),
 		}),
 	trash: (id: string) => post(`/memories/${encodeURIComponent(id)}/trash`),
+	/** Memories a conversation brought in that are still kept: what deleting it leaves behind. */
+	fromConversation: (threadId: string) =>
+		call<{ memories: MemoryRecord[] }>(
+			`/conversations/${encodeURIComponent(threadId)}/memories`,
+		).then((r) => r.memories),
 	restore: (id: string) => post(`/memories/${encodeURIComponent(id)}/restore`),
 	/** Deleted for good: the content is erased from the history too. */
 	purge: (id: string) => post(`/memories/${encodeURIComponent(id)}/purge`),

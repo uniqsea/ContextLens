@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from starlette.testclient import TestClient
 
-from contextlens import memory
+from contextlens import conversations, memory
 from contextlens.api import app
 from contextlens.graph import _builder
 from contextlens.memory import operations as ops
@@ -195,6 +195,8 @@ class GraphTests(StoreTestCase):
         self.assertEqual([m.content for m in values["messages"] if m.type == "ai"], ["REWRITTEN.", *answers[1:]])
         self.assertEqual(sorted(values["turn_records"]), ["0", "1", "2"])
         self.assertEqual(len(values["turn_records"]["0"]["versions"]), 2)
+        listed = conversations.get("t")  # the list shows it by its first question and its latest answer
+        self.assertEqual((listed["title"], listed["preview"]), (QUESTION, answers[2]))
         self.assertEqual(sorted(values["history_lineage"]), ["0", "1", "2"])
 
     def test_a_turn_runs_under_the_servers_async_checkpointer(self):

@@ -21,84 +21,19 @@ export async function projectName(scope: string) {
 	return project.name;
 }
 
-interface ThreadSummary {
-	thread_id: string;
-	updated_at: string;
-	extracted: {
-		archived?: boolean;
-		project?: string;
-		scope?: string;
-		title?: string;
-		firstMessage?: string;
-		preview?: string;
-	};
-}
-
-async function threads(filter: {
-	ids?: string[];
-	offset?: number;
-	limit: number;
-}) {
-	return read<ThreadSummary[]>("threads/search", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			...filter,
-			select: ["thread_id", "updated_at"],
-			extract: {
-				archived: "metadata.archived",
-				scope: "metadata.project_scope",
-				project: "values.project_id",
-				title: "metadata.title",
-				firstMessage: "values.messages[0].content",
-				preview: "values.messages[-1].content",
-			},
-		}),
-	});
-}
-
-// New threads have a scope before the first turn. Older threads carry it in graph state.
-function owner({ extracted }: ThreadSummary) {
-	return extracted.scope ?? extracted.project ?? ORDINARY;
-}
-
-function threadTitle({ extracted }: ThreadSummary) {
-	const { title, firstMessage } = extracted;
-	if (typeof title === "string" && title.trim()) return title.trim();
-	return typeof firstMessage === "string"
-		? firstMessage.trim().slice(0, 100)
-		: "";
-}
-
 export async function checkThread(scope: string, id: string) {
 	if (!/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(id)) notFound();
-	const [thread] = await threads({ ids: [id], limit: 1 });
-	if (!thread || thread.thread_id !== id || owner(thread) !== scope) notFound();
-	return threadTitle(thread);
+	const res = await fetch(
+		`${process.env.LANGGRAPH_API_URL}/lens/conversations/${id}`,
+		{ cache: "no-store" },
+	);
+	if (res.status === 404) notFound();
+	if (!res.ok) throw new Error("Workspace could not be loaded");
+	const conversation: Conversation = await res.json();
+	if (conversation.scope !== scope) notFound();
+	return conversation.title;
 }
 
-export async function conversationIndex(): Promise<Conversation[]> {
-	const conversations: Conversation[] = [];
-	const limit = 100;
-	for (let offset = 0; ; offset += limit) {
-		const page = await threads({ limit, offset });
-		for (const thread of page) {
-			const { preview } = thread.extracted;
-			conversations.push({
-				id: thread.thread_id,
-				scope: owner(thread),
-				archived: thread.extracted.archived === true,
-				updated_at: thread.updated_at,
-				title: threadTitle(thread),
-				preview:
-					typeof preview === "string"
-						? preview.replace(/\s*\[\[[^\]]*\]\]/g, "").slice(0, 200)
-						: "",
-			});
-		}
-		if (page.length < limit)
-			return conversations.sort((a, b) =>
-				b.updated_at.localeCompare(a.updated_at),
-			);
-	}
-}
+// Newest activity first.
+export const conversationIndex = () =>
+	read<Conversation[]>("lens/conversations");

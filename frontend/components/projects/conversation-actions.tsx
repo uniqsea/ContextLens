@@ -8,8 +8,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import type { MemoryRecord } from "@/lib/memory-types";
+import { memoryApi } from "@/lib/memory-api";
 import { useSessions } from "@/components/lens/session-tabs";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -51,11 +54,31 @@ export function ConversationActions({
 	const [draft, setDraft] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [failed, setFailed] = useState(false);
+	// What deleting would leave behind: memories this conversation brought in. They stay unless checked.
+	const [memories, setMemories] = useState<
+		MemoryRecord[] | "loading" | "failed"
+	>("loading");
+	const [toTrash, setToTrash] = useState<Set<string>>(new Set());
 	function open(next: "rename" | "delete") {
 		setDraft(title);
 		setFailed(false);
 		setAction(next);
 		setDialogOpen(true);
+		if (next === "delete") {
+			setMemories("loading");
+			setToTrash(new Set());
+			memoryApi
+				.fromConversation(id)
+				.then(setMemories, () => setMemories("failed"));
+		}
+	}
+	function choose(memoryId: string, trash: boolean) {
+		setToTrash((previous) => {
+			const next = new Set(previous);
+			if (trash) next.add(memoryId);
+			else next.delete(memoryId);
+			return next;
+		});
 	}
 	async function toggleArchived() {
 		if (busy) return;
@@ -81,6 +104,7 @@ export function ConversationActions({
 				const tab = tabs.find((item) => item.href === href);
 				if (tab) register({ ...tab, title: next });
 			} else {
+				for (const memoryId of toTrash) await memoryApi.trash(memoryId);
 				await deleteConversation(id);
 				close(href);
 			}
@@ -146,7 +170,9 @@ export function ConversationActions({
 					}
 				}}
 			>
-				<DialogContent className="sm:max-w-sm">
+				<DialogContent
+					className={action === "delete" ? "sm:max-w-md" : "sm:max-w-sm"}
+				>
 					<DialogTitle>
 						{t(
 							action === "delete"
@@ -162,9 +188,17 @@ export function ConversationActions({
 						}}
 					>
 						{action === "delete" ? (
-							<DialogDescription>
-								{t("conversationTitle.confirmRemove", { title })}
-							</DialogDescription>
+							<>
+								<DialogDescription>
+									{t("conversationTitle.confirmRemove", { title })}
+								</DialogDescription>
+								<LeftBehind
+									memories={memories}
+									toTrash={toTrash}
+									disabled={busy}
+									onChoose={choose}
+								/>
+							</>
 						) : (
 							<Input
 								autoFocus
@@ -213,5 +247,63 @@ export function ConversationActions({
 				</DialogContent>
 			</Dialog>
 		</>
+	);
+}
+
+function LeftBehind({
+	memories,
+	toTrash,
+	disabled,
+	onChoose,
+}: {
+	memories: MemoryRecord[] | "loading" | "failed";
+	toTrash: Set<string>;
+	disabled: boolean;
+	onChoose: (id: string, trash: boolean) => void;
+}) {
+	const t = useTranslations("conversationTitle");
+	if (memories === "loading" || memories === "failed" || !memories.length)
+		return (
+			<p className="text-[13px] text-muted-foreground">
+				{t(
+					memories === "loading"
+						? "memoriesLoading"
+						: memories === "failed"
+							? "memoriesFailed"
+							: "memoriesNone",
+				)}
+			</p>
+		);
+	return (
+		<div className="grid gap-2">
+			<p className="text-[13px] text-muted-foreground">
+				{t("memoriesKept", { count: memories.length })}
+			</p>
+			<ul className="grid max-h-64 gap-0.5 overflow-y-auto rounded-[14px] bg-panel p-1.5">
+				{memories.map((m) => (
+					<li key={m.id}>
+						{/* biome-ignore lint/a11y/noLabelWithoutControl: the checkbox inside is the control */}
+						<label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-muted">
+							<Checkbox
+								className="mt-0.5"
+								checked={toTrash.has(m.id)}
+								disabled={disabled}
+								onCheckedChange={(checked) => onChoose(m.id, checked)}
+							/>
+							<span className="grid min-w-0 gap-0.5">
+								<span className="truncate text-[13px] font-medium">
+									{m.title}
+								</span>
+								{m.content !== m.title && (
+									<span className="line-clamp-2 text-[12.5px] text-muted-foreground">
+										{m.content}
+									</span>
+								)}
+							</span>
+						</label>
+					</li>
+				))}
+			</ul>
+		</div>
 	);
 }

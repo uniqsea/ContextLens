@@ -21,14 +21,14 @@ export function NewChat({
 		setBusy(true);
 		setFailed(false);
 		try {
-			const res = await fetch("/api/threads", {
+			const res = await fetch("/api/lens/conversations", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ metadata: { project_scope: scope } }),
+				body: JSON.stringify({ scope }),
 			});
 			if (!res.ok) throw new Error();
-			const thread = await res.json();
-			router.push(`${projectPath(scope)}/chat/${thread.thread_id}`);
+			const conversation = await res.json();
+			router.push(`${projectPath(scope)}/chat/${conversation.id}`);
 		} catch {
 			setFailed(true);
 			setBusy(false);

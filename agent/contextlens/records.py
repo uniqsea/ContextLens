@@ -95,6 +95,14 @@ def events(memory_id: str | None = None, thread_id: str | None = None, limit: in
     return [_event(e) for e in raw]
 
 
+def from_conversation(thread_id: str) -> list[dict]:
+    """Memories the conversation brought in that are still kept, newest first: what deleting it
+    would leave behind."""
+    created = {e["entity_id"] for e in memory.list_events(10_000, None, None, thread_id, entity="memories")
+               if e["before"] is None}
+    return [r for r in library_records(None, False) if r["id"] in created]
+
+
 def changes(raw: list[dict]) -> list[dict]:
     """The memory changes among a batch of events, in the UI's shape."""
     return [_event(e) for e in raw if e["entity"] == "memories"]

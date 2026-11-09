@@ -15,6 +15,17 @@ class RecordsTests(StoreTestCase):
         self.assertEqual([c["name"] for c in record["concepts"]], ["我"])
         self.assertEqual((record["revision"], record["confidence"], record["lifecycle_state"]), (1, "low", "active"))
 
+    def test_a_conversation_lists_the_memories_it_brought_in_that_are_still_kept(self):
+        here, elsewhere = memory.Source("after_turn", thread_id="t1"), memory.Source("agent", thread_id="t2")
+        kept = ops.add_memory("FICTIONAL_KEPT fact", here)[-1]["entity_id"]
+        gone = ops.add_memory("FICTIONAL_GONE fact", here)[-1]["entity_id"]
+        ops.forget(gone, USER)
+        ops.add_memory("FICTIONAL_OTHER fact", elsewhere)
+        before = self.add("FICTIONAL_OLDER fact")
+        ops.revise(before, {"learned": "FICTIONAL_OLDER fact, revised"}, here)
+        found = TestClient(app).get("/lens/conversations/t1/memories").json()["memories"]
+        self.assertEqual([m["id"] for m in found], [kept])
+
     def test_kinds_are_read_off_each_change(self):
         mid = self.add("a")
         ops.revise(mid, {"learned": "b"}, USER)

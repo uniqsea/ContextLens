@@ -30,7 +30,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from contextlens import memory, models, project_files, projects, records
+from contextlens import conversations, memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
 from contextlens.memory import search
 from contextlens.models import local_embedding
@@ -344,6 +344,74 @@ async def memory_events(request: Request) -> JSONResponse:
     return JSONResponse({"events": events})
 
 
+def _threads():
+    """The LangGraph server this app is mounted in, reached in-process."""
+    from langgraph_sdk import get_client
+    return get_client().threads
+
+
+_IMPORT_KEY = "langgraph-threads"
+
+
+async def _import_threads() -> None:
+    """Once: file the conversations the server listed before this table existed."""
+    if await asyncio.to_thread(conversations.imported, _IMPORT_KEY):
+        return
+    rows, limit = [], 100
+    for offset in range(0, 1_000_000, limit):
+        page = await _threads().search(limit=limit, offset=offset, select=["thread_id", "created_at", "updated_at"],
+                                       extract={"archived": "metadata.archived", "scope": "metadata.project_scope",
+                                                "project": "values.project_id", "title": "metadata.title",
+                                                "first": "values.messages[0].content",
+                                                "last": "values.messages[-1].content"})
+        for t in page:
+            x = t.get("extracted") or {}
+            title = x.get("title") if isinstance(x.get("title"), str) and x["title"].strip() else None
+            rows.append({"id": t["thread_id"], "scope": x.get("scope") or x.get("project"),
+                         "title": title or (x["first"] if isinstance(x.get("first"), str) else ""),
+                         "titled": int(title is not None),
+                         "preview": x["last"] if isinstance(x.get("last"), str) and x.get("first") != x.get("last") else "",
+                         "archived": int(x.get("archived") is True),
+                         "created_at": str(t.get("created_at") or t["updated_at"]), "updated_at": str(t["updated_at"])})
+        if len(page) < limit:
+            break
+    await asyncio.to_thread(conversations.import_rows, rows, _IMPORT_KEY)
+
+
+async def conversations_index(request: Request) -> JSONResponse:
+    if request.method == "POST":
+        scope = (await request.json()).get("scope") or memory.ORDINARY
+        thread = await _threads().create(metadata={"project_scope": scope})
+        return await _read(conversations.create, thread["thread_id"], scope)
+    await _import_threads()
+    return await _read(conversations.listing, request.query_params.get("scope"))
+
+
+async def conversation_item(request: Request) -> JSONResponse:
+    cid = request.path_params["thread_id"]
+    if request.method == "DELETE":
+        try:
+            await _threads().delete(cid)
+        except Exception as e:  # already gone from the server: still take it off the list
+            if getattr(getattr(e, "response", None), "status_code", None) != 404:
+                raise
+        await asyncio.to_thread(conversations.delete, cid)
+        return Response(status_code=204)
+    if request.method == "PATCH":
+        body = await request.json()
+        if "title" in body:
+            await asyncio.to_thread(conversations.rename, cid, str(body["title"]))
+        if "archived" in body:
+            await asyncio.to_thread(conversations.set_archived, cid, bool(body["archived"]))
+    found = await asyncio.to_thread(conversations.get, cid)
+    return JSONResponse(found) if found else JSONResponse({"error": "not found"}, status_code=404)
+
+
+async def conversation_memories(request: Request) -> JSONResponse:
+    found = await asyncio.to_thread(records.from_conversation, request.path_params["thread_id"])
+    return JSONResponse({"memories": found})
+
+
 async def revert_event(request: Request) -> JSONResponse:
     event_id = int(request.path_params["event_id"])
     return await _change(lambda body: memory.revert(event_id, _USER), request)
@@ -397,6 +465,9 @@ app = Starlette(
         Route("/lens/memories/{memory_id}/timeline", memory_timeline, methods=["GET"]),
         Route("/lens/memories/{memory_id}/{action}", memory_action, methods=["POST"]),
         Route("/lens/memory-events", memory_events, methods=["GET"]),
+        Route("/lens/conversations", conversations_index, methods=["GET", "POST"]),
+        Route("/lens/conversations/{thread_id}", conversation_item, methods=["GET", "PATCH", "DELETE"]),
+        Route("/lens/conversations/{thread_id}/memories", conversation_memories, methods=["GET"]),
         Route("/lens/import/preview", import_preview, methods=["POST"]),
         Route("/lens/import", import_commit, methods=["POST"]),
         Route("/lens/memory-events/{event_id:int}/revert", revert_event, methods=["POST"]),
