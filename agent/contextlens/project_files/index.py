@@ -1,28 +1,41 @@
-"""Incrementally index selected folders and retrieve attributable passages for a project turn.
+"""Keep the index of linked folders current, and find a project's files in it.
 
-Only PDF and Word files are split into passages, by LlamaIndex's sentence splitter (Chinese and English
-sentence ends both count), page by page for a PDF so each passage knows its page. Their passages are
-found by words (SQLite FTS5 over jieba segments) and by meaning (vectors from the local embedding
-model), fused by rank (retrieval.py). Any other file is found by its name and keeps only its beginning
-to show; the agent reads the rest with its file tools. An image keeps its one-line description.
+Every file is only registered: its path and fingerprint (`file_stamp`), nothing read, so it can be listed
+and found by its name. PDF and Word files are also split into passages, by LlamaIndex's sentence
+splitter, page by page for a PDF so each passage knows its page, and then get vectors from the local
+embedding model (retrieval.py). Their passages are found by words and by meaning.
+
+That work happens in the background, at three moments: when a folder is linked (folders.py), when
+something in a linked folder changes (watch.py), and when the backend starts, to catch up with what
+changed while it was off. Searching only reads what is there. Small files go first, so most are
+searchable soon after a folder is linked.
+
+A file chosen for a turn goes into the request whole, read when the request is built (`content`); one
+too large for that is left to the agent's file tools.
 """
-import hashlib
-import os
-from pathlib import Path
-from threading import Lock
+from __future__ import annotations
 
-from contextlens.passages import split, terms
+import hashlib
+import logging
+import os
+import stat
+from collections import OrderedDict
+from contextlib import ExitStack
+from pathlib import Path, PurePosixPath
+from threading import Condition, Lock, Thread
+
 from contextlens.memory.store import session
+from contextlens.passages import split, terms
 
 from . import retrieval
-from .documents import IMAGE_SUFFIXES, extract, files
+from .documents import BINARY_SUFFIXES, DOCUMENT_SUFFIXES, IMAGE_SUFFIXES, SKIP_DIRS, extract, files
 from .folders import file_stamp, open_root
 
-_SYNC = Lock()
-HEAD_CHARS = 1600
-
-
-
+log = logging.getLogger(__name__)
+INJECT_TOKENS = 20_000  # a chosen file larger than this is read by the agent instead
+# Registered (the agent sees them listed) but never offered as context: by their names, nothing to read.
+_UNOFFERED = BINARY_SUFFIXES - IMAGE_SUFFIXES
+_BATCH = 256
 
 
 def passages(name: str, text: str) -> list[tuple[int | None, str]]:
@@ -36,105 +49,288 @@ def passages(name: str, text: str) -> list[tuple[int | None, str]]:
     return out
 
 
-def _contents(path: str, text: str, image: bool) -> list[tuple[int | None, str, str]]:
-    """(page, searchable words, text) for each passage a file is kept as."""
-    if Path(path).suffix.lower() in retrieval.SPLIT_SUFFIXES or image:
-        return [(page, terms(piece), piece) for page, piece in passages(path, text)]
-    head = text[:HEAD_CHARS].strip()
-    return [(None, "", head)] if head else []
+def _id(scope, root_id, path):
+    return "doc-" + hashlib.sha256(f"{scope}/{root_id}/{path}".encode()).hexdigest()[:20]
 
 
-def _refresh(folder, root_fd):
-    with session() as conn:
-        known = {r["path"]: (r["stamp"], r["image_indexed"]) for r in conn.execute(
-            "SELECT path, stamp, image_indexed FROM project_documents WHERE folder_id = ?", (folder["id"],))}
-    batch = []
-    batch_size = 0
-    for path, parent_fd, st in files(root_fd):
-        stamp = file_stamp(st)
-        image_indexed = Path(path).suffix.lower() in IMAGE_SUFFIXES
-        if known.pop(path, None) == (stamp, image_indexed):
-            continue
-        text = extract(os.path.basename(path), parent_fd, st.st_size)
-        batch.append((path, stamp, image_indexed, terms(path), _contents(path, text, image_indexed)))
-        batch_size += len(text)
-        if len(batch) >= 64 or batch_size >= 512_000:
-            if not _write_batch(folder, batch):
-                return
-            batch.clear()
-            batch_size = 0
-    if batch:
-        _write_batch(folder, batch)
-    if known:
-        with session() as conn:
-            conn.executemany("DELETE FROM project_documents WHERE folder_id = ? AND path = ?",
-                             ((folder["id"], path) for path in known))
+def _split_by_content(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() in DOCUMENT_SUFFIXES
 
 
-def _write_batch(folder, batch):
-    folder_id = folder["id"]
-    # Extraction happens before this short write transaction, so other chats can use the store.
+def _visible(rel: str) -> bool:
+    """Whether a path inside a folder is one `files` would list (no hidden parts, no skipped folders)."""
+    parts = PurePosixPath(rel).parts
+    return bool(parts) and ".." not in parts and not any(p.startswith(".") for p in parts) \
+        and not any(p in SKIP_DIRS for p in parts[:-1])
+
+
+# ---------- registering ----------
+
+def _register(conn, folder, changed) -> None:
+    """New or changed files, as (path, stamp): registered under their name, any old passages gone."""
+    for path, stamp in changed:
+        doc = conn.execute("""INSERT INTO project_documents(folder_id, path, stamp, source_id) VALUES (?, ?, ?, ?)
+            ON CONFLICT(folder_id, path) DO UPDATE SET stamp = excluded.stamp RETURNING id""",
+                           (folder["id"], path, stamp, _id(folder["project_id"], folder["path"], path))).fetchone()[0]
+        conn.execute("DELETE FROM project_passage_vectors WHERE passage_id IN "
+                     "(SELECT rowid FROM project_passages WHERE document_id = ?)", (doc,))
+        conn.execute("DELETE FROM project_passages WHERE document_id = ?", (doc,))
+        # Found by name until (and, for any other file, instead of) its content is indexed.
+        conn.execute("INSERT INTO project_passages(document_id, page, name, terms, excerpt) VALUES (?, NULL, ?, '', '')",
+                     (doc, terms(path)))
+
+
+def _write(folder, changed, gone) -> bool:
     with session() as conn:
         conn.execute("BEGIN IMMEDIATE")
-        if not conn.execute("SELECT 1 FROM project_folders WHERE id = ?", (folder_id,)).fetchone():
-            return False
-        for path, stamp, image_indexed, name, chunks in batch:
-            source_id = _id(folder["project_id"], folder["path"], path)
-            doc = conn.execute("""INSERT INTO project_documents(folder_id, path, stamp, image_indexed, source_id)
-                VALUES (?, ?, ?, ?, ?) ON CONFLICT(folder_id, path) DO UPDATE SET
-                stamp = excluded.stamp, image_indexed = excluded.image_indexed RETURNING id""",
-                (folder_id, path, stamp, image_indexed, source_id)).fetchone()[0]
-            conn.execute("DELETE FROM project_passage_vectors WHERE passage_id IN "
-                         "(SELECT rowid FROM project_passages WHERE document_id = ?)", (doc,))
-            conn.execute("DELETE FROM project_passages WHERE document_id = ?", (doc,))
-            conn.executemany("INSERT INTO project_passages(document_id, page, name, terms, excerpt) VALUES (?, ?, ?, ?, ?)",
-                             ((doc, page, name, terms, excerpt) for page, terms, excerpt in chunks))
+        if not conn.execute("SELECT 1 FROM project_folders WHERE id = ?", (folder["id"],)).fetchone():
+            return False  # unlinked meanwhile
+        _register(conn, folder, changed)
+        conn.executemany("DELETE FROM project_documents WHERE folder_id = ? AND path = ?",
+                         ((folder["id"], path) for path in gone))
     return True
+
+
+def _known(folder, prefix: str) -> dict[str, str]:
+    with session() as conn:
+        rows = conn.execute("SELECT path, stamp FROM project_documents WHERE folder_id = ?"
+                            + (" AND (path = ? OR path LIKE ? ESCAPE '\\')" if prefix else ""),
+                            (folder["id"], *((prefix, _like(prefix) + "/%") if prefix else ()))).fetchall()
+    return {r["path"]: r["stamp"] for r in rows}
+
+
+def _like(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _open_dir(root_fd: int, parts, stack: ExitStack) -> int:
+    parent = root_fd
+    for part in parts:
+        parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        stack.callback(os.close, parent)
+    return parent
+
+
+def _reconcile(folder, root_fd: int, prefix: str = "") -> bool:
+    """Bring the registered files under `prefix` (the whole folder when empty) in line with the disk,
+    by their fingerprints alone."""
+    known = _known(folder, prefix)
+    changed = []
+    parts = PurePosixPath(prefix).parts if prefix else ()
+    with ExitStack() as stack:
+        try:
+            parent = _open_dir(root_fd, parts[:-1], stack)
+            info = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False) if parts else os.fstat(root_fd)
+        except OSError:
+            info = None  # gone, or no longer reachable without a symlink
+        if info is not None and stat.S_ISREG(info.st_mode):
+            stamp = file_stamp(info)
+            if known.pop(prefix, None) != stamp:
+                changed.append((prefix, stamp))
+        elif info is not None and stat.S_ISDIR(info.st_mode) and not (parts and parts[-1] in SKIP_DIRS):
+            directory = _open_dir(parent, parts[-1:], stack) if parts else root_fd
+            for path, _, entry in files(directory):
+                path = f"{prefix}/{path}" if prefix else path
+                stamp = file_stamp(entry)
+                if known.pop(path, None) != stamp:
+                    changed.append((path, stamp))
+                if len(changed) >= _BATCH:
+                    if not _write(folder, changed, ()):
+                        return False
+                    changed = []
+    return _write(folder, changed, known)
+
+
+# ---------- splitting PDF and Word files ----------
+
+def _size(stamp: str) -> int:
+    try:
+        return int(stamp.split(":")[2])
+    except (IndexError, ValueError):
+        return 0
+
+
+def _split_pending(folder, root_fd: int) -> None:
+    """Split the folder's PDF and Word files whose passages are not of their current version, smallest first."""
+    with session() as conn:
+        rows = conn.execute("""SELECT id, path, stamp FROM project_documents
+            WHERE folder_id = ? AND passages_stamp IS NOT stamp""", (folder["id"],)).fetchall()
+    for row in sorted((r for r in rows if _split_by_content(r["path"])), key=lambda r: _size(r["stamp"])):
+        parts = PurePosixPath(row["path"]).parts
+        try:
+            with ExitStack() as stack:
+                parent = _open_dir(root_fd, parts[:-1], stack)
+                if file_stamp(os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)) != row["stamp"]:
+                    continue  # changed since it was registered: the change is on its way
+                text = extract(parts[-1], parent, _size(row["stamp"]))
+                if file_stamp(os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)) != row["stamp"]:
+                    continue
+        except OSError:
+            continue
+        pieces = passages(row["path"], text)
+        name = terms(row["path"])
+        with session() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if not conn.execute("SELECT 1 FROM project_documents WHERE id = ? AND stamp = ?",
+                                (row["id"], row["stamp"])).fetchone():
+                continue
+            if pieces:
+                conn.execute("DELETE FROM project_passages WHERE document_id = ?", (row["id"],))
+                conn.executemany("INSERT INTO project_passages(document_id, page, name, terms, excerpt) VALUES (?, ?, ?, ?, ?)",
+                                 ((row["id"], page, name, terms(piece), piece) for page, piece in pieces))
+            conn.execute("UPDATE project_documents SET passages_stamp = stamp WHERE id = ?", (row["id"],))
+
+
+# ---------- the background queue ----------
+
+class Queue:
+    """Folders (or paths in them) waiting to be brought up to date, worked through by one thread.
+
+    With `background` off (tests), each request is carried out before `add` returns.
+    """
+
+    def __init__(self):
+        self.background = True
+        self._waiting: dict[str, set[str] | None] = {}  # folder id -> paths, None for the whole folder
+        self._ready = Condition()
+        self._work = Lock()
+        self._thread: Thread | None = None
+
+    def add(self, folder_id: str, paths=None) -> None:
+        with self._ready:
+            if paths is None or self._waiting.get(folder_id, ()) is None:
+                self._waiting[folder_id] = None
+            else:
+                self._waiting.setdefault(folder_id, set()).update(paths)
+            if self.background and (self._thread is None or not self._thread.is_alive()):
+                self._thread = Thread(target=self._run, daemon=True, name="contextlens-index")
+                self._thread.start()
+            self._ready.notify()
+        if not self.background:
+            self.drain()
+
+    def _run(self) -> None:
+        while True:
+            with self._ready:
+                while not self._waiting:
+                    self._ready.wait()
+            self.drain()
+
+    def drain(self) -> None:
+        """Carry out every waiting request."""
+        while True:
+            with self._ready:
+                if not self._waiting:
+                    return
+                folder_id, paths = self._waiting.popitem()
+            with self._work:
+                try:
+                    _update(folder_id, paths)
+                except Exception:  # one bad folder must not stop the queue
+                    log.exception("folder %s not indexed", folder_id)
+
+
+queue = Queue()
+
+
+def _update(folder_id: str, paths) -> None:
+    with session() as conn:
+        folder = conn.execute("SELECT * FROM project_folders WHERE id = ?", (folder_id,)).fetchone()
+    if folder is None:
+        return
+    try:
+        with open_root(folder) as fd:
+            for prefix in sorted(paths) if paths is not None else [""]:
+                if not _reconcile(folder, fd, prefix):
+                    return
+            _split_pending(folder, fd)
+    except OSError:
+        return  # unreachable or replaced: searched as absent until it is back
+    retrieval.vectors.soon()
+
+
+def index_folders(folder_ids) -> None:
+    for folder_id in folder_ids:
+        queue.add(folder_id)
+
+
+def catch_up() -> None:
+    """At startup: every linked folder, for what changed while the backend was off."""
+    with session() as conn:
+        index_folders([r["id"] for r in conn.execute("SELECT id FROM project_folders ORDER BY path")])
+
+
+def on_change(paths) -> None:
+    """Absolute paths reported changed (created, modified or deleted): queue them for the folders they are in."""
+    with session() as conn:
+        folders = conn.execute("SELECT id, path FROM project_folders").fetchall()
+    for folder in folders:
+        if folder["path"] in paths:
+            queue.add(folder["id"])  # the folder itself: look through all of it
+            continue
+        root = folder["path"].rstrip("/") + "/"
+        inside = {os.path.relpath(p, folder["path"]) for p in paths if p.startswith(root)}
+        inside = {p for p in inside if _visible(p)}
+        if inside:
+            queue.add(folder["id"], inside)
+
+
+# ---------- reading the index ----------
+
+def readable_folders(scope: str) -> list:
+    """The project's linked folders that are still there, never one replaced after it was linked."""
+    with session() as conn:
+        roots = list(conn.execute("SELECT * FROM project_folders WHERE project_id = ? ORDER BY path", (scope,)))
+    readable = []
+    for root in roots:
+        try:
+            with open_root(root):
+                readable.append(root)
+        except OSError:
+            continue
+    return readable
+
+
+def mount_names(folders) -> dict[str, str]:
+    """Each folder's name under /projects/, made unique when two share one."""
+    names: dict[str, str] = {}
+    for row in folders:
+        base = Path(row["path"]).name or "folder"
+        name, n = base, 1
+        while name in names.values():
+            n += 1
+            name = f"{base}-{n}"
+        names[row["id"]] = name
+    return names
+
+
+def _offered(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() not in _UNOFFERED
 
 
 def _dependency(row):
     return {key: row[key] for key in ("folder", "path", "stamp")}
 
 
-def _id(scope, root_id, path):
-    return "doc-" + hashlib.sha256(f"{scope}/{root_id}/{path}".encode()).hexdigest()[:20]
-
-
-def _active_folders(scope: str) -> list[str]:
-    with session() as conn:
-        roots = list(conn.execute("SELECT * FROM project_folders WHERE project_id = ? ORDER BY path", (scope,)))
-    if not roots:
-        return []
-    active = []
-    with _SYNC:
-        for root in roots:
-            try:
-                with open_root(root) as fd:
-                    _refresh(root, fd)
-                active.append(root["id"])
-            except OSError:
-                continue
-    retrieval.embed_soon()
-    return active
-
-
-def search(scope: str, question: str, *, inventory: bool = False, selected=()) -> list[dict]:
+def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
     """The best passage of each file that matches the question, best file first; in field mode every
-    readable file too, unranked ones after."""
-    active = _active_folders(scope) if question.strip() or inventory else []
+    registered file too, unranked ones after. Cards carry no content: `content` reads it when chosen."""
+    if not (question.strip() or inventory):
+        return []
+    active = [r["id"] for r in readable_folders(scope)]
     if not active:
         return []
     within = retrieval.Within(scope, tuple(active))
-    with session() as conn:
-        # A nested folder may also be linked on its own. Keep the same source id when a query
-        # matches the two bindings differently, so a chosen file keeps its place in the input.
-        catalog = {}
-        if inventory:
-            rows = conn.execute(f"""SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.page, p.excerpt,
-                MIN(p.rowid) AS first_page {within.source}
-                WHERE {within.where} GROUP BY d.id ORDER BY f.path, d.path""", within.params)
+    # A nested folder may also be linked on its own. Keep the same source id when a query matches
+    # the two bindings differently, so a chosen file keeps its place in the input.
+    catalog = {}
+    if inventory:
+        with session() as conn:
+            rows = conn.execute(f"""SELECT f.id AS folder, f.path AS root, d.path, d.stamp
+                FROM project_documents d JOIN project_folders f ON d.folder_id = f.id
+                WHERE {within.where} ORDER BY f.path, d.path""", within.params)
             for row in rows:
-                if row["excerpt"]:
+                if _offered(row["path"]):
                     catalog.setdefault(os.path.join(row["root"], row["path"]), dict(row))
     matches = retrieval.find(within, question, limit=None if inventory else 24)
     hits = []
@@ -142,21 +338,66 @@ def search(scope: str, question: str, *, inventory: bool = False, selected=()) -
 
     def card(row, passage, rank=None):
         label = f'{Path(row["root"]).name}/{row["path"]}'
-        source_id = _id(scope, row["root"], row["path"])
         page = passage.get("page")
-        excerpt = passage["excerpt"]
-        return {"id": source_id, "title": label, "source_label": f"{label} · p. {page}" if page else label,
-                "rank": rank, "page": page,
-                "content": excerpt if not inventory or source_id in (selected or ()) or (selected is None and rank is not None and rank <= 4) else excerpt[:200],
-                "files": [_dependency(row)]}
+        return {"id": _id(scope, row["root"], row["path"]), "title": label, "content": "",
+                "source_label": f"{label} · p. {page}" if page else label, "rank": rank, "page": page,
+                "excerpt": passage.get("excerpt") or "", "files": [_dependency(row)]}
 
     for passage in matches:
         absolute = os.path.join(passage["root"], passage["path"])
-        if absolute in seen:
+        if absolute in seen or not _offered(passage["path"]):
             continue
         seen.add(absolute)
         hits.append(card(catalog.get(absolute, passage), passage, len(hits) + 1))
         if not inventory and len(hits) == 4:
             break
-    hits.extend(card(row, row) for path, row in catalog.items() if path not in seen)
+    hits.extend(card(row, {}) for path, row in catalog.items() if path not in seen)
     return hits
+
+
+_TEXTS: OrderedDict[tuple, str | None] = OrderedDict()
+_TEXTS_LOCK = Lock()
+
+
+def read_text(folder, path: str) -> str | None:
+    """A registered file's readable text as it is now (PDF and Word as extracted text), or None for one
+    with none: binary, too large, unreadable, or reached only through a symlink."""
+    parts = PurePosixPath(path).parts
+    if not _visible(path):
+        return None
+    try:
+        with open_root(folder) as root, ExitStack() as stack:
+            parent = _open_dir(root, parts[:-1], stack)
+            info = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode):
+                return None
+            key = (folder["id"], path, file_stamp(info))
+            with _TEXTS_LOCK:
+                if key in _TEXTS:
+                    _TEXTS.move_to_end(key)
+                    return _TEXTS[key]
+            text = extract(parts[-1], parent, info.st_size) or None
+    except OSError:
+        return None
+    with _TEXTS_LOCK:  # the preview asks again on every keystroke; extracting a PDF can take seconds
+        _TEXTS[key] = text
+        while len(_TEXTS) > 16:
+            _TEXTS.popitem(last=False)
+    return text
+
+
+def content(scope: str, card: dict, count_tokens) -> str:
+    """What a chosen file puts in the request: all of it, or, when too large, where the agent can read it."""
+    dep = card["files"][0]
+    folders = readable_folders(scope)
+    folder = next((f for f in folders if f["id"] == dep["folder"]), None)
+    text = read_text(folder, dep["path"]) if folder is not None else None
+    if text is None:
+        return "(No readable text.)"
+    tokens = count_tokens(text)
+    if tokens <= INJECT_TOKENS:
+        return text
+    where = f"/projects/{mount_names(folders)[folder['id']]}/{dep['path']}"
+    note = (f"Too large to include in full (about {tokens} tokens). Read the parts you need with grep and "
+            f"read_file at {where}.")
+    return f"{note}\n\nThe passage that matched:\n{card['excerpt']}" if card.get("excerpt") else note

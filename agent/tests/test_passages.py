@@ -7,7 +7,7 @@ from langchain_core.embeddings import Embeddings
 
 from contextlens import config, memory, models, project_files
 from contextlens.memory.store import session
-from contextlens.project_files import retrieval
+from contextlens.project_files import index, retrieval
 from contextlens.project_files.index import passages
 from tests.support import StoreTestCase, USER, _no_model
 
@@ -55,6 +55,9 @@ class PassageTests(StoreTestCase):
         self.texts[name] = text
         (self.folder / name).write_bytes(b"%PDF fictional " + str(len(self.texts) + len(text)).encode())
 
+    def changed(self, name):
+        index.on_change([str(self.folder.resolve() / name)])  # as the folder watcher reports it
+
     def titles(self, question):
         return [d["title"] for d in project_files.search(self.project, question)]
 
@@ -75,48 +78,73 @@ class PassageTests(StoreTestCase):
     def test_a_question_in_other_words_or_another_language_finds_the_file_once_it_has_vectors(self):
         self.assertEqual(self.titles("船票多少钱"), [])  # no shared words
         self.assertEqual(self.titles("crossing"), ["harbour/ferry.pdf"])
-        self.assertEqual(retrieval.embed_pending(), 2)
+        self.assertEqual(retrieval.vectors.pending(), 2)
         self.assertEqual(self.titles("船票多少钱"), ["harbour/ferry.pdf"])
         self.assertEqual(self.titles("when is the greenhouse watered"), ["harbour/garden.pdf"])
-        self.assertEqual(retrieval.embed_pending(), 0)  # nothing left to make
+        self.assertEqual(retrieval.vectors.pending(), 0)  # nothing left to make
 
     def test_a_changed_file_loses_its_old_vectors_and_gets_new_ones(self):
-        self.titles("ferry")  # files are indexed when first searched
-        retrieval.embed_pending()
+        retrieval.vectors.pending()  # split when the folder was linked
         self.assertEqual(self.counts(), (2, 2))
         self.pdf("ferry.pdf", "The ferry is suspended in storms. A crossing costs 7 credits.\f")
-        self.titles("ferry")  # the index catches up with the folder
+        self.assertEqual(self.counts(), (2, 2))  # searching reads no folder
+        self.changed("ferry.pdf")
         self.assertEqual(self.counts(), (1, 2))
-        retrieval.embed_pending()
+        retrieval.vectors.pending()
         self.assertEqual(self.counts(), (2, 2))
         (self.folder / "ferry.pdf").unlink()
-        self.titles("ferry")
+        self.changed("ferry.pdf")
         self.assertEqual(self.counts(), (1, 1))
 
+    def test_what_changed_while_the_backend_was_off_is_caught_up_at_startup(self):
+        self.pdf("tides.pdf", "High water at the harbour mouth is at noon.\f")
+        self.assertEqual(self.titles("harbour mouth"), [])
+        index.catch_up()
+        self.assertEqual(self.titles("harbour mouth"), ["harbour/tides.pdf"])
+
+    def test_searching_reads_no_file(self):
+        with patch("contextlens.project_files.index.files", side_effect=AssertionError("scanned")), \
+                patch("contextlens.project_files.index.extract", side_effect=AssertionError("read")):
+            self.assertEqual(self.titles("crossing"), ["harbour/ferry.pdf"])
+
     def test_the_model_is_not_loaded_while_no_passage_has_a_vector(self):
-        with patch("contextlens.project_files.retrieval.embedder") as load:
+        with patch("contextlens.hybrid.embedder") as load:
             self.assertEqual(self.titles("crossing"), ["harbour/ferry.pdf"])
         load.assert_not_called()
 
     def test_without_a_local_model_words_still_work(self):
         models.use(_no_model)
-        self.assertEqual(retrieval.embed_pending(), 0)
+        self.assertEqual(retrieval.vectors.pending(), 0)
         self.assertEqual(self.titles("crossing"), ["harbour/ferry.pdf"])
         self.assertEqual(self.titles("船票多少钱"), [])
 
     def test_a_pdf_passage_says_its_page(self):
         self.pdf("guide.pdf", "Lanterns stand on the pier.\fThe lantern switch is violet.\f")
+        self.changed("guide.pdf")
         [hit] = project_files.search(self.project, "switch")
         self.assertEqual((hit["title"], hit["page"], hit["source_label"]), ("harbour/guide.pdf", 2, "harbour/guide.pdf · p. 2"))
 
-    def test_another_file_is_found_by_its_name_and_shows_its_beginning(self):
+    def test_another_file_is_only_registered_and_found_by_its_name(self):
         (self.folder / "timetable.md").write_text("Sailings at noon. " + "Weather notes. " * 200 + "The pier lamp is violet.")
-        self.assertEqual(self.titles("violet lamp"), [])  # its content is not searched
-        retrieval.embed_pending()
+        with patch("contextlens.project_files.index.extract", side_effect=AssertionError("read")):
+            self.changed("timetable.md")  # registered without being read
+        self.assertEqual(self.titles("violet lamp"), [])
+        retrieval.vectors.pending()
+        self.assertEqual(self.counts(), (2, 2))  # no passage of its own, no vector
         [hit] = project_files.search(self.project, "timetable")
-        self.assertTrue(hit["content"].startswith("Sailings at noon."))
-        self.assertNotIn("violet", hit["content"])
-        self.assertEqual(self.counts(), (2, 3))  # its kept beginning gets no vector
+        self.assertEqual(hit["title"], "harbour/timetable.md")
+        # Sent, it goes in whole.
+        self.assertTrue(project_files.content(self.project, hit, len).endswith("The pier lamp is violet."))
+
+    def test_a_chosen_file_too_large_to_send_is_left_to_the_file_tools(self):
+        self.pdf("almanac.pdf", "The ferry almanac lists every crossing. " + "Tide tables follow. " * 4000 + "\f")
+        self.changed("almanac.pdf")
+        hit = next(h for h in project_files.search(self.project, "almanac lists") if h["title"] == "harbour/almanac.pdf")
+        sent = project_files.content(self.project, hit, lambda text: len(text) // 4)
+        self.assertIn("Too large to include in full", sent)
+        self.assertIn("/projects/harbour/almanac.pdf", sent)
+        self.assertIn("The ferry almanac lists every crossing.", sent)  # the passage that matched
+        self.assertLess(len(sent), 4000)
 
 
 class OldIndexTests(StoreTestCase):

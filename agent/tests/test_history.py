@@ -48,7 +48,7 @@ class HistoryTests(StoreTestCase):
         models.use(_no_model, embedding=("local/senses", Senses()))
         self.assertEqual(self.found("船票多少钱"), [])
         history.record("plain-1", 1, "How much is a crossing?", "A single crossing costs 6 credits.")
-        self.assertGreater(history.embed_pending(), 0)
+        self.assertGreater(history.vectors.pending(), 0)
         self.assertEqual(self.found("船票多少钱")[0], "hist-plain-1-1")
 
     def test_conversations_from_before_history_was_kept_are_brought_in_once(self):

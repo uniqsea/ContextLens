@@ -14,32 +14,23 @@ history, under a global id (`hist-<thread>-<turn>`), so a sentence citing it lin
 from __future__ import annotations
 
 import logging
-import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from threading import Lock, Thread
 
 import sqlite_vec
 from langchain.tools import tool
-from llama_index.core.llms import MockLLM
-from llama_index.core.retrievers import BaseRetriever, QueryFusionRetriever
-from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 
-from contextlens import conversations
+from contextlens import conversations, hybrid
 from contextlens.config import conversations_path
-from contextlens.memory.llm import embedder
-from contextlens.memory.search import _COS_FLOOR, _query_vector, tokens
 from contextlens.memory.tools import Runtime
 from contextlens.passages import split, terms
+from contextlens.provenance import strip_markers
 
 log = logging.getLogger(__name__)
 RESULTS = 5
 EXCERPT_CHARS = 1200
-EMBED_BATCH = 16
-background = True  # tests turn it off and embed when they choose
 _BACKFILL = "history-backfill"
-_MARKERS = re.compile(r"\s*\[\[[^\]]*\]\]")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS history_turns (
@@ -76,7 +67,7 @@ def _drop(conn, where: str, params: tuple) -> None:
 
 
 def _write(conn, thread_id: str, turn: int, question: str, answer: str, at: str) -> None:
-    answer = _MARKERS.sub("", answer).strip()
+    answer = strip_markers(answer).strip()
     _drop(conn, "thread_id = ? AND turn = ?", (thread_id, turn))
     conn.execute("INSERT OR REPLACE INTO history_turns VALUES (?, ?, ?, ?, ?)", (thread_id, turn, question, answer, at))
     conn.executemany("INSERT INTO history_passages (thread_id, turn, terms, excerpt) VALUES (?, ?, ?, ?)",
@@ -89,7 +80,7 @@ def record(thread_id: str | None, turn: int, question: str, answer: str) -> None
         return
     with _session() as conn:
         _write(conn, thread_id, turn, question, answer, conversations._now())
-    embed_soon()
+    vectors.soon()
 
 
 def forget(thread_id: str) -> None:
@@ -127,7 +118,7 @@ def backfill() -> int:
                     written += 1
     with _session() as conn:
         conn.execute("INSERT OR IGNORE INTO conversation_marks (key) VALUES (?)", (_BACKFILL,))
-    embed_soon()
+    vectors.soon()
     return written
 
 
@@ -137,51 +128,8 @@ def _visible(scope: str) -> list[str]:
     return sorted(visible_scopes(scope))
 
 
-def _node(row, score: float) -> NodeWithScore:
-    return NodeWithScore(node=TextNode(id_=f"history-{row['passage']}", text=row["excerpt"],
-                                       metadata={"thread_id": row["thread_id"], "turn": row["turn"]}), score=score)
-
-
-class _Filter:
-    def __init__(self, scope: str, exclude: str | None):
-        visible = _visible(scope)
-        self.join = "JOIN conversations c ON c.id = h.thread_id"
-        self.where = (f"COALESCE(c.project_id, '{conversations.ORDINARY}') IN ({','.join('?' for _ in visible)})"
-                      " AND h.thread_id IS NOT ?")
-        self.params = (*visible, exclude)
-
-
-class _Words(BaseRetriever):
-    def __init__(self, where: _Filter):
-        super().__init__()
-        self.f = where
-
-    def _retrieve(self, query: QueryBundle) -> list[NodeWithScore]:
-        words = list(dict.fromkeys(w for t in tokens(query.query_str) for w in re.findall(r"\w+", t)))[:48]
-        if not words:
-            return []
-        with _session() as conn:
-            rows = conn.execute(f"""SELECT h.rowid AS passage, h.thread_id, h.turn, h.excerpt,
-                    bm25(history_passages, 0, 0, 1, 0) AS rank FROM history_passages h {self.f.join}
-                WHERE {self.f.where} AND history_passages MATCH ? ORDER BY rank LIMIT 24""",
-                                (*self.f.params, " OR ".join(f'"{w}"' for w in words))).fetchall()
-        return [_node(r, -r["rank"]) for r in rows]
-
-
-class _Meaning(BaseRetriever):
-    def __init__(self, where: _Filter, found):
-        super().__init__()
-        self.f, self.found = where, found
-
-    def _retrieve(self, query: QueryBundle) -> list[NodeWithScore]:
-        vector = sqlite_vec.serialize_float32(_query_vector(query.query_str.strip(), self.found))
-        with _session() as conn:
-            rows = conn.execute(f"""SELECT h.rowid AS passage, h.thread_id, h.turn, h.excerpt,
-                    vec_distance_cosine(v.vector, ?) AS distance FROM history_passages h
-                JOIN history_vectors v ON v.passage_id = h.rowid {self.f.join}
-                WHERE {self.f.where} AND v.model = ? ORDER BY distance LIMIT 24""",
-                                (vector, *self.f.params, self.found.model)).fetchall()
-        return [_node(r, 1 - r["distance"]) for r in rows if 1 - r["distance"] > _COS_FLOOR]
+def _node(row, score: float):
+    return hybrid.node("history", row, score, {"thread_id": row["thread_id"], "turn": row["turn"]})
 
 
 def search(query: str, scope: str, *, exclude: str | None = None, limit: int = RESULTS) -> list[dict]:
@@ -189,19 +137,35 @@ def search(query: str, scope: str, *, exclude: str | None = None, limit: int = R
     if not query.strip():
         return []
     backfill()
-    where = _Filter(scope, exclude)
-    retrievers: list[BaseRetriever] = [_Words(where)]
+    visible = _visible(scope)
+    # Conversations this scope may see, other than the one being had.
+    where = (f"COALESCE(c.project_id, '{conversations.ORDINARY}') IN ({','.join('?' for _ in visible)})"
+             " AND h.thread_id IS NOT ?")
+    params = (*visible, exclude)
+    source = "FROM history_passages h JOIN conversations c ON c.id = h.thread_id"
+
+    def words(q: str):
+        match = hybrid.match(q)
+        if match is None:
+            return []
+        with _session() as conn:
+            rows = conn.execute(f"""SELECT h.rowid AS passage, h.thread_id, h.turn, h.excerpt,
+                    bm25(history_passages, 0, 0, 1, 0) AS rank {source}
+                WHERE {where} AND history_passages MATCH ? ORDER BY rank LIMIT 24""", (*params, match)).fetchall()
+        return [_node(r, -r["rank"]) for r in rows]
+
+    def meaning(q: str, found):
+        with _session() as conn:
+            rows = conn.execute(f"""SELECT h.rowid AS passage, h.thread_id, h.turn, h.excerpt,
+                    vec_distance_cosine(v.vector, ?) AS distance {source}
+                JOIN history_vectors v ON v.passage_id = h.rowid
+                WHERE {where} AND v.model = ? ORDER BY distance LIMIT ?""",
+                                (hybrid.query_vector(q, found), *params, found.model, hybrid.MEANING_LIMIT)).fetchall()
+        return [_node(r, 1 - r["distance"]) for r in rows if hybrid.close(r["distance"])]
+
     with _session() as conn:
-        any_vectors = conn.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone() is not None
-    found = embedder(local_only=True) if any_vectors else None
-    if found is not None:
-        retrievers.append(_Meaning(where, found))
-    try:
-        nodes = QueryFusionRetriever(retrievers, llm=MockLLM(), mode="reciprocal_rerank", num_queries=1,
-                                     use_async=False, similarity_top_k=48).retrieve(query)
-    except Exception as e:  # a failing model must not take the turn down; words still work
-        log.warning("history search by meaning skipped: %s: %s", type(e).__name__, str(e)[:200])
-        nodes = retrievers[0].retrieve(query)
+        has_vectors = conn.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone() is not None
+    nodes = hybrid.fuse(query, words, meaning, has_vectors, top=48)
     best: dict[tuple[str, int], str] = {}
     for n in nodes:
         key = (n.node.metadata["thread_id"], int(n.node.metadata["turn"]))
@@ -246,41 +210,7 @@ def search_history(query: str, runtime: Runtime) -> tuple[str, dict]:
     return note + "\n\n".join(blocks), {"history": cards}
 
 
-_embedding = Lock()
-
-
-def embed_soon() -> None:
-    """Make missing vectors in the background, unless that is already under way."""
-    if background and not _embedding.locked():
-        Thread(target=embed_pending, kwargs={"wait": False}, daemon=True, name="contextlens-embed-history").start()
-
-
-def embed_pending(*, wait: bool = True) -> int:
-    """Give every history passage a vector from the local model; returns how many were made."""
-    if not _embedding.acquire(blocking=wait):
-        return 0
-    made = 0
-    try:
-        found = embedder(local_only=True)
-        if found is None:
-            return 0
-        while True:
-            with _session() as conn:
-                rows = conn.execute("""SELECT rowid, excerpt FROM history_passages h WHERE NOT EXISTS
-                    (SELECT 1 FROM history_vectors v WHERE v.passage_id = h.rowid AND v.model = ?)
-                    ORDER BY rowid LIMIT ?""", (found.model, EMBED_BATCH)).fetchall()
-            if not rows:
-                return made
-            vectors = found.embeddings.embed_documents([r["excerpt"] for r in rows])
-            with _session() as conn:
-                # A turn answered again meanwhile has new passages, perhaps under the same rowid: skip it.
-                conn.executemany("""INSERT OR REPLACE INTO history_vectors (passage_id, model, vector)
-                    SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM history_passages WHERE rowid = ? AND excerpt = ?)""",
-                                 [(r["rowid"], found.model, sqlite_vec.serialize_float32(v), r["rowid"], r["excerpt"])
-                                  for r, v in zip(rows, vectors)])
-            made += len(rows)
-    except Exception as e:
-        log.warning("history vectors not made: %s: %s", type(e).__name__, str(e)[:200])
-        return made
-    finally:
-        _embedding.release()
+vectors = hybrid.Vectors("history", _session, "history_passages", "history_vectors", """
+    SELECT rowid, excerpt FROM history_passages h WHERE NOT EXISTS
+    (SELECT 1 FROM history_vectors v WHERE v.passage_id = h.rowid AND v.model = ?) ORDER BY rowid LIMIT ?""",
+                         background=True)  # conversations are few and short: a turn's vectors take seconds

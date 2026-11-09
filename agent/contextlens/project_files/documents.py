@@ -18,6 +18,8 @@ BINARY_SUFFIXES = {".zip", ".gz", ".dmg", ".mp3", ".mp4", ".mov", ".wav", ".png"
 IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".gif": "GIF", ".webp": "WEBP",
                  ".bmp": "BMP", ".ico": "ICO", ".tif": "TIFF", ".tiff": "TIFF", ".avif": "AVIF"}
 IMAGE_SUFFIXES = IMAGE_FORMATS.keys() | {".svg"}
+# Read as their extracted text; the only files split into passages and searched by content.
+DOCUMENT_SUFFIXES = frozenset({".pdf", ".docx"})
 
 
 def image_description(name, suffix, stream):
@@ -51,7 +53,7 @@ def files(root_fd):
 
 def extract(name: str, directory_fd: int, size: int) -> str:
     suffix = os.path.splitext(name)[1].lower()
-    limit = DOCUMENT_LIMIT if suffix in IMAGE_SUFFIXES or suffix in {".pdf", ".docx"} else TEXT_LIMIT
+    limit = DOCUMENT_LIMIT if suffix in IMAGE_SUFFIXES | DOCUMENT_SUFFIXES else TEXT_LIMIT
     if size > limit or (suffix in BINARY_SUFFIXES and suffix not in IMAGE_SUFFIXES):
         return ""
     try:
@@ -63,7 +65,7 @@ def extract(name: str, directory_fd: int, size: int) -> str:
                 return image_description(name, suffix, stream)
             beginning = stream.read(4096)
             utf16 = beginning.startswith((b"\xff\xfe", b"\xfe\xff"))
-            if suffix not in {".pdf", ".docx"} and not utf16 and b"\x00" in beginning:
+            if suffix not in DOCUMENT_SUFFIXES and not utf16 and b"\x00" in beginning:
                 return ""
             raw = beginning + stream.read(limit + 1 - len(beginning))
         if len(raw) > limit:

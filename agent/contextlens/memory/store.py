@@ -6,6 +6,7 @@ at the scale of one person's memory, ranking happens in Python over what the sco
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -17,6 +18,8 @@ import sqlite_vec
 from contextlens import config
 
 from .types import Concept, Entity, Memory, Project, Question, Scene
+
+log = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -38,7 +41,7 @@ CREATE TABLE IF NOT EXISTS project_folders (
   inode TEXT NOT NULL, UNIQUE(project_id, path));
 CREATE TABLE IF NOT EXISTS project_documents (
   id INTEGER PRIMARY KEY, folder_id TEXT NOT NULL, path TEXT NOT NULL, stamp TEXT NOT NULL, image_indexed INTEGER NOT NULL DEFAULT 0,
-  UNIQUE(folder_id, path));
+  passages_stamp TEXT, UNIQUE(folder_id, path));
 CREATE VIRTUAL TABLE IF NOT EXISTS project_passages USING fts5(document_id UNINDEXED, page UNINDEXED, name, terms, excerpt UNINDEXED);
 CREATE TABLE IF NOT EXISTS project_passage_vectors (
   passage_id INTEGER NOT NULL, model TEXT NOT NULL, vector BLOB NOT NULL, PRIMARY KEY (passage_id, model));
@@ -96,11 +99,28 @@ def connect() -> sqlite3.Connection:
     if "page" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_passages)")}:
         # Passages made before pages and sentence splitting: the index is derived, so build it again.
         conn.execute("BEGIN IMMEDIATE")
-        if "page" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_passages)")}:
+        dropped = "page" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_passages)")}
+        if dropped:
             conn.execute("DROP TABLE project_passages")
             conn.execute("DELETE FROM project_passage_vectors")
             conn.execute("CREATE VIRTUAL TABLE project_passages USING fts5("
                          "document_id UNINDEXED, page UNINDEXED, name, terms, excerpt UNINDEXED)")
+            conn.execute("UPDATE project_documents SET stamp = ''")
+        conn.commit()
+        if dropped:
+            # A dropped table leaves its pages free inside the file; give them back to the disk, once.
+            try:
+                conn.execute("VACUUM")
+            except sqlite3.OperationalError as e:  # another connection is busy: the space is reused later
+                log.warning("store not compacted: %s", e)
+    if "passages_stamp" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+        # Files used to be read as they were searched, any kind keeping its beginning. Now only PDF and Word
+        # files are split, in the background: register everything again and split those anew.
+        conn.execute("BEGIN IMMEDIATE")
+        if "passages_stamp" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
+            conn.execute("ALTER TABLE project_documents ADD COLUMN passages_stamp TEXT")
+            conn.execute("DELETE FROM project_passage_vectors")
+            conn.execute("DELETE FROM project_passages")
             conn.execute("UPDATE project_documents SET stamp = ''")
         conn.commit()
     if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:

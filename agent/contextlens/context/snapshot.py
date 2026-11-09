@@ -57,7 +57,7 @@ def prepare_snapshot(state: dict) -> dict:
     if scope == memory.ORDINARY:
         documents = search_documents(question) if order is None else []
     else:
-        documents = project_files.search(scope, question, inventory=order is not None or state.get("include_inventory", False), selected=chosen if order is not None else None)
+        documents = project_files.search(scope, question, inventory=order is not None or state.get("include_inventory", False))
     for doc in documents:
         item = _item(doc["id"], "retrieval", doc["title"], doc["content"], doc["source_label"], ignored)
         item["retrieval_rank"] = doc.get("rank")
@@ -73,14 +73,19 @@ def prepare_snapshot(state: dict) -> dict:
     bright, dim = state.get("brighten", []), state.get("dim", [])
     items += _memories(records, question, situation, scope, manual, ignored, bright, dim)
     items, summary_dependencies = _summarize_old_turns(items, ignored)
-    for it in items:
-        it["tokens"] = estimate_tokens(it["title"] + it["content"])
-
     if order is not None:
         for it in items:
             if it["layer"] in {"memory", "retrieval"} and it["status"] not in {"trashed", "temporarily_ignored"}:
                 it["status"] = "active" if it["id"] in chosen else "context_blocked"
                 it["selection_reason"] = reason("manual" if it["id"] in chosen else "not_added")
+    if scope != memory.ORDINARY:
+        # A file that goes into the request goes in whole, read as it is now.
+        cards = {doc["id"]: doc for doc in documents}
+        for it in items:
+            if it["layer"] == "retrieval" and it["status"] == "active" and it["id"] in cards:
+                it["content"] = project_files.content(scope, cards[it["id"]], estimate_tokens)
+    for it in items:
+        it["tokens"] = estimate_tokens(it["title"] + it["content"])
     selected = [it for it in items if it["status"] == "active"]
     if order is not None:
         by_selected = {it["id"]: it for it in selected if it["layer"] in {"memory", "retrieval"}}

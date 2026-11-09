@@ -21,6 +21,11 @@ _MARKER = re.compile(r"\[\s*\[([^\[\]]*)\]\s*\]")
 _SENTENCE = re.compile(r"(?<=[。！？!?；;\n])|(?<=\.\s)")
 
 
+def strip_markers(text: str) -> str:
+    """The text without its source markers, for showing or searching it elsewhere."""
+    return _MARKERS.sub("", text)
+
+
 _PREFIX = {"memory": "m", "retrieval": "f", "short_term": "t"}
 
 

@@ -2,7 +2,7 @@
 
 Deep Agents' own file tools (ls, glob, grep, read_file) work on what this backend shows; it is mounted
 at /projects/ (engine.py), each linked folder as /projects/<folder name>/. What a turn may see is
-decided here: files indexed for the turn's project only, never one excluded from the turn, never through
+decided here: files registered for the turn's project only, never one excluded from the turn, never through
 a symlink or a folder replaced after it was linked. PDF and Word files read as their extracted text.
 Searching text files is FilesystemBackend's own grep (ripgrep when installed), filtered to what is
 visible; extracted documents are searched here.
@@ -13,9 +13,7 @@ cite it, and hands the files on as documents for the turn record.
 from __future__ import annotations
 
 import fnmatch
-import os
-import stat
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path, PurePosixPath
 
@@ -29,40 +27,29 @@ from langgraph.runtime import get_runtime
 
 from contextlens.memory.store import session
 
-from .documents import BINARY_SUFFIXES, IMAGE_SUFFIXES, extract
-from .folders import open_root
-from .index import _active_folders, _id
+from .documents import BINARY_SUFFIXES, DOCUMENT_SUFFIXES, IMAGE_SUFFIXES
+from .index import _id, mount_names, read_text, readable_folders
 
 MOUNT = "/projects/"
 READ_ONLY = "Project files are read only."
 # Read as extracted text, and searched here: ripgrep sees only their raw bytes.
-_EXTRACTED = {".pdf", ".docx"} | IMAGE_SUFFIXES
+_EXTRACTED = DOCUMENT_SUFFIXES | IMAGE_SUFFIXES
 
 _reads: ContextVar[list | None] = ContextVar("contextlens_file_reads", default=None)
 
 
 class View:
-    """What one turn may see of its project's folders. Built once per turn: building it brings the
-    index up to date, which walks every linked folder."""
+    """What one turn may see of its project's folders: the files registered for them (index.py), kept
+    up to date in the background, so building it reads no folder."""
 
     def __init__(self, scope: str, excluded=()):
-        active = set(_active_folders(scope))
+        folders = readable_folders(scope)
         with session() as conn:
-            folders = [r for r in conn.execute("SELECT * FROM project_folders WHERE project_id = ? ORDER BY path", (scope,))
-                       if r["id"] in active]
             docs = conn.execute(f"""SELECT folder_id, path, stamp FROM project_documents
                 WHERE folder_id IN ({",".join("?" for _ in folders)}) ORDER BY path""",
                                 [r["id"] for r in folders]).fetchall() if folders else []
-        self.mounts: dict[str, dict] = {}
-        named = {}
-        for row in folders:
-            base = Path(row["path"]).name or "folder"
-            name, n = base, 1
-            while name in self.mounts:
-                n += 1
-                name = f"{base}-{n}"
-            self.mounts[name] = row
-            named[row["id"]] = name
+        named = mount_names(folders)
+        self.mounts: dict[str, dict] = {named[row["id"]]: row for row in folders}
         self.files: dict[str, dict] = {}
         for doc in docs:
             row = self.mounts[named[doc["folder_id"]]]
@@ -77,26 +64,9 @@ class View:
     def text(self, key: str) -> str | None:
         """The file's readable text, or None for one with none (binary, too large, unreadable)."""
         if key not in self._texts:
-            self._texts[key] = self._extract(self.files[key])
+            file = self.files[key]
+            self._texts[key] = read_text(file["folder"], file["path"])
         return self._texts[key]
-
-    @staticmethod
-    def _extract(file: dict) -> str | None:
-        parts = PurePosixPath(file["path"]).parts
-        if Path(parts[-1]).suffix.lower() in BINARY_SUFFIXES - IMAGE_SUFFIXES:
-            return None
-        try:
-            with open_root(file["folder"]) as root, ExitStack() as stack:
-                parent = root
-                for part in parts[:-1]:
-                    parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-                    stack.callback(os.close, parent)
-                info = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)
-                if not stat.S_ISREG(info.st_mode):
-                    return None
-                return extract(parts[-1], parent, info.st_size) or None
-        except OSError:
-            return None
 
 
 def view() -> View:

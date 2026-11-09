@@ -17,6 +17,7 @@ dependencies = [
     "sqlite-vec==0.1.9",
     "stop-words==2025.11.4",
     "tiktoken>=0.14,<1",
+    "watchfiles>=1.3,<2",
 ]
 
 [tool.uv]

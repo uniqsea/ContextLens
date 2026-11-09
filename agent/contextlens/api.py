@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 
 from setproctitle import setproctitle
@@ -432,7 +433,17 @@ async def _change(apply, request: Request) -> JSONResponse:
     return JSONResponse({"event": event, "memory": current})
 
 
+@asynccontextmanager
+async def lifespan(app):
+    """Linked folders: catch up with what changed while the backend was off, then watch them."""
+    project_files.watcher.start()
+    project_files.catch_up()
+    yield
+    project_files.watcher.stop()
+
+
 app = Starlette(
+    lifespan=lifespan,
     routes=[
         Route("/lens/preview", preview, methods=["POST"]),
         Route("/lens/settings", settings_overview, methods=["GET"]),

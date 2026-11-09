@@ -45,6 +45,20 @@ def _validated_roots(paths: list[str]) -> list[tuple]:
     return roots
 
 
+def _linked(project_id, roots) -> None:
+    """Folders just linked (or linked again) are indexed in the background and watched from now on."""
+    from .index import index_folders
+    from .watch import watcher
+
+    if roots:
+        with session() as conn:
+            ids = [r["id"] for r in conn.execute(
+                f"SELECT id FROM project_folders WHERE project_id = ? AND path IN ({','.join('?' for _ in roots)})",
+                (project_id, *(root[0] for root in roots)))]
+        index_folders(ids)
+    watcher.restart()
+
+
 def _bind(conn, project_id, roots):
     conn.executemany("INSERT INTO project_folders(id, project_id, path, device, inode) VALUES (?, ?, ?, ?, ?) "
                      "ON CONFLICT(project_id, path) DO UPDATE SET device=excluded.device, inode=excluded.inode",
@@ -63,6 +77,7 @@ def create_with_folders(name, source, paths, *, instructions="", isolated=True):
             conn.execute("INSERT INTO project_settings(project_id, instructions) VALUES (?, ?)",
                          (project.id, instructions))
         _bind(conn, project.id, roots)
+    _linked(project.id, roots)
     return project
 
 
@@ -99,6 +114,7 @@ def edit_project(project_id, source, body):
                          f"ON CONFLICT(project_id) DO UPDATE SET {field}=excluded.{field}, updated_at=excluded.updated_at",
                          (project_id, body[field], datetime.now(timezone.utc).isoformat()))
         commit(source, "revised", replace(project, name=name.strip(), isolated=body.get("isolated", project.isolated)), conn=conn)
+    _linked(project_id, roots)
     return {}
 
 
@@ -107,12 +123,14 @@ def attach(project_id: str, paths: list[str]) -> list[dict]:
     with session() as conn:
         _require_project(conn, project_id)
         _bind(conn, project_id, roots)
+    _linked(project_id, roots)
     return folders(project_id)
 
 
 def detach(project_id: str, folder_id: str) -> list[dict]:
     with session() as conn:
         conn.execute("DELETE FROM project_folders WHERE project_id = ? AND id = ?", (project_id, folder_id))
+    _linked(project_id, [])
     return folders(project_id)
 
 

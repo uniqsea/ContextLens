@@ -7,6 +7,7 @@ from starlette.testclient import TestClient
 
 from contextlens import memory, project_files
 from contextlens.api import app
+from contextlens.project_files import index
 from contextlens.context import prepare_snapshot
 from tests.support import StoreTestCase, USER
 
@@ -25,6 +26,10 @@ class ProjectFilesTests(StoreTestCase):
         self.plan.write_text("Fictional lanterns use indigo ink.")
         (self.second / "notes.txt").write_text("Lanterns light a fictional pier.")
 
+    def changed(self, *paths):
+        """What the folder watcher reports after files are created, changed or deleted."""
+        index.on_change([str(Path(p).parent.resolve() / Path(p).name) for p in paths])
+
     def search(self, question="layout notes"):  # only PDF and Word are searched by content; these by name
         snapshot = prepare_snapshot({"project_id": self.project, "messages": [HumanMessage(content=question)]})
         return [c for c in snapshot["candidates"] if c["layer"] == "retrieval"]
@@ -33,12 +38,15 @@ class ProjectFilesTests(StoreTestCase):
         project_files.attach(self.project, [str(self.first), str(self.second)])
         (self.first / "unrelated.md").write_text("A fictional weather vane rotates clockwise.")
         (self.first / "opaque.png").write_bytes(b"\x00fictional binary")
+        (self.first / "archive.zip").write_bytes(b"PK fictional")
+        self.changed(self.first / "unrelated.md", self.first / "opaque.png", self.first / "archive.zip")
         self.add("Fictional lanterns have a violet switch.", scope=self.project)
         other = self.add("Private scope fixture", scope=self.other)
         state = {"project_id": self.project, "messages": [HumanMessage(content="lanterns layout")], "input_order": []}
         preview = prepare_snapshot(state)
         files = {c["title"]: c for c in preview["candidates"] if c["layer"] == "retrieval"}
-        self.assertEqual(set(files), {"maps/nested/layout.md", "maps/unrelated.md", "rules/notes.txt"})
+        # Every file is offered by name, an image too; an archive has nothing to offer.
+        self.assertEqual(set(files), {"maps/nested/layout.md", "maps/opaque.png", "maps/unrelated.md", "rules/notes.txt"})
         self.assertIsNone(files["maps/unrelated.md"]["retrieval_rank"])
         self.assertGreaterEqual(files["maps/nested/layout.md"]["retrieval_rank"], 1)
         [mem] = [c for c in preview["candidates"] if c["layer"] == "memory"]
@@ -134,8 +142,9 @@ class ProjectFilesTests(StoreTestCase):
         self.assertEqual({d["title"] for d in docs}, {"maps/nested/layout.md", "rules/notes.txt"})
         self.assertEqual(project_files.search(self.other, "lanterns"), [])
         self.plan.write_text("Revised fictional lanterns use amber ink.")
-        self.assertIn("amber ink", str(self.search()))
+        self.assertIn("amber ink", str(self.search()))  # a file sent is read as it is now
         self.plan.unlink()
+        self.changed(self.plan)
         self.assertNotIn("layout.md", str(self.search()))
         folder = next(row for row in client.get(url).json() if row["path"] == str(self.second.resolve()))
         client.delete(url.replace(self.project, self.other) + "/" + folder["id"])
@@ -247,27 +256,24 @@ class ProjectFilesTests(StoreTestCase):
             with self.assertRaises(memory.MemoryError):
                 thumbnails.thumbnail(self.project, source_id)
 
-    def test_image_inventory_and_previews_upgrade_existing_folder(self):
+    def test_image_inventory_and_previews(self):
         import base64
         import io
         from xml.etree import ElementTree
         from PIL import Image
-        from contextlens.memory.store import session
 
         svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5"/></svg>'
         (self.first / "circle.svg").write_bytes(svg)
         project_files.attach(self.project, [str(self.first)])
         for ext in ("png", "jpg", "gif", "webp"):
             Image.new("RGB", (640, 320), "purple").save(self.first / f"swatch.{ext}")
+        self.changed(self.first)  # a batch of new files: the watcher may report just their folder
 
         def inventory():
             return {Path(item["title"]).name: item for item in project_files.search(self.project, "", inventory=True)}
 
         initial = inventory()
-        with session() as conn:
-            conn.execute("UPDATE project_documents SET image_indexed = 0")
-            conn.execute("DELETE FROM project_passages WHERE document_id IN "
-                         "(SELECT id FROM project_documents WHERE path LIKE 'swatch.%')")
+        index.catch_up()  # as at startup: nothing changed, nothing moves
         updated = inventory()
         client = TestClient(app)
         for name in ("circle.svg", "swatch.png", "swatch.jpg", "swatch.gif", "swatch.webp"):

@@ -46,4 +46,7 @@ def remove_local(project_id: str) -> dict:
             raise MemoryError("No such project.")
         conn.execute("INSERT OR IGNORE INTO removed_projects VALUES (?)", (project_id,))
         conn.execute("DELETE FROM project_folders WHERE project_id = ?", (project_id,))
+    from contextlens.project_files.watch import watcher
+
+    watcher.restart()  # its folders are no longer watched
     return {}

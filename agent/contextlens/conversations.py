@@ -7,13 +7,13 @@ last answer, and when it was started and last answered.
 """
 from __future__ import annotations
 
-import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from contextlens.config import conversations_path
+from contextlens.provenance import strip_markers
 
 ORDINARY = "ordinary"
 TITLE_LENGTH = 100
@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE INDEX IF NOT EXISTS conversations_by_project ON conversations(project_id, updated_at);
 CREATE TABLE IF NOT EXISTS conversation_marks (key TEXT PRIMARY KEY);
 """
-_MARKERS = re.compile(r"\s*\[\[[^\]]*\]\]")
 
 
 @contextmanager
@@ -111,7 +110,7 @@ def record_turn(conversation_id: str | None, scope: str | None, question: str, a
         conn.execute("""UPDATE conversations SET updated_at = ?, preview = ?,
                             title = CASE WHEN titled = 0 AND title = '' THEN ? ELSE title END
                         WHERE id = ?""",
-                     (now, _MARKERS.sub("", answer).strip()[:PREVIEW_LENGTH], question.strip()[:TITLE_LENGTH],
+                     (now, strip_markers(answer).strip()[:PREVIEW_LENGTH], question.strip()[:TITLE_LENGTH],
                       conversation_id))
 
 
@@ -129,7 +128,7 @@ def import_rows(rows: list[dict], key: str) -> int:
             VALUES (:id, :project_id, :title, :titled, :preview, :archived, :created_at, :updated_at)""",
                          [{**r, "project_id": _project(r.get("scope")),
                            "title": (r.get("title") or "").strip()[:TITLE_LENGTH],
-                           "preview": _MARKERS.sub("", r.get("preview") or "").strip()[:PREVIEW_LENGTH]}
+                           "preview": strip_markers(r.get("preview") or "").strip()[:PREVIEW_LENGTH]}
                           for r in rows])
         added = conn.total_changes - before
         conn.execute("INSERT OR IGNORE INTO conversation_marks (key) VALUES (?)", (key,))
