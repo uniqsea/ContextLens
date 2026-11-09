@@ -25,7 +25,7 @@ class ProjectFilesTests(StoreTestCase):
         self.plan.write_text("Fictional lanterns use indigo ink.")
         (self.second / "notes.txt").write_text("Lanterns light a fictional pier.")
 
-    def search(self, question="lanterns"):
+    def search(self, question="layout notes"):  # only PDF and Word are searched by content; these by name
         snapshot = prepare_snapshot({"project_id": self.project, "messages": [HumanMessage(content=question)]})
         return [c for c in snapshot["candidates"] if c["layer"] == "retrieval"]
 
@@ -35,7 +35,7 @@ class ProjectFilesTests(StoreTestCase):
         (self.first / "opaque.png").write_bytes(b"\x00fictional binary")
         self.add("Fictional lanterns have a violet switch.", scope=self.project)
         other = self.add("Private scope fixture", scope=self.other)
-        state = {"project_id": self.project, "messages": [HumanMessage(content="lanterns")], "input_order": []}
+        state = {"project_id": self.project, "messages": [HumanMessage(content="lanterns layout")], "input_order": []}
         preview = prepare_snapshot(state)
         files = {c["title"]: c for c in preview["candidates"] if c["layer"] == "retrieval"}
         self.assertEqual(set(files), {"maps/nested/layout.md", "maps/unrelated.md", "rules/notes.txt"})
@@ -165,14 +165,14 @@ class ProjectFilesTests(StoreTestCase):
 
         self.plan.write_text("Fictional staging area. " * 100 + "The beacon is amber.")
         [folder] = project_files.attach(self.project, [str(self.first)])
-        file_id = self.search("staging")[0]["id"]
+        file_id = self.search("layout")[0]["id"]
         tool_call = AIMessage(content="", tool_calls=[{"name": "read_file", "id": "page",
                               "args": {"file_path": "/projects/maps/nested/layout.md"}}])
         # The file is already in the prompt as f1; reading it again keeps that id.
         self.script(tool_call, "It is amber.[[f1]]", memory=[
             reading("reading a fictional plan"), structured("Lessons", lessons=[])])
         graph = _builder.compile(checkpointer=InMemorySaver())
-        out = graph.invoke({"messages": [HumanMessage(content="staging")], "project_id": self.project},
+        out = graph.invoke({"messages": [HumanMessage(content="layout staging")], "project_id": self.project},
                            {"configurable": {"thread_id": "fictional-files"}})
         version = out["turn_records"]["0"]["versions"][0]
         self.assertIn("The beacon is amber.", version["steps"][0]["result"])
@@ -208,7 +208,7 @@ class ProjectFilesTests(StoreTestCase):
         from contextlens.memory.types import MemoryError
         self.plan.write_text("# Fictional harbour\n\n" + "Page opening. " * 180 + "\nMatch: indigo")
         project_files.attach(self.project, [str(self.first)])
-        source = next(c for c in self.search("indigo") if c["title"].endswith("layout.md"))
+        source = next(c for c in self.search("layout") if c["title"].endswith("layout.md"))
         data, mime = thumbnail(self.project, source["id"])
         self.assertEqual(mime, "image/svg+xml")
         self.assertIn(b"Fictional harbour", data)
@@ -227,7 +227,7 @@ class ProjectFilesTests(StoreTestCase):
         from contextlens.project_files import thumbnails
 
         project_files.attach(self.project, [str(self.first)])
-        source_id = self.search("indigo")[0]["id"]
+        source_id = self.search("layout")[0]["id"]
         with patch("contextlens.project_files.index.files", side_effect=AssertionError("unexpected scan")), patch.object(
                 thumbnails, "_render", wraps=thumbnails._render) as render:
             with ThreadPoolExecutor(4) as pool:

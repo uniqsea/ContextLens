@@ -13,7 +13,7 @@ from deepagents.profiles import GeneralPurposeSubagentProfile, HarnessProfile, r
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from contextlens import memory, models
+from contextlens import history, memory, models
 from contextlens.project_files.backend import MOUNT, FileCitations, ProjectFiles
 from contextlens.provenance import Labels
 from contextlens.turn import Request
@@ -65,7 +65,7 @@ def build():
     backend = CompositeBackend(default=StateBackend(), routes={MOUNT: ProjectFiles()})
     # Never saved: a run lives for one answer, and the turn record keeps what it did. Without this
     # the run would take on the app graph's checkpointer and save every step into the conversation.
-    return create_deep_agent(model=model, tools=memory.TOOLS, backend=backend,
+    return create_deep_agent(model=model, tools=[*memory.TOOLS, history.search_history], backend=backend,
                              middleware=[SettingsModel(), SnapshotPrompt(), ReadOnlyFiles(), FileCitations()],
                              context_schema=Request, name="contextlens-engine", checkpointer=False)
 

@@ -11,6 +11,8 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from contextlens import memory, models
+from contextlens import history
+from contextlens.project_files import retrieval
 
 USER = memory.Source("user")
 QUESTION = "Plan the team dinner budget"
@@ -57,6 +59,7 @@ class StoreTestCase(unittest.TestCase):
         os.environ["CONTEXTLENS_DB_PATH"] = str(Path(self._tmp.name) / "test.sqlite3")
         os.environ["CONTEXTLENS_HOME"] = str(Path(self._tmp.name) / "home")  # the user's own settings stay out
         os.environ["CONTEXTLENS_CONVERSATIONS_PATH"] = str(Path(self._tmp.name) / "conversations.sqlite3")
+        retrieval.background = history.background = False  # a test makes vectors itself, inside its own store
         models.use(_no_model)  # no real settings or embedding model unless a test scripts one
 
     def tearDown(self):

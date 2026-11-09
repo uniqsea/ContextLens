@@ -30,7 +30,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from contextlens import conversations, memory, models, project_files, projects, records
+from contextlens import conversations, history, memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
 from contextlens.memory import search
 from contextlens.models import local_embedding
@@ -396,6 +396,7 @@ async def conversation_item(request: Request) -> JSONResponse:
             if getattr(getattr(e, "response", None), "status_code", None) != 404:
                 raise
         await asyncio.to_thread(conversations.delete, cid)
+        await asyncio.to_thread(history.forget, cid)
         return Response(status_code=204)
     if request.method == "PATCH":
         body = await request.json()

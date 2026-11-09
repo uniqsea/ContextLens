@@ -459,9 +459,11 @@ export function LensApp({
 		if (shelfRef.current && shelfRef.current.textContent !== shelfLabel)
 			shelfRef.current.textContent = shelfLabel;
 
+		// Earlier conversations the agent found carry a global id; this conversation's turns do not.
+		const earlier = (c: (typeof visible)[number]) => c.id.startsWith("hist-");
 		const scopeLabel = (c: (typeof visible)[number]) =>
 			c.layer === "short_term"
-				? tx.t("items.scopeChat")
+				? tx.t(earlier(c) ? "items.scopeEarlierChat" : "items.scopeChat")
 				: c.layer === "retrieval"
 					? ""
 					: (c.scenes ?? []).join(" · ");
@@ -485,7 +487,7 @@ export function LensApp({
 					kind: tx.layer(c.layer),
 					unlink: tx.t("lens.unlink", { title }),
 					meta: [
-						c.layer === "short_term" ? "" : c.source_label,
+						c.layer === "short_term" && !earlier(c) ? "" : c.source_label,
 						c.stale ? tx.t("items.maybeStale") : "",
 					]
 						.filter(Boolean)

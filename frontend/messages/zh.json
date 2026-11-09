@@ -208,6 +208,7 @@
 		"summarySource": "每轮最多摘录 400 字",
 		"maybeStale": "可能已过期",
 		"scopeChat": "本次对话",
+		"scopeEarlierChat": "以前的对话",
 		"titleContent": "{title}：{content}"
 	},
 	"reasons": {

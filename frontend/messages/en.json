@@ -208,6 +208,7 @@
 		"summarySource": "Up to 400 characters per turn",
 		"maybeStale": "May be out of date",
 		"scopeChat": "This chat",
+		"scopeEarlierChat": "Earlier conversation",
 		"titleContent": "{title}: {content}"
 	},
 	"reasons": {

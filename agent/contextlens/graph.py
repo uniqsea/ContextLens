@@ -15,7 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.channels.delta import DeltaChannel
 from langgraph.graph.message import _messages_delta_reducer
 
-from contextlens import conversations, engine, memory, models, records
+from contextlens import conversations, engine, history, memory, models, records
 from contextlens.context import message_pairs, prepare_snapshot
 from contextlens.context.snapshot import estimate_tokens
 from contextlens.provenance import Labels, parse_segments
@@ -67,6 +67,7 @@ def answer_turn(state: LensState, config: RunnableConfig) -> dict:
     record = {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
               "memory_changes": _tool_changes(version)}
     conversations.record_turn(_thread(config), state.get("project_id"), record["query"], version["content"])
+    history.record(_thread(config), index, record["query"], version["content"])
     return {"messages": [AIMessage(content=version["content"])], "history_lineage": {str(index): version["lineage"]},
             "turn_records": {str(index): record}, "context_policies": [], "manual_memory_ids": [], "input_order": None}
 
@@ -116,6 +117,7 @@ def rewrite_turn(state: LensState, config: RunnableConfig) -> dict:
         record["memory_changes"] = (record.get("memory_changes", []) + _tool_changes(version)
                                     + _follow_correction(req, record, situation, config, i))
     latest = record["versions"][-1]
+    history.record(_thread(config), i, str(human.content), latest["content"])
     return {"messages": [AIMessage(content=latest["content"], id=ai.id)],
             "turn_records": {str(i): record},
             "history_lineage": {str(i): latest["lineage"]},
@@ -144,13 +146,16 @@ def _make_version(snapshot: dict, excluded: list[str], pinned: list[str], note, 
     file_dependencies = list(snapshot.get("file_dependencies", []))
     candidates = {item["id"]: dict(item) for item in snapshot["candidates"]}
     selected = list(snapshot["selected_ids"])
-    for doc in (d for step in steps for d in (step["artifact"] or {}).get("documents", [])):
-        for dep in doc["files"]:
+    # Files read and earlier conversations found on the way join the turn's sources.
+    found = [(layer, d) for step in steps for key, layer in (("documents", "retrieval"), ("history", "short_term"))
+             for d in (step["artifact"] or {}).get(key, [])]
+    for layer, doc in found:
+        for dep in doc.get("files", []):
             if dep not in file_dependencies:
                 file_dependencies.append(dep)
         item = candidates.get(doc["id"])
         if item is None:
-            candidates[doc["id"]] = {**{k: v for k, v in doc.items() if k != "files"}, "layer": "retrieval", "status": "active",
+            candidates[doc["id"]] = {**{k: v for k, v in doc.items() if k != "files"}, "layer": layer, "status": "active",
                                      "selection_reason": {"code": "source"}, "tokens": estimate_tokens(doc["content"])}
             selected.append(doc["id"])
         elif doc["content"] not in item["content"]:

@@ -1,23 +1,47 @@
-"""Incrementally index selected folders and retrieve attributable passages for a project turn."""
+"""Incrementally index selected folders and retrieve attributable passages for a project turn.
+
+Only PDF and Word files are split into passages, by LlamaIndex's sentence splitter (Chinese and English
+sentence ends both count), page by page for a PDF so each passage knows its page. Their passages are
+found by words (SQLite FTS5 over jieba segments) and by meaning (vectors from the local embedding
+model), fused by rank (retrieval.py). Any other file is found by its name and keeps only its beginning
+to show; the agent reads the rest with its file tools. An image keeps its one-line description.
+"""
 import hashlib
 import os
-import re
 from pathlib import Path
 from threading import Lock
 
-from contextlens.memory.search import tokens
+from contextlens.passages import split, terms
 from contextlens.memory.store import session
 
+from . import retrieval
 from .documents import IMAGE_SUFFIXES, extract, files
 from .folders import file_stamp, open_root
 
 _SYNC = Lock()
-_CHUNK = 1600
+HEAD_CHARS = 1600
 
 
-def _terms(text: str) -> str:
-    # FTS handles Latin word boundaries. Segment Chinese runs for matching inside sentences.
-    return re.sub(r"[\u3400-\u9fff]+", lambda m: " " + " ".join(tokens(m[0])) + " ", text.replace("_", " "))
+
+
+
+def passages(name: str, text: str) -> list[tuple[int | None, str]]:
+    """(page, passage) in reading order; pages count from 1 and only a PDF has them (pdftotext ends
+    each page with a form feed)."""
+    paged = name.lower().endswith(".pdf")
+    out = []
+    for number, page in enumerate(text.split("\f") if paged else [text], 1):
+        if page.strip():
+            out.extend((number if paged else None, piece) for piece in split(page))
+    return out
+
+
+def _contents(path: str, text: str, image: bool) -> list[tuple[int | None, str, str]]:
+    """(page, searchable words, text) for each passage a file is kept as."""
+    if Path(path).suffix.lower() in retrieval.SPLIT_SUFFIXES or image:
+        return [(page, terms(piece), piece) for page, piece in passages(path, text)]
+    head = text[:HEAD_CHARS].strip()
+    return [(None, "", head)] if head else []
 
 
 def _refresh(folder, root_fd):
@@ -32,8 +56,7 @@ def _refresh(folder, root_fd):
         if known.pop(path, None) == (stamp, image_indexed):
             continue
         text = extract(os.path.basename(path), parent_fd, st.st_size)
-        chunks = [text[i:i + _CHUNK] for i in range(0, len(text), _CHUNK - 160)]
-        batch.append((path, stamp, image_indexed, _terms(path), [(_terms(chunk), chunk) for chunk in chunks]))
+        batch.append((path, stamp, image_indexed, terms(path), _contents(path, text, image_indexed)))
         batch_size += len(text)
         if len(batch) >= 64 or batch_size >= 512_000:
             if not _write_batch(folder, batch):
@@ -61,9 +84,11 @@ def _write_batch(folder, batch):
                 VALUES (?, ?, ?, ?, ?) ON CONFLICT(folder_id, path) DO UPDATE SET
                 stamp = excluded.stamp, image_indexed = excluded.image_indexed RETURNING id""",
                 (folder_id, path, stamp, image_indexed, source_id)).fetchone()[0]
+            conn.execute("DELETE FROM project_passage_vectors WHERE passage_id IN "
+                         "(SELECT rowid FROM project_passages WHERE document_id = ?)", (doc,))
             conn.execute("DELETE FROM project_passages WHERE document_id = ?", (doc,))
-            conn.executemany("INSERT INTO project_passages(document_id, name, terms, excerpt) VALUES (?, ?, ?, ?)",
-                             ((doc, name, terms, excerpt) for terms, excerpt in chunks))
+            conn.executemany("INSERT INTO project_passages(document_id, page, name, terms, excerpt) VALUES (?, ?, ?, ?, ?)",
+                             ((doc, page, name, terms, excerpt) for page, terms, excerpt in chunks))
     return True
 
 
@@ -89,55 +114,49 @@ def _active_folders(scope: str) -> list[str]:
                 active.append(root["id"])
             except OSError:
                 continue
+    retrieval.embed_soon()
     return active
 
 
 def search(scope: str, question: str, *, inventory: bool = False, selected=()) -> list[dict]:
-    """In field mode include all readable files. Ranking and passages come from the same FTS query."""
+    """The best passage of each file that matches the question, best file first; in field mode every
+    readable file too, unranked ones after."""
     active = _active_folders(scope) if question.strip() or inventory else []
     if not active:
         return []
-    marks = ",".join("?" for _ in active)
-    source = "FROM project_documents d JOIN project_folders f ON d.folder_id = f.id"
-    scope_filter = f"f.project_id = ? AND f.id IN ({marks})"
-    params = (scope, *active)
-    words = list(dict.fromkeys(re.findall(r"\w+", _terms(question).lower())))[:48]
+    within = retrieval.Within(scope, tuple(active))
     with session() as conn:
         # A nested folder may also be linked on its own. Keep the same source id when a query
         # matches the two bindings differently, so a chosen file keeps its place in the input.
         catalog = {}
         if inventory:
-            rows = conn.execute(f"""SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.excerpt,
-                MIN(p.rowid) AS first_page {source}
-                JOIN project_passages p ON p.document_id = d.id
-                WHERE {scope_filter} GROUP BY d.id ORDER BY f.path, d.path""", params)
+            rows = conn.execute(f"""SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.page, p.excerpt,
+                MIN(p.rowid) AS first_page {within.source}
+                WHERE {within.where} GROUP BY d.id ORDER BY f.path, d.path""", within.params)
             for row in rows:
                 if row["excerpt"]:
-                    catalog.setdefault(os.path.join(row["root"], row["path"]), row)
-        limit = "" if inventory else "LIMIT 24"
-        matches = conn.execute(f"""
-            SELECT f.id AS folder, f.path AS root, d.path, d.stamp, p.excerpt {source}
-            JOIN project_passages p ON p.document_id = d.id
-            WHERE {scope_filter} AND project_passages MATCH ?
-            ORDER BY bm25(project_passages, 0, 6, 1, 0), d.path, p.rowid {limit}
-        """, (*params, " OR ".join(f'"{word}"' for word in words))) if words else []
-        hits = []
-        seen = set()
+                    catalog.setdefault(os.path.join(row["root"], row["path"]), dict(row))
+    matches = retrieval.find(within, question, limit=None if inventory else 24)
+    hits = []
+    seen = set()
 
-        def card(row, excerpt, rank=None):
-            label = f'{Path(row["root"]).name}/{row["path"]}'
-            source_id = _id(scope, row["root"], row["path"])
-            return {"id": source_id, "title": label, "source_label": label, "rank": rank,
-                    "content": excerpt if not inventory or source_id in (selected or ()) or (selected is None and rank is not None and rank <= 4) else excerpt[:200],
-                    "files": [_dependency(row)]}
+    def card(row, passage, rank=None):
+        label = f'{Path(row["root"]).name}/{row["path"]}'
+        source_id = _id(scope, row["root"], row["path"])
+        page = passage.get("page")
+        excerpt = passage["excerpt"]
+        return {"id": source_id, "title": label, "source_label": f"{label} · p. {page}" if page else label,
+                "rank": rank, "page": page,
+                "content": excerpt if not inventory or source_id in (selected or ()) or (selected is None and rank is not None and rank <= 4) else excerpt[:200],
+                "files": [_dependency(row)]}
 
-        for row in matches:
-            absolute = os.path.join(row["root"], row["path"])
-            if absolute in seen:
-                continue
-            seen.add(absolute)
-            hits.append(card(catalog.get(absolute, row), row["excerpt"], len(hits) + 1))
-            if not inventory and len(hits) == 4:
-                break
-        hits.extend(card(row, row["excerpt"]) for path, row in catalog.items() if path not in seen)
-        return hits
+    for passage in matches:
+        absolute = os.path.join(passage["root"], passage["path"])
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        hits.append(card(catalog.get(absolute, passage), passage, len(hits) + 1))
+        if not inventory and len(hits) == 4:
+            break
+    hits.extend(card(row, row) for path, row in catalog.items() if path not in seen)
+    return hits

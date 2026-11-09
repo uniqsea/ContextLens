@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS project_folders (
 CREATE TABLE IF NOT EXISTS project_documents (
   id INTEGER PRIMARY KEY, folder_id TEXT NOT NULL, path TEXT NOT NULL, stamp TEXT NOT NULL, image_indexed INTEGER NOT NULL DEFAULT 0,
   UNIQUE(folder_id, path));
-CREATE VIRTUAL TABLE IF NOT EXISTS project_passages USING fts5(document_id UNINDEXED, name, terms, excerpt UNINDEXED);
+CREATE VIRTUAL TABLE IF NOT EXISTS project_passages USING fts5(document_id UNINDEXED, page UNINDEXED, name, terms, excerpt UNINDEXED);
+CREATE TABLE IF NOT EXISTS project_passage_vectors (
+  passage_id INTEGER NOT NULL, model TEXT NOT NULL, vector BLOB NOT NULL, PRIMARY KEY (passage_id, model));
+CREATE TRIGGER IF NOT EXISTS remove_project_passage_vectors BEFORE DELETE ON project_documents BEGIN
+  DELETE FROM project_passage_vectors WHERE passage_id IN (SELECT rowid FROM project_passages WHERE document_id = OLD.id);
+END;
 CREATE TRIGGER IF NOT EXISTS remove_project_passages AFTER DELETE ON project_documents BEGIN
   DELETE FROM project_passages WHERE document_id = OLD.id;
 END;
@@ -87,6 +92,16 @@ def connect() -> sqlite3.Connection:
         conn.execute("BEGIN IMMEDIATE")
         if "instructions" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_settings)")}:
             conn.execute("ALTER TABLE project_settings ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+    if "page" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_passages)")}:
+        # Passages made before pages and sentence splitting: the index is derived, so build it again.
+        conn.execute("BEGIN IMMEDIATE")
+        if "page" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_passages)")}:
+            conn.execute("DROP TABLE project_passages")
+            conn.execute("DELETE FROM project_passage_vectors")
+            conn.execute("CREATE VIRTUAL TABLE project_passages USING fts5("
+                         "document_id UNINDEXED, page UNINDEXED, name, terms, excerpt UNINDEXED)")
+            conn.execute("UPDATE project_documents SET stamp = ''")
         conn.commit()
     if "image_indexed" not in {r["name"] for r in conn.execute("PRAGMA table_info(project_documents)")}:
         conn.execute("BEGIN IMMEDIATE")
