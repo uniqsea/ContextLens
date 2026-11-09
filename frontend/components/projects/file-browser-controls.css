@@ -3,7 +3,7 @@
 	display: inline-grid;
 	place-items: center;
 	flex: 0 0 28px;
-	height: 28px;
+	height: calc(var(--spacing) * 7);
 	border-radius: 7px;
 	background: color-mix(in srgb, var(--file-color) 12%, transparent);
 }
@@ -30,8 +30,8 @@
 	color-scheme: dark;
 }
 .pr-file-icon svg {
-	width: 18px;
-	height: 18px;
+	width: calc(var(--spacing) * 4.5);
+	height: calc(var(--spacing) * 4.5);
 	color: var(--file-color);
 }
 .pr-file-icon[data-tone="folder"] svg {

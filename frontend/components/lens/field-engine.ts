@@ -3,6 +3,8 @@
  * and every card in use is wired to the sentence (or strip segment) that used it.
  * Framework-free on purpose: it runs every frame, so it writes the DOM directly.
  */
+
+import { spacingUnit } from "@/lib/density";
 import type { CardState, Layer } from "@/lib/lens/types";
 import { layerColor } from "@/lib/lens/types";
 import { bindCanvasNavigation, type CanvasView } from "./canvas-navigation";
@@ -38,7 +40,8 @@ export interface Rect {
 }
 
 export interface FieldModel {
-	fieldRight?: number;
+	/** The canvas between the panels, in stage coordinates; the layout grid decides it. */
+	field: Rect;
 	fieldBottom?: number;
 	cards: FieldCard[];
 	state: Record<string, CardState>;
@@ -89,10 +92,20 @@ interface Live {
 
 /** Column order for sent cards: what you own nearest, the transcript farthest. */
 const CATEGORIES: Layer[] = ["memory", "retrieval", "short_term"];
-const CARD_W = 212;
-/** A card folded to its title, and the space between cards in a column. Keep TIGHT_H in step with `.lens-card.tight`. */
-const TIGHT_H = 45;
-const CARD_GAP = 10;
+/* Card metrics, in multiples of the spacing unit (`--spacing`), so they follow the interface density
+   with the CSS. Set from the unit on every measure; the multiples mirror lens.css. */
+let CARD_W = 212;
+/** A card folded to its title (`.lens-card.tight`), and the space between cards in a column. */
+let TIGHT_H = 45;
+let CARD_GAP = 10;
+/** The least a folded near miss shows of itself when they must overlap: its title line. */
+let NEAR_STEP = 22;
+function setUnit(u: number) {
+	CARD_W = Math.round(53 * u);
+	TIGHT_H = 11.25 * u;
+	CARD_GAP = 2.5 * u;
+	NEAR_STEP = 5.5 * u;
+}
 const cardH = (l: Live) => (l.tight ? TIGHT_H : l.h);
 /** How far above the strip its wires run, inside the composer's top padding. */
 const RAIL = 7;
@@ -204,19 +217,12 @@ export class FieldEngine {
 				),
 			};
 		}
-		const left = model.sheet.x + model.sheet.w + 12;
-		const right = (model.fieldRight ?? this.stage.clientWidth) - 12;
-		const toolbar = this.stage.querySelector(".lens-fieldbar");
-		const top = toolbar
-			? toolbar.getBoundingClientRect().bottom -
-				this.stage.getBoundingClientRect().top +
-				12
-			: 60;
+		const { field } = model;
 		return {
-			x: left,
-			y: top,
-			w: Math.max(1, right - left),
-			h: Math.max(1, this.stage.clientHeight - top - 12),
+			x: field.x,
+			y: field.y,
+			w: Math.max(1, field.w),
+			h: Math.max(1, field.h),
 		};
 	}
 
@@ -259,18 +265,16 @@ export class FieldEngine {
 		}
 	}
 
-	locateSteps(panel: HTMLElement, tools: HTMLElement) {
+	locateSteps(panel: HTMLElement) {
 		const model = this.h.model();
 		if (window.innerWidth <= 900) {
 			this.navigation.move(0, 0, 1);
 			panel.querySelector("header")?.scrollIntoView({ block: "center" });
 		} else {
-			const left = model.sheet.x + model.sheet.w + 12;
-			const right = (model.fieldRight ?? this.stage.clientWidth) - 12;
-			const top =
-				tools.getBoundingClientRect().bottom -
-				this.stage.getBoundingClientRect().top +
-				16;
+			const { field } = model;
+			const left = field.x;
+			const right = field.x + field.w;
+			const top = field.y + 4;
 			const scale = Math.min(
 				1,
 				Math.max(0.25, (right - left) / Math.max(1, panel.offsetWidth)),
@@ -454,6 +458,7 @@ export class FieldEngine {
 	}
 
 	private measure(m: FieldModel) {
+		setUnit(spacingUnit());
 		this.narrow = window.innerWidth <= 900;
 		this.W = this.stage.clientWidth;
 		this.H = this.stage.clientHeight;
@@ -471,9 +476,11 @@ export class FieldEngine {
 			this.tray = { x: 12, y: this.tray.y, w: this.W - 24, h: 92 };
 		} else {
 			// The drop zone sits in the bottom-right corner, sized for a small stack.
-			const left = m.sheet.x + m.sheet.w + 48;
-			const zw = Math.max(120, Math.min(this.CW + 24, this.W - 18 - left));
-			this.tray = { x: this.W - 12 - zw, y: this.H - 162, w: zw, h: 150 };
+			const { field } = m;
+			const left = field.x + 36;
+			const right = field.x + field.w;
+			const zw = Math.max(120, Math.min(this.CW + 24, right - 6 - left));
+			this.tray = { x: right - zw, y: field.y + field.h - 150, w: zw, h: 150 };
 		}
 		Object.assign(this.zones.tray.style, {
 			left: this.tray.x + "px",
@@ -544,8 +551,8 @@ export class FieldEngine {
 		} else {
 			// Back from a phone width: the stage fills the window again.
 			if (this.stage.style.height) this.stage.style.height = "";
-			const colX = m.sheet.x + m.sheet.w + 48;
-			const right = (m.fieldRight ?? this.W) - 18;
+			const colX = m.field.x + 36;
+			const right = m.field.x + m.field.w - 6;
 			const gap = 16;
 			const step = this.CW + gap;
 			const near = groups.near.sort(sortByOrder);
@@ -578,7 +585,13 @@ export class FieldEngine {
 				groups.ex.length && x + this.CW > this.tray.x
 					? this.tray.y - 12
 					: (m.fieldBottom ?? this.H) - 12;
-			const limit = (c: number) => bottomOf(colX + c * step);
+			// Without a side column the near misses go under the sent cards, so those
+			// stop short of the bottom by at least a folded stack of them.
+			const nearRoom =
+				!sideCols && near.length
+					? 14 + TIGHT_H + (near.length - 1) * NEAR_STEP
+					: 0;
+			const limit = (c: number) => bottomOf(colX + c * step) - nearRoom;
 			const label = 22;
 			const first = 84;
 			const byAnchor = (a: Live, b: Live) =>
@@ -678,19 +691,33 @@ export class FieldEngine {
 				? 62
 				: Math.max(62, ...groups.in.map((l) => l.ty + cardH(l) + 14));
 			const cols = Math.max(1, sideCols);
-			if (near.length && y + near.length * (TIGHT_H + 12) > bottomOf(sideX)) {
-				for (const l of near) l.tight = true;
-			}
+			// Each column stacks by its cards' own heights. Ones that run past the
+			// bottom fold to their titles; still too many, they overlap evenly.
+			const nearCols: Live[][] = Array.from({ length: cols }, () => []);
 			near.forEach((l, j) => {
-				l.tx = sideX + (j % cols) * step;
-				l.ty = y + Math.floor(j / cols) * (cardH(l) + 12);
-				l.deck = true;
+				nearCols[j % cols].push(l);
 			});
-			y += near.length
-				? Math.ceil(near.length / cols) *
-						(Math.max(...near.map((l) => l.h)) + 12) +
-					8
-				: 0;
+			const nearLim = bottomOf(sideX);
+			const nearTall = (col: Live[]) =>
+				col.reduce((sum, l) => sum + cardH(l) + 12, -12);
+			if (near.length && y + Math.max(...nearCols.map(nearTall)) > nearLim)
+				for (const l of near) l.tight = true;
+			let nearBottom = y;
+			nearCols.forEach((col, c) => {
+				const over = y + nearTall(col) > nearLim && col.length > 1;
+				const st = over
+					? Math.max(NEAR_STEP, (nearLim - y - TIGHT_H) / (col.length - 1))
+					: 0;
+				let top = y;
+				col.forEach((l, j) => {
+					l.tx = sideX + c * step;
+					l.ty = over ? y + j * st : top;
+					top += cardH(l) + 12;
+					l.deck = true;
+					nearBottom = Math.max(nearBottom, l.ty + cardH(l));
+				});
+			});
+			y = near.length ? nearBottom + 20 : y;
 			// The shelf is a chip on the field's top row, at the far right.
 			const shelfW = this.zones.shelf.offsetWidth || 130;
 			this.shelf = idle.length

@@ -1,7 +1,7 @@
 "use client";
 
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { Library, Maximize, Minus, Plus } from "lucide-react";
+import { Library, Maximize, Minus, PanelRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import {
@@ -49,6 +49,7 @@ import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
 import { UnsentQuestion } from "./unsent-question";
 import { useFold } from "./use-fold";
+import { useLayoutTier } from "./use-layout-tier";
 import { useOverview } from "./use-overview";
 
 const EMPTY: Draft = { excluded: [], inputOrder: null };
@@ -281,22 +282,58 @@ export function LensApp({
 	const resourcesRef = useRef<HTMLDivElement>(null);
 	const stepsPanelRef = useRef<HTMLElement>(null);
 	const toolsRef = useRef<HTMLDivElement>(null);
+	const fieldAreaRef = useRef<HTMLDivElement>(null);
+	const tier = useLayoutTier(stageRef);
+	const [sourcesOpen, setSourcesOpen] = useState(false);
+	const sourcesToggleRef = useRef<HTMLButtonElement>(null);
+	// The drawer closes on a press anywhere outside it (its own toggle handles itself).
+	useEffect(() => {
+		if (tier !== "medium" || !sourcesOpen) return;
+		const close = (e: PointerEvent) => {
+			const target = e.target as Node;
+			if (
+				resourcesRef.current?.contains(target) ||
+				sourcesToggleRef.current?.contains(target)
+			)
+				return;
+			setSourcesOpen(false);
+		};
+		document.addEventListener("pointerdown", close);
+		return () => document.removeEventListener("pointerdown", close);
+	}, [tier, sourcesOpen]);
+	// The steps panel lives in the canvas, so it takes the uncovered part's edges as variables.
+	useLayoutEffect(() => {
+		const stage = stageRef.current;
+		const area = fieldAreaRef.current;
+		if (!stage || !area) return;
+		const update = () => {
+			const left = area.offsetWidth ? `${area.offsetLeft}px` : "";
+			const right = area.offsetWidth
+				? `${stage.clientWidth - area.offsetLeft - area.offsetWidth}px`
+				: "";
+			stage.style.setProperty("--field-left", left);
+			stage.style.setProperty("--field-right", right);
+		};
+		update();
+		const observer = new ResizeObserver(update);
+		observer.observe(stage);
+		observer.observe(area);
+		return () => observer.disconnect();
+	}, []);
 	const engineRef = useRef<FieldEngine | null>(null);
 	const viewRef = useRef<View>({ kind: "draft", snapshot: null });
 	const sticky = useRef<string[] | null>(null);
 
 	useLayoutEffect(() => {
 		const panel = stepsPanelRef.current;
-		const tools = toolsRef.current;
 		if (
 			locateTurn === null ||
 			stepsIndex !== locateTurn ||
 			!stepsHost ||
-			!panel ||
-			!tools
+			!panel
 		)
 			return;
-		engineRef.current?.locateSteps(panel, tools);
+		engineRef.current?.locateSteps(panel);
 		setLocateTurn(null);
 	}, [locateTurn, stepsIndex, stepsHost]);
 
@@ -450,8 +487,6 @@ export function LensApp({
 				: tx.t("lens.noteNext");
 		if (noteRef.current && noteRef.current.textContent !== label)
 			noteRef.current.textContent = label;
-		if (toolsRef.current)
-			toolsRef.current.style.left = `${sheet.x + sheet.w + 12}px`;
 		const shelved = Object.values(state).filter((s) => s === "idle").length;
 		const shelfLabel = `${tx.t("lens.shelf", { count: shelved })} · ${tx.t(
 			ctx.current.shelfOpen ? "lens.shelfClose" : "lens.shelfOpen",
@@ -468,7 +503,12 @@ export function LensApp({
 					? ""
 					: (c.scenes ?? []).join(" · ");
 		return {
-			fieldRight: rel(resourcesRef.current)?.x,
+			field: rel(fieldAreaRef.current) ?? {
+				x: sheet.x + sheet.w + 12,
+				y: 60,
+				w: Math.max(1, sb.width - sheet.x - sheet.w - 24),
+				h: Math.max(1, sb.height - 72),
+			},
 			fieldBottom: stepsPanelRef.current?.offsetTop,
 			cards: visible.map((c) => {
 				const title = tx.title(c);
@@ -826,6 +866,8 @@ export function LensApp({
 			<div
 				inert={entering}
 				className="lens-root"
+				data-tier={tier}
+				data-sources={tier === "medium" && sourcesOpen ? "open" : undefined}
 				ref={stageRef}
 				tabIndex={0}
 				style={
@@ -884,6 +926,12 @@ export function LensApp({
 							>
 								<span className="truncate">{name ?? t("lens.ordinary")}</span>
 							</Button>
+							<div className="lens-head-title">
+								<ConversationTitle
+									threadId={threadId}
+									title={initialTitle || turns[0]?.q.trim().slice(0, 100) || ""}
+								/>
+							</div>
 							<nav
 								className="lens-head-actions"
 								aria-label={t("lens.navigation")}
@@ -915,10 +963,6 @@ export function LensApp({
 								/>
 							</nav>
 						</div>
-						<ConversationTitle
-							threadId={threadId}
-							title={initialTitle || turns[0]?.q.trim().slice(0, 100) || ""}
-						/>
 					</div>
 					{overview.data && (
 						<Inbox overview={overview.data} onChanged={overview.reload} />
@@ -1095,7 +1139,21 @@ export function LensApp({
 					</form>
 				</section>
 
-				<div ref={resourcesRef} className="scene-resources">
+				<div
+					ref={fieldAreaRef}
+					className="lens-field-area"
+					aria-hidden="true"
+				/>
+				<div
+					ref={resourcesRef}
+					className="scene-resources"
+					id="lens-sources"
+					inert={tier === "medium" && !sourcesOpen}
+					onKeyDown={(e) => {
+						if (e.key === "Escape" && tier === "medium" && sourcesOpen)
+							setSourcesOpen(false);
+					}}
+				>
 					<ContextField
 						candidates={sceneCandidates.filter((c) => !extracted.has(c.id))}
 						query={input}
@@ -1129,6 +1187,19 @@ export function LensApp({
 						>
 							{t("lens.tidy", { count: placed })}
 						</Button>
+					)}
+					{tier === "medium" && (
+						<button
+							type="button"
+							ref={sourcesToggleRef}
+							className="lens-sources-toggle"
+							aria-expanded={sourcesOpen}
+							aria-controls="lens-sources"
+							onClick={() => setSourcesOpen((o) => !o)}
+						>
+							<PanelRight aria-hidden="true" />
+							{t("field.sources")}
+						</button>
 					)}
 					<div
 						className="canvas-zoom-controls"

@@ -150,6 +150,40 @@
 	--sys: #8e8d88;
 }
 
+/* Density. Every length is a multiple of Tailwind's spacing unit (`--spacing`, also used by the
+   utilities), and text sizes are named by role; a density is one set of values for both. Standard
+   matches DESIGN.md; compact is for laptop screens. lib/density.ts chooses and stores it. */
+:root {
+	--type-2xs: 11px;
+	--type-meta: 11.5px;
+	--type-sm: 12px;
+	--type-control-sm: 12.5px;
+	--type-control: 13px;
+	--type-control-lg: 13.5px;
+	--type-ui: 14px;
+	--type-reading: 15px;
+	--type-title: 16px;
+	--type-display-sm: 24px;
+	--type-display: 30px;
+}
+html[data-density="compact"] {
+	--spacing: 0.21875rem;
+	--text-xs: 0.6875rem;
+	--text-sm: 0.8125rem;
+	--text-base: 0.9375rem;
+	--type-2xs: 10.5px;
+	--type-meta: 11px;
+	--type-sm: 11.5px;
+	--type-control-sm: 12px;
+	--type-control: 12px;
+	--type-control-lg: 12.5px;
+	--type-ui: 13px;
+	--type-reading: 14px;
+	--type-title: 15px;
+	--type-display-sm: 22px;
+	--type-display: 27px;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;

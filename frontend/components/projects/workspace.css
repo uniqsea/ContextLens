@@ -7,11 +7,13 @@
 	height: calc(100dvh - var(--session-bar-height));
 }
 @media (max-width: 767px) {
-	.pr-workspace { flex-direction: column; }
+	.pr-workspace {
+		flex-direction: column;
+	}
 }
 .pr-workspace svg:not(.brand-logo) {
-	width: 16px;
-	height: 16px;
+	width: calc(var(--spacing) * 4);
+	height: calc(var(--spacing) * 4);
 	flex-shrink: 0;
 }
 .pr-layout button[aria-pressed="true"] {
@@ -20,13 +22,15 @@
 .pr-main {
 	position: relative;
 	flex: 1;
-	padding: 24px clamp(22px, 3.5vw, 60px) 64px;
+	padding: calc(var(--spacing) * 6)
+		clamp(calc(var(--spacing) * 5.5), 3.5vw, calc(var(--spacing) * 15))
+		calc(var(--spacing) * 16);
 	min-width: 0;
 }
 .pr-top {
 	color: var(--muted-foreground);
-	font-size: 13px;
-	margin-bottom: 40px;
+	font-size: var(--type-control);
+	margin-bottom: calc(var(--spacing) * 10);
 }
 .pr-header,
 .pr-header h1,
@@ -35,7 +39,7 @@
 .pr-layout {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: calc(var(--spacing) * 3);
 }
 .pr-header {
 	justify-content: space-between;
@@ -49,12 +53,12 @@
 	overflow-wrap: anywhere;
 }
 .pr-header h1 svg {
-	width: 30px !important;
-	height: 30px !important;
+	width: calc(var(--spacing) * 7.5) !important;
+	height: calc(var(--spacing) * 7.5) !important;
 	color: var(--muted-foreground);
 }
 .pr-tools {
-	margin: 23px 0;
+	margin: calc(var(--spacing) * 5.75) 0;
 	justify-content: space-between;
 	flex-wrap: wrap;
 }
@@ -65,8 +69,8 @@
 .pr-layout button,
 .pr-tabs > * {
 	border-radius: 8px;
-	padding: 6px 9px;
-	font-size: 13px;
+	padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2.25);
+	font-size: var(--type-control);
 	cursor: pointer;
 }
 .pr-tabs {
@@ -80,7 +84,7 @@
 .pr-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 225px), 280px));
-	gap: 22px;
+	gap: calc(var(--spacing) * 5.5);
 }
 .pr-card {
 	min-width: 0;
@@ -98,17 +102,17 @@
 	overflow: hidden;
 }
 .pr-cover {
-	height: 142px;
+	height: calc(var(--spacing) * 35.5);
 	display: grid;
 	place-items: center;
-	padding: 18px;
+	padding: calc(var(--spacing) * 4.5);
 	background-color: var(--panel);
 	background-image: radial-gradient(var(--grid) 0.8px, transparent 1px);
 	background-size: 13px 13px;
 }
 .pr-cover > svg {
-	width: 54px !important;
-	height: 54px !important;
+	width: calc(var(--spacing) * 13.5) !important;
+	height: calc(var(--spacing) * 13.5) !important;
 	color: var(--muted-foreground);
 	fill: var(--background);
 }
@@ -119,16 +123,16 @@
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 3;
 	background: var(--background);
-	padding: 0 10px;
+	padding: 0 calc(var(--spacing) * 2.5);
 }
 .pr-caption {
 	display: flex;
-	gap: 12px;
+	gap: calc(var(--spacing) * 3);
 	align-items: flex-start;
-	padding: 14px 16px;
+	padding: calc(var(--spacing) * 3.5) calc(var(--spacing) * 4);
 }
 .pr-caption > svg {
-	margin-top: 4px;
+	margin-top: calc(var(--spacing) * 1);
 	color: var(--mem);
 }
 .pr-caption div {
@@ -144,37 +148,39 @@
 }
 .pr-caption span,
 .pr-caption time {
-	font-size: 12px;
+	font-size: var(--type-sm);
 	color: var(--muted-foreground);
 }
 .pr-list {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: calc(var(--spacing) * 2);
 }
 .pr-list .pr-cover {
 	display: none;
 }
 .pr-list .pr-caption {
-	padding-right: 44px;
+	padding-right: calc(var(--spacing) * 11);
 }
 .pr-empty {
 	display: grid;
 	justify-items: center;
-	gap: 14px;
-	padding: clamp(60px, 14vh, 160px) 14px;
+	gap: calc(var(--spacing) * 3.5);
+	padding: clamp(calc(var(--spacing) * 15), 14vh, calc(var(--spacing) * 40))
+		calc(var(--spacing) * 3.5);
 	color: var(--muted-foreground);
 }
 .pr-empty > svg {
-	width: 40px !important;
-	height: 40px !important;
+	width: calc(var(--spacing) * 10) !important;
+	height: calc(var(--spacing) * 10) !important;
 }
 @media (max-width: 700px) {
 	.pr-main {
-		padding: 18px 16px 48px;
+		padding: calc(var(--spacing) * 4.5) calc(var(--spacing) * 4)
+			calc(var(--spacing) * 12);
 	}
 	.pr-top {
-		margin-bottom: 22px;
+		margin-bottom: calc(var(--spacing) * 5.5);
 	}
 	.pr-grid {
 		grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
@@ -183,18 +189,18 @@
 .pr-folder-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
-	margin: 16px 0;
+	gap: calc(var(--spacing) * 2);
+	margin: calc(var(--spacing) * 4) 0;
 }
 .pr-open-sessions {
 	border-top: 1px solid var(--border);
-	padding-top: 10px;
+	padding-top: calc(var(--spacing) * 2.5);
 }
 .pr-open-sessions summary {
 	display: flex;
 	align-items: center;
-	gap: 9px;
-	padding: 8px 10px;
+	gap: calc(var(--spacing) * 2.25);
+	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
 	cursor: pointer;
 	border-radius: 8px;
 }
@@ -215,7 +221,7 @@
 }
 .pr-open-sessions ul {
 	list-style: none;
-	margin: 4px 0;
+	margin: calc(var(--spacing) * 1) 0;
 	padding: 0;
 	max-height: 32dvh;
 	overflow: auto;
@@ -224,13 +230,13 @@
 	display: flex;
 	align-items: center;
 	border-radius: 8px;
-	padding-right: 5px;
+	padding-right: calc(var(--spacing) * 1.25);
 }
 .pr-open-sessions li a {
 	display: grid;
 	flex: 1;
 	min-width: 0;
-	padding: 7px 10px;
+	padding: calc(var(--spacing) * 1.75) calc(var(--spacing) * 2.5);
 }
 .pr-open-sessions li a > * {
 	overflow: hidden;
@@ -243,12 +249,13 @@
 .pr-open-sessions li button {
 	display: grid;
 	place-items: center;
-	width: 28px;
-	height: 28px;
+	width: calc(var(--spacing) * 7);
+	height: calc(var(--spacing) * 7);
 	cursor: pointer;
 }
 
-.pr-workspace[data-resizing] :is([data-slot="sidebar-container"], [data-slot="sidebar-gap"]) {
+.pr-workspace[data-resizing]
+	:is([data-slot="sidebar-container"], [data-slot="sidebar-gap"]) {
 	transition: none;
 }
 .pr-workspace[data-resizing] {

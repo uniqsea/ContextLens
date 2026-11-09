@@ -1,8 +1,8 @@
 .row {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	margin-top: 8px;
+	gap: 2px;
+	height: calc(var(--spacing) * 8);
 	min-width: 0;
 }
 
@@ -11,8 +11,8 @@
 	min-width: 0;
 	color: var(--foreground);
 	font-weight: 600;
-	font-size: 18px;
-	line-height: 1.4;
+	font-size: var(--type-title);
+	line-height: 1.25;
 }
 
 .title {
@@ -24,15 +24,19 @@
 
 .input {
 	flex: 1;
-	height: 32px;
+	height: calc(var(--spacing) * 8);
 	border: 0;
-	border-radius: 8px;
-	padding: 0 8px;
+	border-radius: 999px;
+	padding: 0 calc(var(--spacing) * 3);
 	background: var(--muted);
 }
 
 .row button {
 	flex: none;
+	color: var(--muted-foreground);
+}
+.row button:hover {
+	color: var(--foreground);
 }
 
 .row button:disabled {
@@ -41,5 +45,5 @@
 
 .error {
 	color: var(--destructive);
-	font-size: 13px;
+	font-size: var(--type-control);
 }

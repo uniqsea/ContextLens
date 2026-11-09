@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { SessionProvider } from "@/components/lens/session-tabs";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { htmlLang } from "@/i18n/config";
+import { DENSITY_SCRIPT } from "@/lib/density";
 import "./globals.css";
 import "./lens.css";
 
@@ -35,6 +36,10 @@ export default async function RootLayout({
 			className={`${inter.variable} ${geistMono.variable}`}
 			suppressHydrationWarning
 		>
+			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed script that sets the density before first paint */}
+				<script dangerouslySetInnerHTML={{ __html: DENSITY_SCRIPT }} />
+			</head>
 			<body className="antialiased">
 				<NextIntlClientProvider>
 					<ThemeProvider>

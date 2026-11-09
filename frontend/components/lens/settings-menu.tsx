@@ -11,12 +11,15 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useDensity } from "@/hooks/use-density";
+import type { Density } from "@/lib/density";
 import { type MemoryLanguage, settingsApi } from "@/lib/model-settings";
 import { LocaleSwitch } from "../locale-switch";
 
 const CHOICES = ["follow", "zh", "en"] as const;
+const DENSITIES = ["standard", "compact"] as const;
 
-/** Settings people rarely change: the interface and memory languages, their situations, and the models. */
+/** Settings people rarely change: the interface language and density, the memory language, their situations, and the models. */
 export function SettingsMenu({
 	onManageModels,
 	onManageSituations,
@@ -28,6 +31,7 @@ export function SettingsMenu({
 	const tl = useTranslations("locale");
 	const [open, setOpen] = useState(false);
 	const [memoryLanguage, setMemoryLanguage] = useState<MemoryLanguage>();
+	const [density, setDensity] = useDensity();
 	useEffect(() => {
 		if (open) settingsApi.memoryLanguage().then(setMemoryLanguage, () => {});
 	}, [open]);
@@ -46,6 +50,25 @@ export function SettingsMenu({
 				<div className={row}>
 					<span className="whitespace-nowrap">{t("language")}</span>
 					<LocaleSwitch />
+				</div>
+				<div className={row}>
+					<span className="whitespace-nowrap">{t("density")}</span>
+					<ToggleGroup
+						variant="segment"
+						spacing={0.5}
+						aria-label={t("density")}
+						value={[density]}
+						onValueChange={(next) => {
+							const d = next[0] as Density | undefined;
+							if (d) setDensity(d);
+						}}
+					>
+						{DENSITIES.map((d) => (
+							<ToggleGroupItem key={d} value={d}>
+								{t(d === "standard" ? "densityStandard" : "densityCompact")}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
 				</div>
 				{memoryLanguage && (
 					<div
