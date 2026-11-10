@@ -17,6 +17,7 @@ import {
 	ItemTitle,
 } from "@/components/ui/item";
 import { SearchField } from "@/components/ui/search-field";
+import { Hint } from "@/components/ui/tooltip";
 import {
 	type FileEntry,
 	folderApi,
@@ -94,39 +95,42 @@ export function FolderContents({
 			className="grid gap-2 py-3"
 		>
 			<div className="flex items-center gap-1">
-				<Item
-					variant="menu"
-					size="xs"
-					title={folder.path}
-					render={<CollapsibleTrigger />}
-					className="min-w-0 flex-1 flex-nowrap gap-2 px-2 text-sm [&_svg]:size-4 [&_svg]:text-muted-foreground"
-				>
-					<CollapsibleChevron />
-					<Folder aria-hidden />
-					<strong className="min-w-0 font-medium [overflow-wrap:anywhere]">
-						{rootName}
-					</strong>
-				</Item>
-				<Button
-					variant="quiet"
-					size="icon-sm"
-					title={t("refreshFiles")}
-					aria-label={t("refreshFiles")}
-					onClick={() => refresh((v) => v + 1)}
-				>
-					<RefreshCw />
-				</Button>
-				<Button
-					variant="quiet"
-					size="icon-sm"
-					title={t("disconnect")}
-					aria-label={t("remove", { path: folder.path })}
-					aria-expanded={confirming}
-					disabled={busy}
-					onClick={() => setConfirming((v) => !v)}
-				>
-					<Unlink />
-				</Button>
+				<Hint label={folder.path}>
+					<Item
+						variant="menu"
+						size="xs"
+						render={<CollapsibleTrigger />}
+						className="min-w-0 flex-1 flex-nowrap gap-2 px-2 text-sm [&_svg]:size-4 [&_svg]:text-muted-foreground"
+					>
+						<CollapsibleChevron />
+						<Folder aria-hidden />
+						<strong className="min-w-0 font-medium [overflow-wrap:anywhere]">
+							{rootName}
+						</strong>
+					</Item>
+				</Hint>
+				<Hint label={t("refreshFiles")}>
+					<Button
+						variant="quiet"
+						size="icon-sm"
+						aria-label={t("refreshFiles")}
+						onClick={() => refresh((v) => v + 1)}
+					>
+						<RefreshCw />
+					</Button>
+				</Hint>
+				<Hint label={t("disconnect")}>
+					<Button
+						variant="quiet"
+						size="icon-sm"
+						aria-label={t("remove", { path: folder.path })}
+						aria-expanded={confirming}
+						disabled={busy}
+						onClick={() => setConfirming((v) => !v)}
+					>
+						<Unlink />
+					</Button>
+				</Hint>
 			</div>
 			{confirming && (
 				<InlineConfirm
@@ -200,19 +204,20 @@ export function FolderContents({
 											</ItemContent>
 											{hasQuery && (
 												<ItemActions>
-													<Button
-														variant="quiet"
-														size="icon-sm"
-														title={t("containing")}
-														aria-label={t("containing")}
-														onClick={() =>
-															navigate(
-																entry.path.split("/").slice(0, -1).join("/"),
-															)
-														}
-													>
-														<FolderOpen />
-													</Button>
+													<Hint label={t("containing")}>
+														<Button
+															variant="quiet"
+															size="icon-sm"
+															aria-label={t("containing")}
+															onClick={() =>
+																navigate(
+																	entry.path.split("/").slice(0, -1).join("/"),
+																)
+															}
+														>
+															<FolderOpen />
+														</Button>
+													</Hint>
 												</ItemActions>
 											)}
 										</Item>

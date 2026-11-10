@@ -11,6 +11,7 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Hint } from "@/components/ui/tooltip";
 import { useDensity } from "@/hooks/use-density";
 import type { Density } from "@/lib/density";
 import { type MemoryLanguage, settingsApi } from "@/lib/model-settings";
@@ -39,13 +40,14 @@ export function SettingsMenu({
 		"flex items-center justify-between gap-4 py-1 pr-1 pl-2.5 text-muted-foreground";
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				render={<Button variant="quiet" size="icon-sm" />}
-				aria-label={t("settingsMenu")}
-				title={t("settingsMenu")}
-			>
-				<Settings aria-hidden="true" />
-			</PopoverTrigger>
+			<Hint label={t("settingsMenu")}>
+				<PopoverTrigger
+					render={<Button variant="quiet" size="icon-sm" />}
+					aria-label={t("settingsMenu")}
+				>
+					<Settings aria-hidden="true" />
+				</PopoverTrigger>
+			</Hint>
 			<PopoverContent align="end" sideOffset={6} variant="menu">
 				<div className={row}>
 					<span className="whitespace-nowrap">{t("language")}</span>
@@ -71,36 +73,37 @@ export function SettingsMenu({
 					</ToggleGroup>
 				</div>
 				{memoryLanguage && (
-					<div
-						className={row}
-						title={
+					<Hint
+						label={
 							memoryLanguage.rewriting
 								? t("memoryLanguageRewriting")
 								: undefined
 						}
 					>
-						<span className="whitespace-nowrap">{t("memoryLanguage")}</span>
-						<ToggleGroup
-							variant="segment"
-							spacing={0.5}
-							aria-label={t("memoryLanguage")}
-							aria-busy={memoryLanguage.rewriting}
-							value={[memoryLanguage.choice]}
-							onValueChange={(next) => {
-								const c = next[0] as (typeof CHOICES)[number] | undefined;
-								if (!c || c === memoryLanguage.choice) return;
-								settingsApi
-									.setMemoryLanguage(c)
-									.then(setMemoryLanguage, () => {});
-							}}
-						>
-							{CHOICES.map((c) => (
-								<ToggleGroupItem key={c} value={c}>
-									{c === "follow" ? t("memoryLanguageFollow") : tl(c)}
-								</ToggleGroupItem>
-							))}
-						</ToggleGroup>
-					</div>
+						<div className={row}>
+							<span className="whitespace-nowrap">{t("memoryLanguage")}</span>
+							<ToggleGroup
+								variant="segment"
+								spacing={0.5}
+								aria-label={t("memoryLanguage")}
+								aria-busy={memoryLanguage.rewriting}
+								value={[memoryLanguage.choice]}
+								onValueChange={(next) => {
+									const c = next[0] as (typeof CHOICES)[number] | undefined;
+									if (!c || c === memoryLanguage.choice) return;
+									settingsApi
+										.setMemoryLanguage(c)
+										.then(setMemoryLanguage, () => {});
+								}}
+							>
+								{CHOICES.map((c) => (
+									<ToggleGroupItem key={c} value={c}>
+										{c === "follow" ? t("memoryLanguageFollow") : tl(c)}
+									</ToggleGroupItem>
+								))}
+							</ToggleGroup>
+						</div>
+					</Hint>
 				)}
 				{(
 					[

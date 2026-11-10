@@ -2,6 +2,7 @@
 
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "cn";
+import type { ReactElement, ReactNode } from "react";
 
 function TooltipProvider({
 	delay = 0,
@@ -61,4 +62,23 @@ function TooltipContent({
 	);
 }
 
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };
+// Wraps one control so its label shows in the shared tooltip instead of a native title.
+function Hint({
+	label,
+	side,
+	children,
+}: {
+	label: ReactNode;
+	side?: TooltipPrimitive.Positioner.Props["side"];
+	children: ReactElement;
+}) {
+	if (!label) return children;
+	return (
+		<Tooltip>
+			<TooltipTrigger render={children} />
+			<TooltipContent side={side}>{label}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+export { Hint, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };

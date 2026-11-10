@@ -41,6 +41,7 @@ import {
 	ItemTitle,
 } from "@/components/ui/item";
 import { SearchField } from "@/components/ui/search-field";
+import { Hint } from "@/components/ui/tooltip";
 import type { Candidate } from "@/lib/lens/types";
 import styles from "./context-field.module.css";
 
@@ -202,9 +203,11 @@ export function ContextField({
 					</ItemMedia>
 				)}
 				<ItemContent className="min-w-0">
-					<ItemTitle className="block max-w-full truncate" title={c.title}>
-						{c.layer === "retrieval" ? c.title.split("/").pop() : c.title}
-					</ItemTitle>
+					<Hint label={c.title}>
+						<ItemTitle className="block max-w-full truncate">
+							{c.layer === "retrieval" ? c.title.split("/").pop() : c.title}
+						</ItemTitle>
+					</Hint>
 					{c.layer === "retrieval" && filter.trim() && (
 						<ItemDescription>{c.title}</ItemDescription>
 					)}
@@ -216,17 +219,18 @@ export function ContextField({
 					)}
 				</ItemContent>
 				<ItemActions>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-xs"
-						aria-label={t(chosen ? "added" : "add", { title: c.title })}
-						title={t(chosen ? "added" : "add", { title: c.title })}
-						disabled={chosen}
-						onClick={() => onAdd(c.id)}
-					>
-						{chosen ? <Check /> : <Plus />}
-					</Button>
+					<Hint label={t(chosen ? "added" : "add", { title: c.title })}>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-xs"
+							aria-label={t(chosen ? "added" : "add", { title: c.title })}
+							disabled={chosen}
+							onClick={() => onAdd(c.id)}
+						>
+							{chosen ? <Check /> : <Plus />}
+						</Button>
+					</Hint>
 				</ItemActions>
 			</Item>
 		);
@@ -318,21 +322,22 @@ function SortableInputRow({
 			onDrop={onDrop}
 			style={{ transform: CSS.Transform.toString(transform), transition }}
 		>
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				ref={setActivatorNodeRef}
-				className="touch-none cursor-grab active:cursor-grabbing"
-				{...attributes}
-				{...listeners}
-				aria-label={t("reorder", { title: name })}
-				title={t("reorder", { title: name })}
-			>
-				<GripVertical />
-			</Button>
-			<span className={styles.name} title={name}>
-				{name}
-			</span>
+			<Hint label={t("reorder", { title: name })}>
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					ref={setActivatorNodeRef}
+					className="touch-none cursor-grab active:cursor-grabbing"
+					{...attributes}
+					{...listeners}
+					aria-label={t("reorder", { title: name })}
+				>
+					<GripVertical />
+				</Button>
+			</Hint>
+			<Hint label={name}>
+				<span className={styles.name}>{name}</span>
+			</Hint>
 			<Button
 				variant="ghost"
 				size="icon-xs"

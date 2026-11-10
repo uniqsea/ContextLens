@@ -20,12 +20,17 @@
    underneath, and .lens-field-area marks the part of them left uncovered, for the field engine. */
 @media (min-width: 901px) {
 	.lens-root {
+		--sheet-col: clamp(
+			calc(var(--spacing) * 85),
+			30%,
+			calc(var(--spacing) * 120)
+		);
 		display: grid;
 		grid-template-areas:
 			"sheet bar bar"
 			"sheet field sources";
 		grid-template-columns:
-			clamp(calc(var(--spacing) * 95), 36%, calc(var(--spacing) * 140))
+			var(--sheet-col)
 			minmax(0, 1fr)
 			clamp(calc(var(--spacing) * 65), 24%, calc(var(--spacing) * 95));
 		grid-template-rows: auto minmax(0, 1fr);
@@ -34,12 +39,18 @@
 			calc(var(--spacing) * 3);
 	}
 	.lens-root[data-tier="medium"] {
+		--sheet-col: clamp(
+			calc(var(--spacing) * 80),
+			38%,
+			calc(var(--spacing) * 115)
+		);
+	}
+	/* Hiding the sources gives their column to the canvas; the conversation keeps its width. */
+	.lens-root:is([data-tier="medium"], [data-sources="hidden"]) {
 		grid-template-areas:
 			"sheet bar"
 			"sheet field";
-		grid-template-columns:
-			clamp(calc(var(--spacing) * 85), 42%, calc(var(--spacing) * 130))
-			minmax(0, 1fr);
+		grid-template-columns: var(--sheet-col) minmax(0, 1fr);
 	}
 }
 .lens-field-area {
@@ -2528,49 +2539,64 @@
 	pointer-events: none;
 	z-index: 1;
 }
+/* Bottom-right of the canvas, out of the toolbar: small, icon-only, like a map's zoom. */
 .canvas-zoom-controls {
-	margin-left: auto;
-	flex: none;
+	grid-area: field;
+	align-self: end;
+	justify-self: end;
+	position: relative;
+	z-index: 4;
+	margin: calc(var(--spacing) * 3);
 	display: flex;
 	align-items: center;
-	padding: 3px;
+	padding: 2px;
 	border: 1px solid var(--border);
-	border-radius: 12px;
+	border-radius: 10px;
 	background: var(--card);
 	color: var(--foreground);
-	font-size: var(--type-control);
+	font-size: var(--type-sm);
+	box-shadow: var(--lift);
 }
 .canvas-zoom-controls button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: calc(var(--spacing) * 1.5);
-	height: calc(var(--spacing) * 8);
-	min-width: calc(var(--spacing) * 8);
-	padding: 0 calc(var(--spacing) * 1.75);
-	border-radius: 8px;
+	width: calc(var(--spacing) * 7);
+	height: calc(var(--spacing) * 7);
+	border-radius: 7px;
+	color: var(--secondary-foreground);
 	cursor: pointer;
 }
 .canvas-zoom-controls button:hover {
 	background: var(--muted);
+	color: var(--foreground);
 }
 .canvas-zoom-controls button:disabled {
 	opacity: 0.4;
 	cursor: default;
 }
 .canvas-zoom-controls svg {
-	width: calc(var(--spacing) * 3.75);
-	height: calc(var(--spacing) * 3.75);
+	width: calc(var(--spacing) * 3.5);
+	height: calc(var(--spacing) * 3.5);
 }
 .canvas-zoom-controls span {
-	min-width: 4ch;
+	min-width: 4.5ch;
 	text-align: center;
+	color: var(--muted-foreground);
 	font-variant-numeric: tabular-nums;
 }
 .canvas-zoom-controls .canvas-fit {
-	margin-left: 3px;
+	margin-left: 2px;
 	border-left: 1px solid var(--border);
-	white-space: nowrap;
+	border-radius: 0 7px 7px 0;
+}
+@media (max-width: 900px) {
+	.canvas-zoom-controls {
+		position: fixed;
+		right: calc(var(--spacing) * 3);
+		bottom: calc(var(--spacing) * 3);
+		margin: 0;
+	}
 }
 @media (max-width: 900px) {
 	.lens-fieldbar {
@@ -2597,21 +2623,26 @@
 	cursor: grabbing;
 	user-select: none;
 }
+/* Columns follow processing order and never wrap; a narrow view zooms or pans the canvas instead.
+   Rows are lanes: what a stage reads, the stage, and what it writes aside. */
 .step-flow {
 	display: grid;
 	position: relative;
+	width: max-content;
+	grid-auto-columns: auto;
 	align-items: start;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 205px), 1fr));
-	column-gap: calc(var(--spacing) * 7);
-	row-gap: calc(var(--spacing) * 10.5);
+	column-gap: calc(var(--spacing) * 12);
+	row-gap: calc(var(--spacing) * 4);
 	padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 4)
 		calc(var(--spacing) * 5.5);
 }
-.flow-column {
+.flow-cell {
 	display: grid;
 	min-width: 0;
-	align-content: start;
-	gap: calc(var(--spacing) * 3);
+	gap: calc(var(--spacing) * 2);
+}
+.flow-cell[data-lane="input"] {
+	align-self: end;
 }
 .flow-node pre {
 	white-space: pre-wrap;
@@ -2619,7 +2650,18 @@
 }
 .flow-node {
 	position: relative;
+	width: calc(var(--spacing) * 64);
 	min-width: 0;
+}
+.flow-node[data-flow-id="question"] {
+	width: calc(var(--spacing) * 44);
+}
+.flow-node:has(> .turn-step[open]) {
+	width: calc(var(--spacing) * 120);
+}
+/* Writes aside never feed the answer, so their card reads as a branch. */
+.steps-canvas .flow-cell[data-lane="side"] .turn-step {
+	border-style: dashed;
 }
 .flow-node[data-highlight="true"] {
 	outline: 2px solid var(--mem);
@@ -2675,34 +2717,30 @@
 		opacity 0.18s,
 		transform 0.18s;
 }
-/* Sits beside the zoom group as its twin: the same white pill, one control inside. */
+/* One icon at the toolbar's right end: shows or hides the sources at every width. */
 .lens-sources-toggle {
 	margin-left: auto;
 	flex: none;
 	display: inline-flex;
 	align-items: center;
-	gap: calc(var(--spacing) * 1.5);
-	height: calc(var(--spacing) * 10);
-	padding: 0 calc(var(--spacing) * 3);
-	border: 1px solid var(--border);
-	border-radius: 12px;
-	background: var(--card);
-	color: var(--foreground);
-	font-size: var(--type-control);
-	white-space: nowrap;
+	justify-content: center;
+	width: calc(var(--spacing) * 8);
+	height: calc(var(--spacing) * 8);
+	border-radius: 9px;
+	color: var(--secondary-foreground);
 	cursor: pointer;
 	pointer-events: auto;
 }
-.lens-sources-toggle:hover,
-.lens-sources-toggle[aria-expanded="true"] {
+.lens-sources-toggle:hover {
 	background: color-mix(in srgb, var(--card), var(--foreground) 6%);
+	color: var(--foreground);
 }
 .lens-sources-toggle svg {
-	width: calc(var(--spacing) * 3.75);
-	height: calc(var(--spacing) * 3.75);
+	width: calc(var(--spacing) * 4.25);
+	height: calc(var(--spacing) * 4.25);
 }
-.lens-sources-toggle + .canvas-zoom-controls {
-	margin-left: 0;
+.lens-root:not([data-tier="medium"])[data-sources="hidden"] .scene-resources {
+	display: none;
 }
 .steps-canvas {
 	top: auto;

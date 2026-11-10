@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Hint } from "@/components/ui/tooltip";
 import type { AnswerVersion, Change } from "@/lib/lens/types";
 import type { Concept, Scene } from "@/lib/memory-types";
 import type { Rewrite } from "./answer-card";
@@ -78,20 +79,20 @@ export function TurnReading({
 					/>
 					<div className="flex flex-wrap gap-1.5">
 						{scenes.map((s) => (
-							<Button
-								key={s.id}
-								type="button"
-								variant="secondary"
-								size="sm"
-								title={s.definition}
-								aria-pressed={picked.includes(s.name)}
-								disabled={
-									picked.length >= MOST_SCENES && !picked.includes(s.name)
-								}
-								onClick={() => setPicked(toggled(picked, s.name))}
-							>
-								{s.name}
-							</Button>
+							<Hint key={s.id} label={s.definition}>
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									aria-pressed={picked.includes(s.name)}
+									disabled={
+										picked.length >= MOST_SCENES && !picked.includes(s.name)
+									}
+									onClick={() => setPicked(toggled(picked, s.name))}
+								>
+									{s.name}
+								</Button>
+							</Hint>
 						))}
 					</div>
 					<Button type="submit" variant="secondary" size="chip">
@@ -102,13 +103,11 @@ export function TurnReading({
 				<div className="lens-reading-line">
 					{picked.length > 0 && <em>{picked.join(" · ")}</em>}
 					<span>{doing}</span>
-					<button
-						type="button"
-						title={t("correctTitle")}
-						onClick={() => setEditing(true)}
-					>
-						{t("correct")}
-					</button>
+					<Hint label={t("correctTitle")}>
+						<button type="button" onClick={() => setEditing(true)}>
+							{t("correct")}
+						</button>
+					</Hint>
 				</div>
 			)}
 			{version.situation.degraded && <span>{t("degraded")}</span>}
@@ -153,31 +152,34 @@ export function TurnReading({
 					/>
 				)}
 				{dirty && (
-					<Button
-						type="button"
-						variant="secondary"
-						size="chip"
-						title={t("rewriteHint")}
-						disabled={busy}
-						onClick={() => {
-							onRewrite({
-								excluded: version.excluded,
-								pinned: version.pinned,
-								note: [
+					<Hint label={t("rewriteHint")}>
+						<Button
+							type="button"
+							variant="secondary"
+							size="chip"
+							disabled={busy}
+							onClick={() => {
+								onRewrite({
+									excluded: version.excluded,
+									pinned: version.pinned,
+									note: [
+										...(corrected
+											? [{ op: "reading" as const, id: "reading" }]
+											: []),
+										...notes,
+									],
 									...(corrected
-										? [{ op: "reading" as const, id: "reading" }]
-										: []),
-									...notes,
-								],
-								...(corrected ? { situation: { doing, scenes: picked } } : {}),
-								brighten: bright,
-								dim,
-							});
-							setNotes([]);
-						}}
-					>
-						{t("rewrite")}
-					</Button>
+										? { situation: { doing, scenes: picked } }
+										: {}),
+									brighten: bright,
+									dim,
+								});
+								setNotes([]);
+							}}
+						>
+							{t("rewrite")}
+						</Button>
+					</Hint>
 				)}
 			</div>
 		</div>

@@ -198,6 +198,7 @@ export function TurnSteps({
 	for (const source of materials)
 		preparation.push({
 			id: "source-" + source.id,
+			lane: "input",
 			from: [],
 			highlight: sourceFocus?.includes(source.id),
 			body: (
@@ -212,6 +213,7 @@ export function TurnSteps({
 	if (version.writing_calls)
 		preparation.push({
 			id: "writing",
+			lane: "side",
 			from: ["question"],
 			body: (
 				<Step
@@ -328,6 +330,7 @@ export function TurnSteps({
 				if (highlight) routeActive = true;
 				return {
 					id: "tool-" + step.call_id,
+					lane: "input" as const,
 					from: ["call-" + i],
 					highlight,
 					body: <ToolCard step={step} />,
@@ -360,6 +363,7 @@ export function TurnSteps({
 		columns.push(
 			unmatched.map((step, i) => ({
 				id: "unlinked-" + i,
+				lane: "input" as const,
 				from: [],
 				body: <ToolCard step={step} />,
 			})),

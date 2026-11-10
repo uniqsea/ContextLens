@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import { projectPath } from "@/lib/projects/types";
 
 export function NewChat({
@@ -36,23 +37,24 @@ export function NewChat({
 	}
 	return (
 		<>
-			<Button
-				type="button"
-				variant={compact ? "quiet" : "default"}
-				size={compact ? "icon" : "default"}
-				disabled={busy}
-				onClick={create}
-				title={t("lens.newChat")}
-			>
-				{compact ? (
-					<Plus aria-hidden="true" />
-				) : (
-					<SquarePen aria-hidden="true" />
-				)}
-				<span className={compact ? "sr-only" : undefined}>
-					{t("lens.newChat")}
-				</span>
-			</Button>
+			<Hint label={t("lens.newChat")}>
+				<Button
+					type="button"
+					variant={compact ? "quiet" : "default"}
+					size={compact ? "icon" : "default"}
+					disabled={busy}
+					onClick={create}
+				>
+					{compact ? (
+						<Plus aria-hidden="true" />
+					) : (
+						<SquarePen aria-hidden="true" />
+					)}
+					<span className={compact ? "sr-only" : undefined}>
+						{t("lens.newChat")}
+					</span>
+				</Button>
+			</Hint>
 			{failed && <span role="alert">{t("projects.failed")}</span>}
 		</>
 	);

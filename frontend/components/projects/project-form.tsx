@@ -2,8 +2,6 @@
 import { Folder, FolderPlus, Pencil, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
-import { ProjectInstructions } from "./project-details";
-import { Switch } from "@/components/ui/switch";
 import { InlineConfirm } from "@/components/inline-confirm";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +23,8 @@ import {
 	ItemMedia,
 	ItemTitle,
 } from "@/components/ui/item";
+import { Switch } from "@/components/ui/switch";
+import { Hint } from "@/components/ui/tooltip";
 import { memoryApi } from "@/lib/memory-api";
 import { folderApi } from "@/lib/projects/folders";
 import {
@@ -32,6 +32,7 @@ import {
 	updateLocalProject,
 } from "@/lib/projects/settings";
 import type { WorkspaceProject } from "@/lib/projects/types";
+import { ProjectInstructions } from "./project-details";
 
 type Props = {
 	project?: WorkspaceProject;
@@ -153,19 +154,20 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={toggle}>
-			<DialogTrigger
-				render={
-					<Button
-						variant={project ? "quiet" : "default"}
-						size={project ? "icon-sm" : "default"}
-						aria-label={title}
-						title={title}
-					/>
-				}
-			>
-				{project ? <Pencil /> : <Plus />}
-				{!project && title}
-			</DialogTrigger>
+			<Hint label={title}>
+				<DialogTrigger
+					render={
+						<Button
+							variant={project ? "quiet" : "default"}
+							size={project ? "icon-sm" : "default"}
+							aria-label={title}
+						/>
+					}
+				>
+					{project ? <Pencil /> : <Plus />}
+					{!project && title}
+				</DialogTrigger>
+			</Hint>
 			<DialogContent
 				className="overflow-y-auto sm:max-w-[560px]"
 				aria-describedby={undefined}
@@ -218,24 +220,27 @@ export function ProjectForm({ project, onSaved, onRemoved }: Props) {
 									</ItemMedia>
 									<ItemContent className="min-w-0">
 										<ItemTitle>{basename(path)}</ItemTitle>
-										<ItemDescription className="truncate text-xs" title={path}>
-											{path}
-										</ItemDescription>
+										<Hint label={path}>
+											<ItemDescription className="truncate text-xs">
+												{path}
+											</ItemDescription>
+										</Hint>
 									</ItemContent>
 									<ItemActions>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											className="rounded-full text-muted-foreground"
-											aria-label={t("projectFiles.remove", { path })}
-											title={t("projectFiles.disconnect")}
-											onClick={() =>
-												setPaths((v) => v.filter((p) => p !== path))
-											}
-										>
-											<X />
-										</Button>
+										<Hint label={t("projectFiles.disconnect")}>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												className="rounded-full text-muted-foreground"
+												aria-label={t("projectFiles.remove", { path })}
+												onClick={() =>
+													setPaths((v) => v.filter((p) => p !== path))
+												}
+											>
+												<X />
+											</Button>
+										</Hint>
 									</ItemActions>
 								</Item>
 							))}

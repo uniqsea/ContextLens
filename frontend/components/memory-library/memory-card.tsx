@@ -2,6 +2,7 @@
 
 import { Check, Pin } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Hint } from "@/components/ui/tooltip";
 import type { MemoryRecord } from "@/lib/memory-types";
 
 const ACTORS = new Set(["user", "agent", "consolidation", "import"]);
@@ -54,9 +55,11 @@ export function MemoryCard({
 				</span>
 			) : (
 				m.always_on && (
-					<span className="lib-card-mark" title={t("alwaysOn")}>
-						<Pin aria-label={t("alwaysOn")} />
-					</span>
+					<Hint label={t("alwaysOn")}>
+						<span className="lib-card-mark">
+							<Pin aria-label={t("alwaysOn")} />
+						</span>
+					</Hint>
 				)
 			)}
 			<h2>{m.title}</h2>

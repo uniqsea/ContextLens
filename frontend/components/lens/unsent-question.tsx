@@ -1,6 +1,7 @@
 "use client";
 import { CircleAlert, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import { useLensText } from "@/lib/lens/text";
 
 // A question that got no answer: its run failed, or was cancelled when the page went away. Only the
@@ -45,9 +46,9 @@ export function UnsentQuestion({
 				</div>
 			</div>
 			<div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-				<span role={latest ? "status" : undefined} title={detail}>
-					{reason}
-				</span>
+				<Hint label={detail}>
+					<span role={latest ? "status" : undefined}>{reason}</span>
+				</Hint>
 				{latest && (
 					<Button
 						variant="secondary"

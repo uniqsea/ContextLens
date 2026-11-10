@@ -22,13 +22,14 @@ import {
 	SidebarGroup,
 	SidebarGroupLabel,
 	SidebarHeader,
-	SidebarRail,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	SidebarRail,
 	SidebarTrigger,
 	useSidebar,
 } from "@/components/ui/sidebar";
+import { Hint } from "@/components/ui/tooltip";
 import {
 	ORDINARY,
 	projectPath,
@@ -160,14 +161,15 @@ export function ProjectSidebar({
 									const label = project + " · " + tab.title;
 									return (
 										<li key={tab.href}>
-											<Link
-												href={tab.href}
-												title={label}
-												onClick={() => setOpenMobile(false)}
-											>
-												<span>{tab.title}</span>
-												<small>{project}</small>
-											</Link>
+											<Hint label={label}>
+												<Link
+													href={tab.href}
+													onClick={() => setOpenMobile(false)}
+												>
+													<span>{tab.title}</span>
+													<small>{project}</small>
+												</Link>
+											</Hint>
 											<Button
 												variant="quiet"
 												size="icon-sm"

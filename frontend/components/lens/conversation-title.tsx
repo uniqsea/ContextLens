@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import { renameConversation } from "@/lib/projects/conversations";
 import styles from "./conversation-title.module.css";
 
@@ -60,20 +61,21 @@ export function ConversationTitle({
 	if (draft === null) {
 		return (
 			<div className={styles.row}>
-				<h1 className={styles.title} title={displayed}>
-					{displayed}
-				</h1>
-				<Button
-					ref={trigger}
-					type="button"
-					variant="quiet"
-					size="icon-sm"
-					aria-label={t("conversationTitle.rename")}
-					title={t("conversationTitle.rename")}
-					onClick={() => setDraft(displayed)}
-				>
-					<Pencil aria-hidden="true" />
-				</Button>
+				<Hint label={displayed}>
+					<h1 className={styles.title}>{displayed}</h1>
+				</Hint>
+				<Hint label={t("conversationTitle.rename")}>
+					<Button
+						ref={trigger}
+						type="button"
+						variant="quiet"
+						size="icon-sm"
+						aria-label={t("conversationTitle.rename")}
+						onClick={() => setDraft(displayed)}
+					>
+						<Pencil aria-hidden="true" />
+					</Button>
+				</Hint>
 			</div>
 		);
 	}
@@ -93,27 +95,29 @@ export function ConversationTitle({
 							close();
 					}}
 				/>
-				<Button
-					type="submit"
-					variant="quiet"
-					size="icon-sm"
-					disabled={saving || !draft.trim()}
-					aria-label={t("conversationTitle.save")}
-					title={t("conversationTitle.save")}
-				>
-					<Check aria-hidden="true" />
-				</Button>
-				<Button
-					type="button"
-					variant="quiet"
-					size="icon-sm"
-					disabled={saving}
-					aria-label={t("conversationTitle.cancel")}
-					title={t("conversationTitle.cancel")}
-					onClick={close}
-				>
-					<X aria-hidden="true" />
-				</Button>
+				<Hint label={t("conversationTitle.save")}>
+					<Button
+						type="submit"
+						variant="quiet"
+						size="icon-sm"
+						disabled={saving || !draft.trim()}
+						aria-label={t("conversationTitle.save")}
+					>
+						<Check aria-hidden="true" />
+					</Button>
+				</Hint>
+				<Hint label={t("conversationTitle.cancel")}>
+					<Button
+						type="button"
+						variant="quiet"
+						size="icon-sm"
+						disabled={saving}
+						aria-label={t("conversationTitle.cancel")}
+						onClick={close}
+					>
+						<X aria-hidden="true" />
+					</Button>
+				</Hint>
 			</form>
 			{failed && (
 				<p className={styles.error} role="alert">

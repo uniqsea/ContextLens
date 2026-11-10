@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
-	useDialogDismiss,
 	DialogBody,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	useDialogDismiss,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Hint } from "@/components/ui/tooltip";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { ImportCandidate, MemoryEvent } from "@/lib/memory-types";
 
@@ -181,17 +182,18 @@ export function ImportDialog({
 												}
 											/>
 											<p>
-												<input
-													type="date"
-													className="lib-import-date"
-													value={c.noted ?? ""}
-													max={today}
-													title={t("noted")}
-													aria-label={t("noted")}
-													onChange={(e) =>
-														edit(c.key, { noted: e.target.value || null })
-													}
-												/>
+												<Hint label={t("noted")}>
+													<input
+														type="date"
+														className="lib-import-date"
+														value={c.noted ?? ""}
+														max={today}
+														aria-label={t("noted")}
+														onChange={(e) =>
+															edit(c.key, { noted: e.target.value || null })
+														}
+													/>
+												</Hint>
 												<span
 													className="lib-import-tag"
 													data-relation={c.relation}

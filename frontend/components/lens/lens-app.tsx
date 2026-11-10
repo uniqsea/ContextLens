@@ -1,7 +1,14 @@
 "use client";
 
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { Library, Maximize, Minus, PanelRight, Plus } from "lucide-react";
+import {
+	Library,
+	Maximize,
+	Minus,
+	PanelRightClose,
+	PanelRightOpen,
+	Plus,
+} from "lucide-react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 import {
@@ -17,6 +24,7 @@ import { SettingsDialog } from "@/components/model-settings/settings-dialog";
 import { useModelSettings } from "@/components/model-settings/use-model-settings";
 import { PageLoading } from "@/components/page-status";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import {
 	ASSISTANT_ID,
 	apiUrl,
@@ -49,7 +57,7 @@ import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
 import { UnsentQuestion } from "./unsent-question";
 import { useFold } from "./use-fold";
-import { useLayoutTier } from "./use-layout-tier";
+import { type LayoutTier, useLayoutTier } from "./use-layout-tier";
 import { useOverview } from "./use-overview";
 
 const EMPTY: Draft = { excluded: [], inputOrder: null };
@@ -284,11 +292,19 @@ export function LensApp({
 	const toolsRef = useRef<HTMLDivElement>(null);
 	const fieldAreaRef = useRef<HTMLDivElement>(null);
 	const tier = useLayoutTier(stageRef);
-	const [sourcesOpen, setSourcesOpen] = useState(false);
+	// Sources show by default where they have a column, and start closed where they are a drawer;
+	// a choice holds until the layout tier changes.
+	const [sourcesChoice, setSourcesChoice] = useState<{
+		tier: LayoutTier;
+		shown: boolean;
+	} | null>(null);
+	const sourcesShown =
+		sourcesChoice?.tier === tier ? sourcesChoice.shown : tier !== "medium";
+	const showSources = (shown: boolean) => setSourcesChoice({ tier, shown });
 	const sourcesToggleRef = useRef<HTMLButtonElement>(null);
 	// The drawer closes on a press anywhere outside it (its own toggle handles itself).
 	useEffect(() => {
-		if (tier !== "medium" || !sourcesOpen) return;
+		if (tier !== "medium" || !sourcesShown) return;
 		const close = (e: PointerEvent) => {
 			const target = e.target as Node;
 			if (
@@ -296,11 +312,11 @@ export function LensApp({
 				sourcesToggleRef.current?.contains(target)
 			)
 				return;
-			setSourcesOpen(false);
+			setSourcesChoice({ tier, shown: false });
 		};
 		document.addEventListener("pointerdown", close);
 		return () => document.removeEventListener("pointerdown", close);
-	}, [tier, sourcesOpen]);
+	}, [tier, sourcesShown]);
 	// The steps panel lives in the canvas, so it takes the uncovered part's edges as variables.
 	useLayoutEffect(() => {
 		const stage = stageRef.current;
@@ -867,7 +883,7 @@ export function LensApp({
 				inert={entering}
 				className="lens-root"
 				data-tier={tier}
-				data-sources={tier === "medium" && sourcesOpen ? "open" : undefined}
+				data-sources={sourcesShown ? "open" : "hidden"}
 				ref={stageRef}
 				tabIndex={0}
 				style={
@@ -936,27 +952,32 @@ export function LensApp({
 								className="lens-head-actions"
 								aria-label={t("lens.navigation")}
 							>
-								<Button
-									variant="quiet"
-									size="sm"
-									className="lens-fold-btn"
-									nativeButton={false}
-									render={<Link href={projectPath(scope) + "?tab=memories"} />}
-									title={t(
+								<Hint
+									label={t(
 										scope === ORDINARY
 											? "library.globalTitle"
 											: "library.projectTitle",
 									)}
 								>
-									<Library aria-hidden="true" />
-									<span>
-										{t(
-											scope === ORDINARY
-												? "library.globalTitle"
-												: "library.projectTitle",
-										)}
-									</span>
-								</Button>
+									<Button
+										variant="quiet"
+										size="sm"
+										className="lens-fold-btn"
+										nativeButton={false}
+										render={
+											<Link href={projectPath(scope) + "?tab=memories"} />
+										}
+									>
+										<Library aria-hidden="true" />
+										<span>
+											{t(
+												scope === ORDINARY
+													? "library.globalTitle"
+													: "library.projectTitle",
+											)}
+										</span>
+									</Button>
+								</Hint>
 								<SettingsMenu
 									onManageModels={() => setManagingModels(true)}
 									onManageSituations={() => setManagingSituations(true)}
@@ -1118,22 +1139,23 @@ export function LensApp({
 									settings={modelSettings}
 									onManage={() => setManagingModels(true)}
 								/>
-								<button
-									className="lens-send"
-									type="submit"
-									disabled={
-										!input.trim() ||
-										stream.isThreadLoading ||
-										stream.isLoading ||
-										effectiveOrder.some((id) => !available.has(id))
-									}
-									aria-label={t("lens.send")}
-									title={t("lens.send")}
-								>
-									<svg viewBox="0 0 24 24" aria-hidden="true">
-										<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
-									</svg>
-								</button>
+								<Hint label={t("lens.send")}>
+									<button
+										className="lens-send"
+										type="submit"
+										disabled={
+											!input.trim() ||
+											stream.isThreadLoading ||
+											stream.isLoading ||
+											effectiveOrder.some((id) => !available.has(id))
+										}
+										aria-label={t("lens.send")}
+									>
+										<svg viewBox="0 0 24 24" aria-hidden="true">
+											<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+										</svg>
+									</button>
+								</Hint>
 							</div>
 						</div>
 					</form>
@@ -1148,10 +1170,10 @@ export function LensApp({
 					ref={resourcesRef}
 					className="scene-resources"
 					id="lens-sources"
-					inert={tier === "medium" && !sourcesOpen}
+					inert={!sourcesShown}
 					onKeyDown={(e) => {
-						if (e.key === "Escape" && tier === "medium" && sourcesOpen)
-							setSourcesOpen(false);
+						if (e.key === "Escape" && tier === "medium" && sourcesShown)
+							showSources(false);
 					}}
 				>
 					<ContextField
@@ -1188,52 +1210,65 @@ export function LensApp({
 							{t("lens.tidy", { count: placed })}
 						</Button>
 					)}
-					{tier === "medium" && (
+					<Hint
+						label={t(sourcesShown ? "field.hideSources" : "field.showSources")}
+					>
 						<button
 							type="button"
 							ref={sourcesToggleRef}
 							className="lens-sources-toggle"
-							aria-expanded={sourcesOpen}
+							aria-expanded={sourcesShown}
 							aria-controls="lens-sources"
-							onClick={() => setSourcesOpen((o) => !o)}
+							aria-label={t(
+								sourcesShown ? "field.hideSources" : "field.showSources",
+							)}
+							onClick={() => showSources(!sourcesShown)}
 						>
-							<PanelRight aria-hidden="true" />
-							{t("field.sources")}
+							{sourcesShown ? (
+								<PanelRightClose aria-hidden="true" />
+							) : (
+								<PanelRightOpen aria-hidden="true" />
+							)}
 						</button>
-					)}
-					<div
-						className="canvas-zoom-controls"
-						role="group"
-						aria-label={t("field.zoom")}
-					>
+					</Hint>
+				</div>
+
+				<div
+					className="canvas-zoom-controls"
+					role="group"
+					aria-label={t("field.zoom")}
+				>
+					<Hint label={t("field.zoomOut")}>
 						<button
 							type="button"
 							aria-label={t("field.zoomOut")}
-							title={t("field.zoomOut")}
 							disabled={canvasScale <= 0.25}
 							onClick={() => engineRef.current?.zoomBy(0.8)}
 						>
-							<Minus />
+							<Minus aria-hidden="true" />
 						</button>
-						<span>{Math.max(1, Math.round(canvasScale * 100))}%</span>
+					</Hint>
+					<span>{Math.max(1, Math.round(canvasScale * 100))}%</span>
+					<Hint label={t("field.zoomIn")}>
 						<button
 							type="button"
 							aria-label={t("field.zoomIn")}
-							title={t("field.zoomIn")}
 							disabled={canvasScale >= 4}
 							onClick={() => engineRef.current?.zoomBy(1.25)}
 						>
-							<Plus />
+							<Plus aria-hidden="true" />
 						</button>
+					</Hint>
+					<Hint label={t("field.fitAll")}>
 						<button
 							type="button"
 							className="canvas-fit"
+							aria-label={t("field.fitAll")}
 							onClick={() => engineRef.current?.fitAll()}
 						>
-							<Maximize />
-							{t("field.fitAll")}
+							<Maximize aria-hidden="true" />
 						</button>
-					</div>
+					</Hint>
 				</div>
 
 				{managingSituations && (

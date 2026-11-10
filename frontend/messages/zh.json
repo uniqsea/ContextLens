@@ -17,6 +17,8 @@
 		"closeLibrary": "返回相关材料",
 		"awaitQuestion": "输入问题后，相关材料会出现在这里。",
 		"sources": "可用来源",
+		"hideSources": "收起可用来源",
+		"showSources": "展开可用来源",
 		"title": "上下文场",
 		"next": "返回本轮输入",
 		"previous": "查看已回答轮次",

@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { SessionProvider } from "@/components/lens/session-tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { htmlLang } from "@/i18n/config";
 import { DENSITY_SCRIPT } from "@/lib/density";
@@ -43,7 +44,9 @@ export default async function RootLayout({
 			<body className="antialiased">
 				<NextIntlClientProvider>
 					<ThemeProvider>
-						<SessionProvider>{children}</SessionProvider>
+						<TooltipProvider>
+							<SessionProvider>{children}</SessionProvider>
+						</TooltipProvider>
 					</ThemeProvider>
 				</NextIntlClientProvider>
 			</body>

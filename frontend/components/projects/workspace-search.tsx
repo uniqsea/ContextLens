@@ -20,6 +20,7 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Hint } from "@/components/ui/tooltip";
 import { projectPath } from "@/lib/projects/types";
 import { useDirectory } from "./use-directory";
 
@@ -29,19 +30,20 @@ export function WorkspaceSearch({ onNavigate }: { onNavigate: () => void }) {
 	const [open, setOpen] = useState(false);
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger
-				render={
-					<Button
-						variant="quiet"
-						size="icon-sm"
-						aria-label={t("workspaceSearch")}
-						title={t("workspaceSearch")}
-						className="absolute right-8 top-0 transition-[translate] duration-200 ease-settle group-data-[collapsible=icon]:translate-x-8 group-data-[collapsible=icon]:translate-y-8 motion-reduce:transition-none"
-					/>
-				}
-			>
-				<Search />
-			</DialogTrigger>
+			<Hint label={t("workspaceSearch")}>
+				<DialogTrigger
+					render={
+						<Button
+							variant="quiet"
+							size="icon-sm"
+							aria-label={t("workspaceSearch")}
+							className="absolute right-8 top-0 transition-[translate] duration-200 ease-settle group-data-[collapsible=icon]:translate-x-8 group-data-[collapsible=icon]:translate-y-8 motion-reduce:transition-none"
+						/>
+					}
+				>
+					<Search />
+				</DialogTrigger>
+			</Hint>
 			<DialogContent className="gap-0 p-3 sm:max-w-lg">
 				<DialogTitle className="sr-only">{t("workspaceSearch")}</DialogTitle>
 				<SearchResults

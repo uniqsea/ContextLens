@@ -15,6 +15,7 @@ import {
 } from "react";
 import { NewChat } from "@/components/projects/new-chat";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
 
 type Tab = {
@@ -154,30 +155,32 @@ function SessionTabs({
 	const layoutLabel = layout === "top" ? t("useSide") : t("useTop");
 	const LayoutIcon = layout === "top" ? PanelLeft : PanelTop;
 	const toggle = (
-		<Button
-			variant="quiet"
-			size="icon"
-			onClick={switchLayout}
-			title={layoutLabel}
-			aria-label={layoutLabel}
-		>
-			<LayoutIcon />
-		</Button>
+		<Hint label={layoutLabel}>
+			<Button
+				variant="quiet"
+				size="icon"
+				onClick={switchLayout}
+				aria-label={layoutLabel}
+			>
+				<LayoutIcon />
+			</Button>
+		</Hint>
 	);
 	function navigation(inDrawer = false) {
 		return (
 			<nav className="session-tabs" aria-label={t("label")}>
-				<Button
-					variant="quiet"
-					size="icon"
-					className="session-home"
-					nativeButton={false}
-					render={<Link href="/" onClick={() => drawer.current?.close()} />}
-					title={labels("projects.all")}
-					aria-label={labels("projects.all")}
-				>
-					<img src="/icon.svg" width="25" height="25" alt="" />
-				</Button>
+				<Hint label={labels("projects.all")}>
+					<Button
+						variant="quiet"
+						size="icon"
+						className="session-home"
+						nativeButton={false}
+						render={<Link href="/" onClick={() => drawer.current?.close()} />}
+						aria-label={labels("projects.all")}
+					>
+						<img src="/icon.svg" width="25" height="25" alt="" />
+					</Button>
+				</Hint>
 				<div className="session-tab-list">
 					{visible.map((tab, index) => {
 						const project =
@@ -190,19 +193,20 @@ function SessionTabs({
 								key={tab.href}
 								data-active={path === tab.href}
 							>
-								<Link
-									href={tab.href}
-									title={fullTitle}
-									onClick={() => drawer.current?.close()}
-									aria-current={path === tab.href ? "page" : undefined}
-									ref={!inDrawer && path === tab.href ? active : undefined}
-								>
-									<small>
-										<Folder size={11} />
-										<span>{project}</span>
-									</small>
-									<strong>{tab.title}</strong>
-								</Link>
+								<Hint label={fullTitle}>
+									<Link
+										href={tab.href}
+										onClick={() => drawer.current?.close()}
+										aria-current={path === tab.href ? "page" : undefined}
+										ref={!inDrawer && path === tab.href ? active : undefined}
+									>
+										<small>
+											<Folder size={11} />
+											<span>{project}</span>
+										</small>
+										<strong>{tab.title}</strong>
+									</Link>
+								</Hint>
 								<button
 									type="button"
 									aria-label={t("close", { title: fullTitle })}

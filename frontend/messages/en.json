@@ -17,6 +17,8 @@
 		"closeLibrary": "Back to relevant sources",
 		"awaitQuestion": "Relevant sources appear here when you enter a question.",
 		"sources": "Available sources",
+		"hideSources": "Hide available sources",
+		"showSources": "Show available sources",
 		"title": "Context field",
 		"next": "Back to next input",
 		"previous": "Inspect answered turn",

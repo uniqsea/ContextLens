@@ -4,6 +4,7 @@ import { useLocale } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/tooltip";
 import { htmlLang } from "@/i18n/config";
 import { useLensText } from "@/lib/lens/text";
 import type { Candidate, Change, Segment, TurnRecord } from "@/lib/lens/types";
@@ -189,20 +190,9 @@ export function AnswerCard({
 								<InlineText text={p.text} />
 							</del>
 						) : (
-							<span
+							<Hint
 								key={keyOf(`seg:${p.seg.text}`)}
-								className={
-									"seg" +
-									(p.seg.src.length ? "" : " nosrc") +
-									(p.kind === "new" ? " ink" : "")
-								}
-								style={
-									p.kind === "new"
-										? { animationDelay: `${k * 90}ms` }
-										: undefined
-								}
-								data-src={p.seg.src.join(" ")}
-								title={
+								label={
 									p.seg.src.length
 										? t("answer.basis", {
 												titles: p.seg.src
@@ -217,8 +207,22 @@ export function AnswerCard({
 										: t("answer.noBasis")
 								}
 							>
-								<InlineText text={p.seg.text} />
-							</span>
+								<span
+									className={
+										"seg" +
+										(p.seg.src.length ? "" : " nosrc") +
+										(p.kind === "new" ? " ink" : "")
+									}
+									style={
+										p.kind === "new"
+											? { animationDelay: `${k * 90}ms` }
+											: undefined
+									}
+									data-src={p.seg.src.join(" ")}
+								>
+									<InlineText text={p.seg.text} />
+								</span>
+							</Hint>
 						),
 					)}
 				</p>

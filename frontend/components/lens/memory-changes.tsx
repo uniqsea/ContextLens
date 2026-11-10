@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Hint } from "@/components/ui/tooltip";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { MemoryChange } from "@/lib/memory-types";
 
@@ -84,14 +85,15 @@ export function MemoryChanges({
 					{undone.has(c.event_id) ? (
 						<span className="done">{t("undone")}</span>
 					) : (
-						<button
-							type="button"
-							disabled={busy !== null}
-							onClick={() => void undo(c)}
-							title={c.reason ? t("why", { reason: c.reason }) : undefined}
-						>
-							{t("undo")}
-						</button>
+						<Hint label={c.reason ? t("why", { reason: c.reason }) : undefined}>
+							<button
+								type="button"
+								disabled={busy !== null}
+								onClick={() => void undo(c)}
+							>
+								{t("undo")}
+							</button>
+						</Hint>
 					)}
 				</div>
 			))}

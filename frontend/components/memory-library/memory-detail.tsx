@@ -7,12 +7,13 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
-	useDialogDismiss,
 	DialogClose,
 	DialogContent,
 	DialogTitle,
+	useDialogDismiss,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Hint } from "@/components/ui/tooltip";
 import { memoryApi } from "@/lib/memory-api";
 import type { MemoryRecord, Scene, TimelineFact } from "@/lib/memory-types";
 import { MemoryEditor } from "./editor";
@@ -180,14 +181,17 @@ export function MemoryDetail({
 										{!trashed && (
 											<div className="lib-prop">
 												<span id="lib-always-on">{t("alwaysOn")}</span>
-												<Switch
-													aria-labelledby="lib-always-on"
-													checked={m.always_on}
-													title={t(m.always_on ? "unpin" : "pin")}
-													onCheckedChange={(checked) =>
-														onChange(() => memoryApi.setAlwaysOn(m.id, checked))
-													}
-												/>
+												<Hint label={t(m.always_on ? "unpin" : "pin")}>
+													<Switch
+														aria-labelledby="lib-always-on"
+														checked={m.always_on}
+														onCheckedChange={(checked) =>
+															onChange(() =>
+																memoryApi.setAlwaysOn(m.id, checked),
+															)
+														}
+													/>
+												</Hint>
 											</div>
 										)}
 									</div>
