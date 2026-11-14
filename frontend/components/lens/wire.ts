@@ -9,7 +9,10 @@ function svg<K extends keyof SVGElementTagNameMap>(name: K) {
 interface WireOptions {
 	color: string;
 	startDot?: boolean;
+	endDot?: boolean;
 	endArrow?: boolean;
+	/** A neutral wire: ink at rest, its colour only when highlighted. */
+	ink?: boolean;
 	interactive?: boolean;
 }
 
@@ -42,14 +45,19 @@ export class Wire {
 	private readonly group = svg("g");
 	private readonly stroke = svg("path");
 	private readonly dot: SVGCircleElement | null;
+	private readonly end: SVGCircleElement | null;
 	readonly hit: SVGPathElement | null;
 
 	constructor(parent: SVGElement, options: WireOptions) {
-		this.group.setAttribute("class", "lens-wire");
+		this.group.setAttribute(
+			"class",
+			options.ink ? "lens-wire ink" : "lens-wire",
+		);
 		this.group.style.setProperty("--c", options.color);
 		this.stroke.setAttribute("class", "wire");
 		this.hit = options.interactive ? svg("path") : null;
 		this.dot = options.startDot ? svg("circle") : null;
+		this.end = options.endDot ? svg("circle") : null;
 		if (this.hit) {
 			this.hit.setAttribute("class", "hit");
 			this.group.append(this.hit);
@@ -62,6 +70,11 @@ export class Wire {
 			this.dot.setAttribute("r", "3");
 			this.group.append(this.dot);
 		}
+		if (this.end) {
+			this.end.setAttribute("class", "dot end");
+			this.end.setAttribute("r", "4.5");
+			this.group.append(this.end);
+		}
 		parent.append(this.group);
 	}
 
@@ -73,36 +86,53 @@ export class Wire {
 		this.group.style.display = visible ? "" : "none";
 	}
 
+	/**
+	 * From (x, y) to the end. `lead` is where the wire really starts when it first has to reach
+	 * (x, y): a sentence, on its way through its segment of the spine. Only the main run can be
+	 * grabbed. `preview` draws it dashed: nothing has been sent yet.
+	 */
 	move(
 		x: number,
 		y: number,
 		endX: number,
 		endY: number,
-		rail?: { x: number; y: number },
+		options?: {
+			lead?: { x: number; y: number; toX: number };
+			preview?: boolean;
+		},
 	) {
-		const dx = endX - x;
-		const curve = `C${x + dx * 0.5} ${y} ${endX - dx * 0.5} ${endY} ${endX} ${endY}`;
-		const open = `M${x} ${y} ${curve}`;
+		const curve = (x1: number, y1: number, x2: number, y2: number) => {
+			const dx = x2 - x1;
+			return `M${x1} ${y1} C${x1 + dx * 0.5} ${y1} ${x2 - dx * 0.5} ${y2} ${x2} ${y2}`;
+		};
+		const lead = options?.lead;
+		const open = curve(x, y, endX, endY);
 		this.stroke.setAttribute(
 			"d",
-			rail
-				? `M${rail.x} ${rail.y} V${y + 5} Q${rail.x} ${y} ${rail.x + 5} ${y} H${x} ${curve}`
-				: open,
+			lead ? `${curve(lead.x, lead.y, lead.toX, y)} ${open}` : open,
 		);
 		this.hit?.setAttribute("d", open);
-		this.dot?.setAttribute("cx", String(rail?.x ?? x));
-		this.dot?.setAttribute("cy", String(rail?.y ?? y));
-		this.stroke.classList.toggle("preview", !!rail);
+		if (this.dot) {
+			this.dot.setAttribute("cx", String(lead?.x ?? x));
+			this.dot.setAttribute("cy", String(lead?.y ?? y));
+			// A previewed wire starts on the spine itself, which needs no mark.
+			this.dot.style.display = options?.preview ? "none" : "";
+		}
+		this.end?.setAttribute("cx", String(endX));
+		this.end?.setAttribute("cy", String(endY));
+		this.stroke.classList.toggle("preview", !!options?.preview);
 	}
 
 	highlight(active: boolean) {
 		this.stroke.classList.toggle("hl", active);
 		this.dot?.classList.toggle("hl", active);
+		this.end?.classList.toggle("hl", active);
 	}
 
 	dim(far: boolean, fade: boolean) {
 		this.stroke.classList.toggle("far", far);
 		this.stroke.style.opacity = fade ? "0.12" : "";
+		if (this.dot) this.dot.style.opacity = fade ? "0.12" : "";
 	}
 
 	snap() {

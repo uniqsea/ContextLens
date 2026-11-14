@@ -7,7 +7,6 @@ import { Wire } from "./wire";
 // Columns run in processing order; lanes split what a stage reads (above),
 // the stage itself (middle) and what it writes aside (below).
 export type FlowLane = "input" | "main" | "side";
-const lanes: FlowLane[] = ["input", "main", "side"];
 
 export interface FlowNode {
 	id: string;
@@ -15,6 +14,8 @@ export interface FlowNode {
 	from: string[];
 	lane?: FlowLane;
 	highlight?: boolean;
+	/** A source or a tool result: the wires leaving it carry its kind's colour. */
+	color?: string;
 }
 
 // Wires enter and leave at the title line, so they stay put when a card opens.
@@ -39,14 +40,18 @@ export function StepFlow({
 				(el) => [el.dataset.flowId!, el],
 			),
 		);
+		const colors = new Map(columns.flat().map((n) => [n.id, n.color]));
 		const links = columns.flat().flatMap((node) => {
 			const end = elements.get(node.id);
 			if (!end) return [];
 			return node.from.flatMap((source) => {
 				const start = elements.get(source);
 				if (!start) return [];
+				// What was read flows in along its own colour; the order of work stays ink.
+				const color = colors.get(source);
 				const wire = new Wire(parent, {
-					color: "var(--mem)",
+					color: color ?? "var(--mem)",
+					ink: !color,
 					endArrow: true,
 				});
 				wire.highlight(!!node.highlight && start.dataset.highlight === "true");
@@ -80,8 +85,17 @@ export function StepFlow({
 		};
 	}, [columns]);
 	const filled = columns.filter((col) => col.length);
-	const used = lanes.filter((lane) =>
-		filled.some((col) => col.some((node) => (node.lane ?? "main") === lane)),
+	const laneOf = (node: FlowNode) => node.lane ?? "main";
+	const hasInput = filled.some((col) => col.some((n) => laneOf(n) === "input"));
+	const node = (n: FlowNode) => (
+		<div
+			key={n.id}
+			className="flow-node"
+			data-flow-id={n.id}
+			data-highlight={!!n.highlight}
+		>
+			{n.body}
+		</div>
 	);
 	return (
 		<section className="turn-steps step-flow-scroll" aria-label={label}>
@@ -89,31 +103,42 @@ export function StepFlow({
 				<svg aria-hidden="true" className="step-flow-lines">
 					<g ref={layer} />
 				</svg>
-				{filled.flatMap((col, c) =>
-					used.flatMap((lane, r) => {
-						const nodes = col.filter((node) => (node.lane ?? "main") === lane);
-						if (!nodes.length) return [];
-						return (
+				{filled.flatMap((col, c) => {
+					const pick = (lane: FlowLane) =>
+						col.filter((n) => laneOf(n) === lane);
+					const input = pick("input");
+					const main = pick("main");
+					const side = pick("side");
+					// The side lane hangs under its own column's stage, so opening a card
+					// elsewhere never pushes it away from the step it branches from.
+					return [
+						input.length > 0 && (
 							<div
 								className="flow-cell"
-								data-lane={lane}
-								key={nodes[0].id}
-								style={{ gridColumn: c + 1, gridRow: r + 1 }}
+								data-lane="input"
+								key={"in-" + input[0].id}
+								style={{ gridColumn: c + 1, gridRow: 1 }}
 							>
-								{nodes.map((node) => (
-									<div
-										key={node.id}
-										className="flow-node"
-										data-flow-id={node.id}
-										data-highlight={!!node.highlight}
-									>
-										{node.body}
-									</div>
-								))}
+								{input.map(node)}
 							</div>
-						);
-					}),
-				)}
+						),
+						main.length + side.length > 0 && (
+							<div
+								className="flow-cell"
+								data-lane="main"
+								key={"main-" + (main[0] ?? side[0]).id}
+								style={{ gridColumn: c + 1, gridRow: hasInput ? 2 : 1 }}
+							>
+								{main.map(node)}
+								{side.length > 0 && (
+									<div className="flow-cell" data-lane="side">
+										{side.map(node)}
+									</div>
+								)}
+							</div>
+						),
+					].filter(Boolean);
+				})}
 			</div>
 		</section>
 	);

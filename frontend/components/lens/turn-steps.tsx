@@ -7,22 +7,27 @@ import { Button } from "@/components/ui/button";
 import { useLensText } from "@/lib/lens/text";
 import {
 	type AnswerVersion,
+	layerColor,
 	type ModelCall,
 	stripMarkers,
 	type ToolStep,
 	type TraceMessage,
 } from "@/lib/lens/types";
+import { ContextStrip, type StripItem, stripItems } from "./context-meter";
 import { type FlowNode, StepFlow } from "./step-flow";
 
 function Step({
 	title,
 	input,
 	output,
+	carried,
 	children,
 }: {
 	title: string;
 	input: string;
 	output: string;
+	/** What the request holds by this step, as the same bar the spine is. */
+	carried?: StripItem[];
 	children: ReactNode;
 }) {
 	const t = useTranslations("turnSteps");
@@ -47,6 +52,7 @@ function Step({
 					<span>{t("output")}</span>
 					<span>{output}</span>
 				</span>
+				{carried && <ContextStrip items={carried} mini />}
 			</summary>
 			{opened && <div className="step-detail">{children}</div>}
 		</details>
@@ -153,6 +159,22 @@ export function TurnSteps({
 		.filter(Boolean)
 		.join(" · ");
 	const columns: FlowNode[][] = [];
+	// The request as it grows: the question alone, then what was assembled, then each tool result
+	// as a call takes it in. A result's size is estimated from its text, like the question's.
+	const all = stripItems(
+		version.candidates,
+		version.assembled_ids ?? version.selected_ids,
+		query,
+		text,
+	);
+	const asked = all.filter((i) => i.layer === "user");
+	const resultLayer = (step: ToolStep) =>
+		step.artifact?.document
+			? ("retrieval" as const)
+			: step.artifact?.memories?.length
+				? ("memory" as const)
+				: null;
+	const taken: StripItem[] = [];
 	const materials = (selected ?? []).filter(
 		(c) =>
 			c.layer === "memory" ||
@@ -166,6 +188,7 @@ export function TurnSteps({
 			<div className="flow-source">
 				<b>{t("question")}</b>
 				<p>{query}</p>
+				<ContextStrip items={asked} mini />
 			</div>
 		),
 		highlight: sourceFocus?.includes("usr-001"),
@@ -179,6 +202,7 @@ export function TurnSteps({
 			body: (
 				<Step
 					title={t(rewrite ? "reuseReading" : "reading")}
+					carried={asked}
 					input={rewrite ? reading.doing : query}
 					output={
 						reading.degraded && !rewrite
@@ -200,6 +224,7 @@ export function TurnSteps({
 			id: "source-" + source.id,
 			lane: "input",
 			from: [],
+			color: layerColor(source.layer),
 			highlight: sourceFocus?.includes(source.id),
 			body: (
 				<details className="turn-step">
@@ -253,6 +278,7 @@ export function TurnSteps({
 			body: (
 				<Step
 					title={t("assemble")}
+					carried={all}
 					input={[query, reading?.doing]
 						.filter(
 							(value, index, items) => value && items.indexOf(value) === index,
@@ -299,9 +325,20 @@ export function TurnSteps({
 			if (id && orderedTools.has(id) && !consumed.has(id)) {
 				from.push("tool-" + id);
 				consumed.add(id);
+				const step = tools.find((s) => s.call_id === id);
+				const layer = step && resultLayer(step);
+				if (step && layer)
+					taken.push({
+						id: "tool-" + id,
+						label: step.tool,
+						tokens: Math.max(12, Math.round((step.result ?? "").length * 1.3)),
+						layer,
+					});
 			}
 		}
 		const answerCall = i === calls.length - 1 && !requested.length;
+		// The question stays last, as in the request itself.
+		const carried = [...all.slice(0, -1), ...taken, ...all.slice(-1)];
 		columns.push([
 			{
 				id: "call-" + i,
@@ -310,6 +347,7 @@ export function TurnSteps({
 				body: (
 					<Step
 						title={t(requested.length ? "chooseTools" : "answer")}
+						carried={carried}
 						input={input}
 						output={output || t(call.failed ? "failed" : "missing")}
 					>
@@ -328,9 +366,11 @@ export function TurnSteps({
 				];
 				const highlight = sources.some((id) => id && sourceFocus?.includes(id));
 				if (highlight) routeActive = true;
+				const layer = resultLayer(step);
 				return {
 					id: "tool-" + step.call_id,
 					lane: "input" as const,
+					color: layer ? layerColor(layer) : undefined,
 					from: ["call-" + i],
 					highlight,
 					body: <ToolCard step={step} />,

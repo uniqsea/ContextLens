@@ -214,9 +214,15 @@ export function AnswerCard({
 										(p.kind === "new" ? " ink" : "")
 									}
 									style={
-										p.kind === "new"
-											? { animationDelay: `${k * 90}ms` }
-											: undefined
+										{
+											// Underlined in the colour of the first source it rests on.
+											"--c": layerColor(
+												latest?.candidates.find((c) => c.id === p.seg.src[0])
+													?.layer ?? "memory",
+											),
+											animationDelay:
+												p.kind === "new" ? `${k * 90}ms` : undefined,
+										} as React.CSSProperties
 									}
 									data-src={p.seg.src.join(" ")}
 								>

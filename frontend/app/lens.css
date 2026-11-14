@@ -219,6 +219,28 @@
 .lens-card.hl {
 	box-shadow: 0 0 0 2px var(--c);
 }
+/* Each kind has its own outline, so the field reads before any colour does: a memory is a rounded
+   card, a document a sheet with a turned corner, a piece of conversation a speech bubble. */
+.lens-card[data-layer="short_term"] {
+	border-bottom-left-radius: 5px;
+}
+/* Its part of the request, at the end of the line that names its kind. */
+.lens-card .k .share {
+	flex: none;
+	margin-left: auto;
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+}
+.lens-card .k:has(.share)::after {
+	margin-left: 0;
+}
+.lens-card:not(.in) .k .share {
+	display: none;
+}
+/* Clear of the turned corner. */
+.lens-card.document-card .k .share {
+	margin-right: calc(var(--spacing) * 3);
+}
 .lens-card.drag {
 	cursor: grabbing;
 	z-index: 10;
@@ -550,6 +572,14 @@
 	transition: background 0.18s;
 	cursor: pointer;
 }
+/* A sentence that rests on a source is underlined in that source's colour, the same colour its
+   wire carries across the field. */
+.lens-answer .seg[data-src]:not(.nosrc) {
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--c) 72%, transparent);
+	text-decoration-thickness: 2px;
+	text-underline-offset: 4px;
+}
 .lens-answer .seg.hl {
 	background: var(--glow);
 }
@@ -680,7 +710,52 @@
 	from {
 		flex-grow: 0;
 		min-width: 0;
+		min-height: 0;
 		opacity: 0;
+	}
+}
+/* The spine: the same bar stood up between the conversation and the field. A wire runs from a
+   sentence into its segment and out the other side to its card, so one line says both which
+   sentence used a source and how much of the request it took. */
+.lens-spine {
+	position: absolute;
+	z-index: 2;
+	left: calc(var(--field-left, 0px) + var(--spacing) * 8);
+	top: 84px;
+	width: calc(var(--spacing) * 3);
+	height: min(
+		calc(var(--spacing) * 130),
+		calc(var(--field-bottom, 100%) - 84px - var(--spacing) * 8)
+	);
+}
+.lens-strip.spine {
+	flex-direction: column;
+	height: 100%;
+	border-radius: 6px;
+}
+.lens-strip.spine .sg {
+	min-width: 0;
+	min-height: calc(var(--spacing) * 1.5);
+}
+.lens-strip.spine .sg.lift {
+	transform: translateX(8px);
+}
+.lens-strip.spine .sg.warn::after {
+	right: 50%;
+	translate: 50% 0;
+}
+.lens-spine-caption {
+	display: flex;
+	min-width: 0;
+	gap: calc(var(--spacing) * 1.5);
+	padding-left: calc(var(--spacing) * 1);
+	font-size: var(--type-sm);
+	color: var(--muted-foreground);
+	white-space: nowrap;
+}
+@media (max-width: 900px) {
+	.lens-spine-caption {
+		display: none;
 	}
 }
 .lens-strip .sg.lift {
@@ -1109,7 +1184,7 @@
 	flex-direction: column;
 	gap: calc(var(--spacing) * 2);
 }
-.lens-root.over-composer .lens-composer .lens-strip {
+.lens-root.over-composer .lens-composer [data-input-zone] {
 	outline: 2px dashed var(--foreground);
 	outline-offset: 2px;
 }
@@ -2539,14 +2614,15 @@
 	pointer-events: none;
 	z-index: 1;
 }
-/* Bottom-right of the canvas, out of the toolbar: small, icon-only, like a map's zoom. */
+/* The page's bottom-right corner, whichever column ends there: under the docked sources, or the
+   canvas when they are hidden or a drawer. Small and icon-only, like a map's zoom. */
 .canvas-zoom-controls {
-	grid-area: field;
+	grid-row: 2;
+	grid-column: -2 / -1;
 	align-self: end;
 	justify-self: end;
 	position: relative;
 	z-index: 4;
-	margin: calc(var(--spacing) * 3);
 	display: flex;
 	align-items: center;
 	padding: 2px;
@@ -2644,6 +2720,9 @@
 .flow-cell[data-lane="input"] {
 	align-self: end;
 }
+.flow-cell[data-lane="side"] {
+	margin-top: calc(var(--spacing) * 3);
+}
 .flow-node pre {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
@@ -2662,6 +2741,10 @@
 /* Writes aside never feed the answer, so their card reads as a branch. */
 .steps-canvas .flow-cell[data-lane="side"] .turn-step {
 	border-style: dashed;
+}
+/* What the request holds by this step, under the step's two lines. */
+.flow-node .lens-strip.mini {
+	margin-top: calc(var(--spacing) * 2);
 }
 .flow-node[data-highlight="true"] {
 	outline: 2px solid var(--mem);
@@ -2689,6 +2772,10 @@
 	position: relative;
 	min-width: 0;
 	min-height: 0;
+}
+/* Docked sources stop above the zoom controls that share their corner. */
+.lens-root[data-tier="wide"][data-sources="open"] .scene-resources {
+	margin-bottom: calc(var(--spacing) * 11);
 }
 /* Medium: a drawer at the canvas's right edge, open from the toolbar, over what is behind it. */
 .lens-root[data-tier="medium"] .scene-resources {
@@ -2749,6 +2836,12 @@
 	border-top: 1px solid var(--border);
 	padding-top: calc(var(--spacing) * 2.5);
 }
+/* Beside the conversation the spine stands in the field's left margin: the steps start clear of it. */
+@media (min-width: 901px) {
+	.steps-canvas {
+		padding-left: calc(var(--spacing) * 17);
+	}
+}
 .steps-canvas header {
 	margin-bottom: calc(var(--spacing) * 2);
 }
@@ -2780,8 +2873,31 @@
 }
 
 .lens-card.document-card {
+	--fold: calc(var(--spacing) * 4.5);
 	padding: calc(var(--spacing) * 3.25) 0 0;
 	overflow: hidden;
+	border-radius: 6px;
+	clip-path: polygon(
+		0 0,
+		calc(100% - var(--fold)) 0,
+		100% var(--fold),
+		100% 100%,
+		0 100%
+	);
+}
+.lens-card.document-card::after {
+	content: "";
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: var(--fold);
+	height: var(--fold);
+	border-bottom-left-radius: 5px;
+	background: linear-gradient(225deg, transparent 50%, var(--border) 50%);
+}
+/* The clip would cut a ring drawn outside the sheet, so a document's ring sits inside it. */
+.lens-card.document-card.hl {
+	box-shadow: inset 0 0 0 2px var(--c);
 }
 .lens-card.document-card:not(.near) {
 	border-color: var(--border);

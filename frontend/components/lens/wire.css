@@ -1,38 +1,41 @@
-/* Wires stay neutral at rest; a wire takes its source's colour only when asked about. */
+/* A wire always carries its source's colour: dashed while it previews, solid once sent. Asking
+   about one makes it heavier and the rest recede. */
 .lens-wire .wire {
 	fill: none;
-	stroke: var(--foreground);
-	stroke-width: 1.5;
-	opacity: 0.42;
+	stroke: var(--c);
+	stroke-width: 2;
+	opacity: 0.8;
 	transition:
 		opacity 0.18s,
 		stroke-width 0.18s;
 }
+/* The order of work, not a source: ink at rest, coloured only when asked about. */
+.lens-wire.ink .wire {
+	stroke: var(--foreground);
+	stroke-width: 1.5;
+	opacity: 0.42;
+}
 .lens-wire .wire.preview {
-	stroke-dasharray: 4 4;
+	stroke-dasharray: 5 5;
+	stroke-linecap: round;
 }
 /* Wires to later columns must pass behind nearer cards: keep them faint until asked for. */
 .lens-wire .wire.far {
-	opacity: 0.2;
+	opacity: 0.4;
 }
 .lens-wire .wire.hl {
 	stroke: var(--c);
-	stroke-width: 2;
+	stroke-width: 2.5;
 	opacity: 1;
 }
 .lens-root.focusing .wire:not(.hl) {
-	opacity: 0.06;
+	opacity: 0.08;
 }
 .lens-wire .dot {
-	fill: var(--foreground);
-	opacity: 0.55;
-}
-.lens-wire .dot.hl {
 	fill: var(--c);
-	opacity: 1;
 }
 .lens-root.focusing .dot:not(.hl) {
-	opacity: 0.08;
+	opacity: 0.1;
 }
 .lens-wire .hit {
 	fill: none;

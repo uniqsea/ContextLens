@@ -6,7 +6,8 @@
 
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useFormatter, useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { type Ref, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { useLensText } from "@/lib/lens/text";
 import type { Candidate, Layer } from "@/lib/lens/types";
 import { layerColor } from "@/lib/lens/types";
@@ -80,12 +81,14 @@ export interface Peek {
 
 /**
  * What the next request carries, as one bar: a segment per item, as wide as its share, each wired to
- * its card. Read-only under an answer (mini). Elsewhere a segment dragged up or down, or Delete on
- * it, leaves the item out. `pressed` counts those removals, and each one replays the bar's reaction.
+ * its card. Read-only under an answer (mini). Elsewhere a segment dragged out of the bar's line, or
+ * Delete on it, leaves the item out. `pressed` counts those removals, and each one replays the bar's
+ * reaction. `vertical` stands it up as the spine between the conversation and the field.
  */
 export function ContextStrip({
 	items,
 	mini = false,
+	vertical = false,
 	pressed = 0,
 	onRemove,
 	onHover,
@@ -93,6 +96,7 @@ export function ContextStrip({
 }: {
 	items: StripItem[];
 	mini?: boolean;
+	vertical?: boolean;
 	pressed?: number;
 	onRemove?: (id: string) => void;
 	onHover?: (ids: string[] | null) => void;
@@ -100,7 +104,10 @@ export function ContextStrip({
 }) {
 	const t = useTranslations("lens");
 	const seen = useRef<Set<string>>(new Set(items.map((i) => i.id)));
-	const drag = useRef<{ id: string; y: number; el: HTMLElement } | null>(null);
+	const drag = useRef<{ id: string; at: number; el: HTMLElement } | null>(null);
+	// How far the pointer has left the bar's line.
+	const off = (e: { clientX: number; clientY: number }) =>
+		vertical ? e.clientX : e.clientY;
 	const fresh = new Set(
 		items.filter((i) => !seen.current.has(i.id)).map((i) => i.id),
 	);
@@ -110,7 +117,7 @@ export function ContextStrip({
 
 	return (
 		<div
-			className={`lens-strip${mini ? " mini" : ""}`}
+			className={`lens-strip${mini ? " mini" : ""}${vertical ? " spine" : ""}`}
 			data-wave={pressed ? (pressed % 2 ? "a" : "b") : undefined}
 		>
 			{items.map((it, n) => {
@@ -157,20 +164,20 @@ export function ContextStrip({
 						onBlur={hide}
 						onPointerDown={(e) => {
 							if (!removable(it)) return;
-							drag.current = { id: it.id, y: e.clientY, el: e.currentTarget };
+							drag.current = { id: it.id, at: off(e), el: e.currentTarget };
 							e.currentTarget.setPointerCapture(e.pointerId);
 						}}
 						onPointerMove={(e) => {
 							const d = drag.current;
 							if (d)
-								d.el.classList.toggle("lift", Math.abs(e.clientY - d.y) > 18);
+								d.el.classList.toggle("lift", Math.abs(off(e) - d.at) > 18);
 						}}
 						onPointerUp={(e) => {
 							const d = drag.current;
 							drag.current = null;
 							if (!d) return;
 							d.el.classList.remove("lift");
-							if (Math.abs(e.clientY - d.y) > 18) onRemove?.(d.id);
+							if (Math.abs(off(e) - d.at) > 18) onRemove?.(d.id);
 						}}
 						onKeyDown={(e) => {
 							if (
@@ -250,11 +257,15 @@ function Roll({ value }: { value: number }) {
  * against, and the tokens are an estimate.
  *
  * Inline it sits above the input: the bar and, while there is something to say, one line. As a card,
- * on the back of an answer, there is room for the whole figure.
+ * on the back of an answer, there is room for the whole figure. As the spine it stands between the
+ * conversation and the field, and its one line goes wherever `captionHost` is.
  */
 export function ContextMeter({
 	items,
 	card = false,
+	spine = false,
+	hostRef,
+	captionHost,
 	details = true,
 	idleHint,
 	pressed,
@@ -263,11 +274,16 @@ export function ContextMeter({
 }: {
 	items: StripItem[];
 	card?: boolean;
+	spine?: boolean;
+	/** The spine's element, for whoever wires cards to its segments. */
+	hostRef?: Ref<HTMLDivElement>;
+	captionHost?: HTMLElement | null;
 	/** Inline, the line under the bar speaks only while it has something to say. */
 	details?: boolean;
 	idleHint?: string;
 	pressed?: number;
-	onRemove: (id: string) => void;
+	/** Absent, the bar is read-only: what was sent cannot be taken back out. */
+	onRemove?: (id: string) => void;
 	onHover: (ids: string[] | null) => void;
 }) {
 	const t = useTranslations("lens");
@@ -282,6 +298,7 @@ export function ContextMeter({
 	const strip = (
 		<ContextStrip
 			items={items}
+			vertical={spine}
 			pressed={pressed}
 			onRemove={onRemove}
 			onHover={onHover}
@@ -323,6 +340,25 @@ export function ContextMeter({
 			{kinds.length === 0 && idleHint && <span>{idleHint}</span>}
 		</div>
 	);
+
+	if (spine)
+		return (
+			<div className="lens-spine" ref={hostRef}>
+				{strip}
+				{captionHost &&
+					createPortal(
+						<>
+							{peek && <span className="lens-meter-name">{peek.label}</span>}
+							<span>
+								{t.rich("tokens", {
+									n: () => <Roll value={figure} />,
+								})}
+							</span>
+						</>,
+						captionHost,
+					)}
+			</div>
+		);
 
 	if (card)
 		return (

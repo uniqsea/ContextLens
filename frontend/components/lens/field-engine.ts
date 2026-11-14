@@ -23,6 +23,8 @@ export interface FieldCard {
 	/** Worded by the caller: the layer's name and the unlink handle's label. */
 	kind: string;
 	unlink: string;
+	/** Its part of the request, worded by the caller ("7%"); empty when it is not in one. */
+	share: string;
 }
 
 export interface Anchor {
@@ -47,6 +49,10 @@ export interface FieldModel {
 	state: Record<string, CardState>;
 	pinned: Set<string>;
 	anchors: Record<string, Anchor>;
+	/** The spine's segments by item id, in stage coordinates; empty where there is no spine. */
+	spine: Record<string, Rect>;
+	/** The spine's right edge, when it is shown: sent cards start clear of it. */
+	spineEdge?: number;
 	sheet: Rect;
 	form: Rect;
 	answer: Rect | null;
@@ -107,8 +113,10 @@ function setUnit(u: number) {
 	NEAR_STEP = 5.5 * u;
 }
 const cardH = (l: Live) => (l.tight ? TIGHT_H : l.h);
-/** How far above the strip its wires run, inside the composer's top padding. */
-const RAIL = 7;
+/** Room between the spine and the first column, for the wires to fan out in. */
+const SPINE_GAP = 60;
+/** A wire stops short of its card, so the dot that ends it shows whole. */
+const WIRE_END = 5;
 const reduced = () =>
 	typeof window !== "undefined" &&
 	window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -369,6 +377,8 @@ export class FieldEngine {
 					l.card.previewUrl !== card.previewUrl
 				)
 					this.fill(l.el, card);
+				// On its own, so a share that changes with every keystroke never redraws the card.
+				else if (l.card.share !== card.share) this.share(l.el, card.share);
 				l.card = card;
 			} else this.addLive(card);
 		});
@@ -377,7 +387,24 @@ export class FieldEngine {
 		});
 	}
 
+	private share(el: HTMLButtonElement, share: string) {
+		const k = el.querySelector(".k");
+		if (!k) return;
+		let b = k.querySelector<HTMLElement>(".share");
+		if (!share) {
+			b?.remove();
+			return;
+		}
+		if (!b) {
+			b = document.createElement("b");
+			b.className = "share";
+			k.append(b);
+		}
+		b.textContent = share;
+	}
+
 	private fill(el: HTMLButtonElement, c: FieldCard) {
+		el.dataset.layer = c.layer;
 		el.classList.toggle("document-card", c.layer === "retrieval");
 		if (c.layer === "retrieval") {
 			el.innerHTML =
@@ -400,6 +427,7 @@ export class FieldEngine {
 				cover.append(image);
 				el.append(cover);
 			}
+			this.share(el, c.share);
 			return;
 		}
 
@@ -413,6 +441,7 @@ export class FieldEngine {
 		content.textContent = c.content.replace(/\*\*/g, "");
 		meta.textContent = [c.scope, c.meta].filter(Boolean).join(" · ");
 		meta.classList.toggle("stale", c.stale);
+		this.share(el, c.share);
 	}
 
 	private addLive(card: FieldCard) {
@@ -429,6 +458,7 @@ export class FieldEngine {
 			wire: new Wire(this.svg, {
 				color: layerColor(card.layer),
 				startDot: true,
+				endDot: true,
 				interactive: true,
 			}),
 			x: (this.W || this.stage.clientWidth) - this.CW - 20,
@@ -551,7 +581,8 @@ export class FieldEngine {
 		} else {
 			// Back from a phone width: the stage fills the window again.
 			if (this.stage.style.height) this.stage.style.height = "";
-			const colX = m.field.x + 36;
+			const colX =
+				m.spineEdge !== undefined ? m.spineEdge + SPINE_GAP : m.field.x + 36;
 			const right = m.field.x + m.field.w - 6;
 			const gap = 16;
 			const step = this.CW + gap;
@@ -594,8 +625,13 @@ export class FieldEngine {
 			const limit = (c: number) => bottomOf(colX + c * step) - nearRoom;
 			const label = 22;
 			const first = 84;
-			const byAnchor = (a: Live, b: Live) =>
-				(m.anchors[a.card.id]?.y ?? 0) - (m.anchors[b.card.id]?.y ?? 0);
+			// A card hangs level with its segment of the spine, so the wires fan out in order; with
+			// no spine, level with the sentence that used it.
+			const level = (l: Live) => {
+				const seg = m.spine[l.card.id];
+				return seg ? seg.y + seg.h / 2 : m.anchors[l.card.id]?.y;
+			};
+			const byAnchor = (a: Live, b: Live) => (level(a) ?? 0) - (level(b) ?? 0);
 			const parts = cats.map((layer) =>
 				groups.in.filter((l) => l.card.layer === layer).sort(byAnchor),
 			);
@@ -643,16 +679,15 @@ export class FieldEngine {
 				const x = colX + c * step;
 				const lim = limit(c);
 				const room = (l: Live) => (opens.has(l) && l !== col[0] ? label : 0);
-				// A card sits level with its sentence and slides down past the one above...
+				// A card sits level with its anchor and slides down past the one above...
 				let bottom = first - CARD_GAP;
 				for (const l of col) {
-					const a = m.anchors[l.card.id];
 					l.tx = x;
 					l.far = c > 0;
 					l.deck = true;
 					l.ty = Math.max(
 						first,
-						(a ? a.y : this.H / 2) - cardH(l) / 2,
+						(level(l) ?? this.H / 2) - cardH(l) / 2,
 						bottom + CARD_GAP + room(l),
 					);
 					bottom = l.ty + cardH(l);
@@ -848,28 +883,22 @@ export class FieldEngine {
 				if (this.handleFor === l) this.hideHandle(true);
 				return;
 			}
-			const ex = l.x;
+			const ex = l.x - WIRE_END;
 			const ey = l.y + cardH(l) / 2;
+			const wx = (x: number) => (x - this.view.x) / this.view.scale;
+			const wy = (y: number) => (y - this.view.y) / this.view.scale;
+			const seg = m.spine[l.card.id];
 			const o = spread.get(l.card.id) ?? 0;
-			const ax = a.kind === "strip" ? a.x + o : a.x;
-			const ay = a.kind === "strip" ? a.y : a.y + o;
-			// Across the open field a wire is a curve. A strip's wire first has to leave the sheet: up
-			// off its segment, along the gap above the strip, out of the edge. Only the part over the
-			// field can be grabbed, so it never covers the input.
-			const sx = a.kind === "strip" ? m.sheet.x + m.sheet.w : ax;
-			const sy = a.kind === "strip" ? ay - RAIL : ay;
-			l.wire.move(
-				(sx - this.view.x) / this.view.scale,
-				(sy - this.view.y) / this.view.scale,
-				ex,
-				ey,
-				a.kind === "strip"
-					? {
-							x: (ax - this.view.x) / this.view.scale,
-							y: (ay - this.view.y) / this.view.scale,
-						}
-					: undefined,
-			);
+			// A previewed wire leaves its segment of the spine. A sent one starts at the sentence,
+			// runs into its segment and comes out the other side; only the part over the field can
+			// be grabbed.
+			if (a.kind === "strip")
+				l.wire.move(wx(a.x), wy(a.y), ex, ey, { preview: true });
+			else if (seg)
+				l.wire.move(wx(seg.x + seg.w), wy(seg.y + seg.h / 2), ex, ey, {
+					lead: { x: wx(a.x), y: wy(a.y + o), toX: wx(seg.x) },
+				});
+			else l.wire.move(wx(a.x), wy(a.y + o), ex, ey);
 			l.wire.dim(l.far, !!a.fade);
 			if (this.handleFor === l && l.wire.hit) {
 				const p = l.wire.hit.getPointAtLength(

@@ -132,6 +132,13 @@ export function LensApp({
 	const [managingSituations, setManagingSituations] = useState(false);
 	const [toastMsg, setToastMsg] = useState<string | null>(null);
 	const [stripRemovals, setStripRemovals] = useState(0);
+	// Which request the field shows: a sent turn, or null for the one being composed. The field
+	// engine decides it every frame from where the conversation is scrolled; this follows it.
+	const [fieldTurn, setFieldTurn] = useState<number | null>(null);
+	const fieldTurnRef = useRef<number | null>(null);
+	const [spineCaption, setSpineCaption] = useState<HTMLSpanElement | null>(
+		null,
+	);
 
 	const records = useMemo<Record<string, TurnRecord>>(
 		() => stream.values?.turn_records ?? {},
@@ -291,6 +298,8 @@ export function LensApp({
 	const stepsPanelRef = useRef<HTMLElement>(null);
 	const toolsRef = useRef<HTMLDivElement>(null);
 	const fieldAreaRef = useRef<HTMLDivElement>(null);
+	const spineRef = useRef<HTMLDivElement>(null);
+	const sharesRef = useRef(new Map<string, string>());
 	const tier = useLayoutTier(stageRef);
 	// Sources show by default where they have a column, and start closed where they are a drawer;
 	// a choice holds until the layout tier changes.
@@ -427,6 +436,11 @@ export function LensApp({
 				? { kind: "turn", turn: vt, record: rec }
 				: { kind: "draft", snapshot: snap };
 		viewRef.current = view;
+		const shown = view.kind === "turn" ? view.turn : null;
+		if (fieldTurnRef.current !== shown) {
+			fieldTurnRef.current = shown;
+			setFieldTurn(shown);
+		}
 		const v =
 			view.kind === "turn"
 				? view.record.versions[view.record.versions.length - 1]
@@ -454,17 +468,30 @@ export function LensApp({
 				state[c.id] = "near";
 		});
 
+		// The spine stops where the turn's steps begin, as the cards do.
+		const fieldBottom = stepsPanelRef.current?.offsetTop;
+		const bottomVar = fieldBottom ? `${fieldBottom}px` : "";
+		if (stage.style.getPropertyValue("--field-bottom") !== bottomVar)
+			stage.style.setProperty("--field-bottom", bottomVar);
 		const anchors: FieldModel["anchors"] = {};
 		let answer: Rect | null = null;
-		if (view.kind === "draft") {
-			formRef.current
+		const spine: FieldModel["spine"] = {};
+		const spineBox = rel(spineRef.current);
+		if (spineBox?.w)
+			spineRef.current
 				?.querySelectorAll<HTMLElement>("[data-sid]")
 				.forEach((e) => {
-					const id = e.dataset.sid!;
-					if (state[id] !== "in") return;
-					const r = rel(e)!;
-					anchors[id] = { x: r.x + r.w / 2, y: r.y, kind: "strip" };
+					spine[e.dataset.sid!] = rel(e)!;
 				});
+		if (view.kind === "draft") {
+			// Nothing is sent yet: each wire starts on the spine, at its own segment.
+			for (const [id, seg] of Object.entries(spine))
+				if (state[id] === "in")
+					anchors[id] = {
+						x: seg.x + seg.w,
+						y: seg.y + seg.h / 2,
+						kind: "strip",
+					};
 		} else {
 			const el = msgsRef.current?.querySelector<HTMLElement>(
 				`[data-turn="${view.turn}"]`,
@@ -525,7 +552,7 @@ export function LensApp({
 				w: Math.max(1, sb.width - sheet.x - sheet.w - 24),
 				h: Math.max(1, sb.height - 72),
 			},
-			fieldBottom: stepsPanelRef.current?.offsetTop,
+			fieldBottom,
 			cards: visible.map((c) => {
 				const title = tx.title(c);
 				return {
@@ -542,6 +569,7 @@ export function LensApp({
 					scope: scopeLabel(c),
 					kind: tx.layer(c.layer),
 					unlink: tx.t("lens.unlink", { title }),
+					share: sharesRef.current.get(c.id) ?? "",
 					meta: [
 						c.layer === "short_term" && !earlier(c) ? "" : c.source_label,
 						c.stale ? tx.t("items.maybeStale") : "",
@@ -553,6 +581,8 @@ export function LensApp({
 			state,
 			pinned: new Set(v ? v.pinned : (ctx.current.draft.inputOrder ?? [])),
 			anchors,
+			spine,
+			spineEdge: spineBox?.w ? spineBox.x + spineBox.w : undefined,
 			sheet,
 			form,
 			answer,
@@ -848,6 +878,39 @@ export function LensApp({
 	const items = preview
 		? stripItems(preview.candidates, preview.selected_ids, input.trim(), text)
 		: stripItems([], [], input.trim(), text);
+	// The spine shows what the field shows: the turn in view, or the request being composed.
+	const sentRecord =
+		fieldTurn !== null ? records[String(fieldTurn)] : undefined;
+	const sentVersion = sentRecord?.versions.at(-1);
+	const spineItems = sentVersion
+		? stripItems(
+				sentVersion.candidates,
+				sentVersion.assembled_ids ?? sentVersion.selected_ids,
+				sentRecord?.query ?? "",
+				text,
+			)
+		: items;
+	const spineTotal = spineItems.reduce((sum, i) => sum + i.tokens, 0);
+	sharesRef.current = new Map(
+		spineItems.map((i) => {
+			const share = (i.tokens / Math.max(1, spineTotal)) * 100;
+			return [i.id, share < 1 ? "<1%" : `${Math.round(share)}%`];
+		}),
+	);
+	const removeFromNext = (id: string) => {
+		setStripRemovals((n) => n + 1);
+		setDraft((d) => ({
+			excluded: available.has(id)
+				? d.excluded
+				: [...without(d.excluded, id), id],
+			inputOrder: without(d.inputOrder ?? effectiveOrder, id),
+		}));
+		toast(
+			t("toast.removedNext", {
+				title: items.find((i) => i.id === id)?.label ?? id,
+			}),
+		);
+	};
 	const composingNext = Boolean(
 		composing && (input.trim() || effectiveOrder.length),
 	);
@@ -1082,26 +1145,16 @@ export function LensApp({
 								}))
 							}
 						/>
-						<ContextMeter
-							items={items}
-							details={composingNext || turns.length === 0}
-							pressed={stripRemovals}
-							onRemove={(id) => {
-								setStripRemovals((n) => n + 1);
-								setDraft((d) => ({
-									excluded: available.has(id)
-										? d.excluded
-										: [...without(d.excluded, id), id],
-									inputOrder: without(d.inputOrder ?? effectiveOrder, id),
-								}));
-								toast(
-									t("toast.removedNext", {
-										title: items.find((i) => i.id === id)?.label ?? id,
-									}),
-								);
-							}}
-							onHover={hover}
-						/>
+						{/* Phones have no field beside the sheet, so the bar stays here; elsewhere it is the spine. */}
+						{tier === "stacked" && (
+							<ContextMeter
+								items={items}
+								details={composingNext || turns.length === 0}
+								pressed={stripRemovals}
+								onRemove={removeFromNext}
+								onHover={hover}
+							/>
+						)}
 						{/* biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: a larger target for the textarea, which keeps its own keyboard access */}
 						<div
 							className="lens-row"
@@ -1166,6 +1219,18 @@ export function LensApp({
 					className="lens-field-area"
 					aria-hidden="true"
 				/>
+				{/* The request the field shows, stood up between the conversation and its cards. */}
+				{tier !== "stacked" && (
+					<ContextMeter
+						spine
+						hostRef={spineRef}
+						captionHost={spineCaption}
+						items={spineItems}
+						pressed={sentVersion ? 0 : stripRemovals}
+						onRemove={sentVersion ? undefined : removeFromNext}
+						onHover={hover}
+					/>
+				)}
 				<div
 					ref={resourcesRef}
 					className="scene-resources"
@@ -1200,6 +1265,7 @@ export function LensApp({
 						{t("field.next")}
 					</Button>
 					<div className="lens-field-note" ref={noteRef} />
+					<span className="lens-spine-caption" ref={setSpineCaption} />
 					{placed > 0 && (
 						<Button
 							type="button"
