@@ -488,10 +488,10 @@
 }
 .lens-empty b {
 	color: var(--foreground);
-	font-size: var(--type-display-sm);
+	font-size: var(--type-display);
 	font-weight: 500;
-	letter-spacing: -0.02em;
-	line-height: 1.25;
+	letter-spacing: -0.03em;
+	line-height: 1.2;
 }
 .lens-empty .lens-chips {
 	justify-content: center;
@@ -744,8 +744,15 @@
 	right: 50%;
 	translate: 50% 0;
 }
+/* The figure is the one large thing on the field's top row: the number itself is the picture, its
+   words stay small beside it. */
+.lens-spine-caption .lens-wheel {
+	font-size: var(--type-display-sm);
+	letter-spacing: -0.03em;
+}
 .lens-spine-caption {
 	display: flex;
+	align-items: baseline;
 	min-width: 0;
 	gap: calc(var(--spacing) * 1.5);
 	padding-left: calc(var(--spacing) * 1);

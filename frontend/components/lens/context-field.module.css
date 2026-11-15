@@ -12,10 +12,19 @@
 	flex-wrap: wrap;
 	margin: 0 calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
 }
+/* The sources are a shelf to pick from, not the subject: the column stays quiet until the pointer
+   is in it, and leaves the weight to the field. */
 .header h2 {
 	margin: 0 auto 0 0;
-	font-size: var(--type-title);
-	font-weight: 600;
+	font-size: var(--type-control);
+	font-weight: 500;
+	color: var(--muted-foreground);
+}
+.canvas [data-field-id]:not(:hover, :focus-within, :global(.hl)) {
+	background: color-mix(in srgb, var(--card) 50%, transparent);
+}
+.field:not(:hover, :focus-within) .canvas [data-field-id] {
+	color: var(--secondary-foreground);
 }
 .header button,
 .empty button {
