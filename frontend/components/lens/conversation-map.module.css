@@ -1,0 +1,181 @@
+.map {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	color: var(--foreground);
+}
+/* The same dotted stage the conversation's own canvas sits on. */
+.viewport {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	cursor: grab;
+	touch-action: none;
+	outline: none;
+	background-image: radial-gradient(var(--grid) 1px, transparent 1.2px);
+	background-size: 22px 22px;
+	background-position: 11px 11px;
+}
+.viewport[data-panning] {
+	cursor: grabbing;
+	user-select: none;
+}
+.world {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: max-content;
+	transform-origin: 0 0;
+	display: grid;
+	align-items: start;
+	/* Room between the turns for the wires that cross from one to the next. */
+	gap: 112px;
+	padding: calc(var(--spacing) * 6);
+}
+/* The turns sit over the wires between them, so a wire passes behind a card, never across it. */
+.turn {
+	position: relative;
+	z-index: 1;
+}
+/* Large enough to still name the turn when the whole conversation is in view. */
+.heading {
+	margin: 0 0 calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+	padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2.5);
+	border-radius: 999px;
+	font-size: var(--type-display-sm);
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	cursor: pointer;
+}
+.heading:hover,
+.heading:focus-visible {
+	background: var(--muted-strong);
+}
+
+/* A turn's flow, as the canvas beside the conversation draws it. */
+.world :global(.step-flow-scroll) {
+	display: block;
+	margin-top: 0;
+}
+.world :global(.flow-node) {
+	cursor: auto;
+}
+.world :global(.turn-step) {
+	background: var(--card);
+	border: 1px solid var(--border);
+}
+.world :global(.flow-cell[data-lane="side"] .turn-step) {
+	border-style: dashed;
+}
+/* Nothing here rewrites an answer, so the empty editor slot takes no room. */
+.world :global(.step-editor:empty) {
+	display: none;
+}
+
+.links {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+	pointer-events: none;
+}
+.links path,
+.bar path {
+	fill: none;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	opacity: 0.55;
+	transition: opacity 0.15s;
+}
+.links path[data-kind="again"],
+.bar path[data-kind="again"] {
+	stroke-dasharray: 2 5;
+}
+/* The quietest of the three: there are the most of them, and each says the least. */
+.links path[data-kind="again"] {
+	opacity: 0.38;
+}
+.links path[data-kind="written"],
+.bar path[data-kind="written"] {
+	stroke-width: 2.5;
+}
+.links[data-hot] path {
+	opacity: 0.1;
+}
+.links[data-hot] path[data-on] {
+	opacity: 1;
+	stroke-width: 3;
+}
+
+/* The map's name and what its wires mean, floating over the canvas. */
+.bar {
+	position: absolute;
+	top: calc(var(--spacing) * 3.5);
+	left: calc(var(--spacing) * 3.5);
+	max-width: calc(100% - var(--spacing) * 20);
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: calc(var(--spacing) * 1.5) calc(var(--spacing) * 4.5);
+	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 4);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: var(--card);
+	box-shadow: var(--lift);
+}
+.bar h2 {
+	font-size: var(--type-ui);
+	font-weight: 600;
+}
+/* One step per turn: the way around a long conversation. */
+.bar nav {
+	display: flex;
+	gap: 2px;
+	max-width: min(46vw, 520px);
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.bar nav button {
+	flex: none;
+	min-width: calc(var(--spacing) * 6.5);
+	height: calc(var(--spacing) * 6.5);
+	padding: 0 calc(var(--spacing) * 1.5);
+	border-radius: 999px;
+	font-size: var(--type-sm);
+	font-variant-numeric: tabular-nums;
+	color: var(--secondary-foreground);
+	cursor: pointer;
+}
+.bar nav button:hover,
+.bar nav button:focus-visible {
+	background: var(--muted-strong);
+	color: var(--foreground);
+}
+.bar p,
+.bar ul {
+	font-size: var(--type-meta);
+	color: var(--muted-foreground);
+}
+.bar ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--spacing) * 1) calc(var(--spacing) * 4);
+}
+.bar li {
+	display: inline-flex;
+	align-items: center;
+	gap: calc(var(--spacing) * 1.5);
+}
+.bar li svg {
+	width: 26px;
+	height: 8px;
+}
+.bar path {
+	opacity: 0.9;
+}
+.zoom {
+	position: absolute;
+	right: calc(var(--spacing) * 3.5);
+	bottom: calc(var(--spacing) * 3.5);
+}

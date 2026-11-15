@@ -84,6 +84,23 @@
 			"tool": "工具"
 		}
 	},
+	"conversationMap": {
+		"open": "对话地图",
+		"title": "对话地图",
+		"description": "这段对话每一轮的完整处理过程，和它们之间的联系。拖动平移，滚轮缩放。",
+		"turns": "跳到某一轮",
+		"turn": "第 {n} 轮",
+		"locate": "回到对话里看这一轮",
+		"empty": "这段对话还没有回答过的轮次。",
+		"links": {
+			"history": "上一轮进入了这一轮的历史",
+			"written": "前面记下，这里读到",
+			"again": "同一个来源再次用到"
+		},
+		"zoomIn": "放大",
+		"zoomOut": "缩小",
+		"fit": "看全部"
+	},
 	"conversationTitle": {
 		"archive": "归档",
 		"restore": "取消归档",

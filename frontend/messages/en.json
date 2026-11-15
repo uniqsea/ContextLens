@@ -84,6 +84,23 @@
 			"tool": "Tool"
 		}
 	},
+	"conversationMap": {
+		"open": "Conversation map",
+		"title": "Conversation map",
+		"description": "Every turn of this conversation with all of its steps, and what connects them. Drag to pan, scroll to zoom.",
+		"turns": "Go to a turn",
+		"turn": "Turn {n}",
+		"locate": "See this turn in the conversation",
+		"empty": "This conversation has no answered turn yet.",
+		"links": {
+			"history": "An earlier turn carried into this one",
+			"written": "Remembered earlier, read here",
+			"again": "The same source used again"
+		},
+		"zoomIn": "Zoom in",
+		"zoomOut": "Zoom out",
+		"fit": "Fit all"
+	},
 	"conversationTitle": {
 		"archive": "Archive",
 		"restore": "Unarchive",

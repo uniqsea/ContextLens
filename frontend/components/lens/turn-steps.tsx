@@ -13,6 +13,7 @@ import {
 	type ToolStep,
 	type TraceMessage,
 } from "@/lib/lens/types";
+import type { MemoryChange } from "@/lib/memory-types";
 import { ContextStrip, type StripItem, stripItems } from "./context-meter";
 import { type FlowNode, StepFlow } from "./step-flow";
 
@@ -130,6 +131,8 @@ export function TurnSteps({
 	rewrite,
 	readingControls,
 	contextControls,
+	unfolded = false,
+	changes: recorded,
 }: {
 	sourceFocus: string[] | null;
 	version: AnswerVersion;
@@ -137,10 +140,15 @@ export function TurnSteps({
 	rewrite: boolean;
 	readingControls: ReactNode;
 	contextControls: ReactNode;
+	/** Start with every tool round laid out, as the conversation map shows a turn. */
+	unfolded?: boolean;
+	/** Every memory change the turn made, where the map shows them all; the version's own otherwise. */
+	changes?: MemoryChange[];
 }) {
 	const t = useTranslations("turnSteps");
 	const text = useLensText();
-	const selected = version.assembled_ids
+	// Turns recorded before the assembled request was kept still know what they carried.
+	const selected = (version.assembled_ids ?? (recorded && version.selected_ids))
 		?.map((id) => version.candidates.find((c) => c.id === id))
 		.filter((c) => c !== undefined);
 	const reading = version.situation;
@@ -153,7 +161,7 @@ export function TurnSteps({
 		selected?.map((c) => text.title(c)).join(" · ") || t("prepared");
 	const tools = version.steps ?? [];
 	const orderedTools = new Set<string>();
-	const changes = version.written_changes ?? [];
+	const changes = recorded ?? version.written_changes ?? [];
 	const written = changes
 		.map((c) => c.content || c.title)
 		.filter(Boolean)
@@ -261,6 +269,18 @@ export function TurnSteps({
 				</Step>
 			),
 		});
+	else if (recorded?.length)
+		preparation.push({
+			id: "writing",
+			lane: "side",
+			from: ["question"],
+			body: (
+				<Step title={t("write")} input={query} output={written}>
+					<h5>{t("applied")}</h5>
+					<pre>{written}</pre>
+				</Step>
+			),
+		});
 	columns.push(preparation);
 	const materialFocus =
 		materials.some((c) => sourceFocus?.includes(c.id)) ||
@@ -293,7 +313,7 @@ export function TurnSteps({
 			),
 		},
 	]);
-	const [expanded, setExpanded] = useState(false);
+	const [expanded, setExpanded] = useState(unfolded);
 	const calls = version.agent_calls ?? [];
 	const consumed = new Set<string>();
 	let routeActive = !!materialFocus;

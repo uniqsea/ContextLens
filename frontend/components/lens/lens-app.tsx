@@ -3,6 +3,7 @@
 import { useStream } from "@langchain/langgraph-sdk/react";
 import {
 	Library,
+	Map as MapIcon,
 	Maximize,
 	Minus,
 	PanelRightClose,
@@ -44,6 +45,7 @@ import { ORDINARY, projectPath } from "@/lib/projects/types";
 import { AnswerCard, type Rewrite } from "./answer-card";
 import { ContextField, callable, OrderedInput } from "./context-field";
 import { ContextMeter, stripItems } from "./context-meter";
+import { ConversationMap } from "./conversation-map";
 import { ConversationTitle } from "./conversation-title";
 import {
 	type DropTarget,
@@ -121,6 +123,7 @@ export function LensApp({
 		ids: string[];
 	} | null>(null);
 	const [locateTurn, setLocateTurn] = useState<number | null>(null);
+	const [mapOpen, setMapOpen] = useState(false);
 	const [stepsHost, setStepsHost] = useState<HTMLDivElement | null>(null);
 	const [inspecting, setInspecting] = useState(true);
 	const [previewError, setPreviewError] = useState(false);
@@ -1015,6 +1018,20 @@ export function LensApp({
 								className="lens-head-actions"
 								aria-label={t("lens.navigation")}
 							>
+								{Object.keys(records).length > 0 && (
+									<Hint label={t("conversationMap.open")}>
+										<Button
+											variant="quiet"
+											size="sm"
+											className="lens-fold-btn"
+											aria-haspopup="dialog"
+											onClick={() => setMapOpen(true)}
+										>
+											<MapIcon aria-hidden="true" />
+											<span>{t("conversationMap.open")}</span>
+										</Button>
+									</Hint>
+								)}
 								<Hint
 									label={t(
 										scope === ORDINARY
@@ -1344,6 +1361,16 @@ export function LensApp({
 						onSaved={overview.reload}
 					/>
 				)}
+				<ConversationMap
+					open={mapOpen}
+					onOpenChange={setMapOpen}
+					records={records}
+					onOpenTurn={(turn) => {
+						setMapOpen(false);
+						setStepView(turn);
+						setLocateTurn(turn);
+					}}
+				/>
 				<SettingsDialog
 					open={managingModels}
 					onOpenChange={setManagingModels}
