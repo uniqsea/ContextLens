@@ -393,6 +393,8 @@
 		"loading": "Loading…",
 		"count": "{count, plural, one {# memory} other {# memories}}",
 		"source": "Added by {actor}",
+		"used": "Used {count, plural, one {once} other {# times}}, last {date}",
+		"unused": "Not used yet",
 		"edit": "Edit",
 		"moveToTrash": "Move to trash",
 		"restore": "Restore",

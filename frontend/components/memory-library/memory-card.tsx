@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Pin } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Hint } from "@/components/ui/tooltip";
 import type { MemoryRecord } from "@/lib/memory-types";
 
@@ -42,6 +42,7 @@ export function MemoryCard({
 }) {
 	const t = useTranslations("library");
 	const { type, source } = useMemoryLabels(m);
+	const format = useFormatter();
 	return (
 		<button
 			type="button"
@@ -76,6 +77,17 @@ export function MemoryCard({
 				))}
 				{m.due && <span className="lib-due">{t("maybeStale")}</span>}
 				<span>{source}</span>
+				<span className={m.uses ? "lib-used" : undefined}>
+					{m.uses && m.last_used
+						? t("used", {
+								count: m.uses,
+								date: format.dateTime(new Date(m.last_used), {
+									month: "short",
+									day: "numeric",
+								}),
+							})
+						: t("unused")}
+				</span>
 			</div>
 		</button>
 	);

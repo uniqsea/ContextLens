@@ -2036,6 +2036,11 @@
 	border-radius: 50%;
 	background: var(--kind-mem);
 }
+/* A memory that has been used says so in ink; one that has not stays as quiet as the rest. */
+.lib-meta .lib-used {
+	color: var(--foreground);
+	font-variant-numeric: tabular-nums;
+}
 .lib-meta span + span::before {
 	content: "·";
 	margin-right: calc(var(--spacing) * 1.5);

@@ -393,6 +393,8 @@
 		"loading": "加载中…",
 		"count": "{count} 条记忆",
 		"source": "由{actor}记下",
+		"used": "用过 {count} 次，最近 {date}",
+		"unused": "还没用过",
 		"edit": "编辑",
 		"moveToTrash": "移到回收站",
 		"restore": "恢复",

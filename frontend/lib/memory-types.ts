@@ -20,6 +20,9 @@ export interface MemoryRecord {
 	check_at: string | null;
 	/** Its check date has passed: it may be out of date. */
 	due: boolean;
+	/** In how many answered turns it was carried, and when last. */
+	uses: number;
+	last_used: string | null;
 }
 
 /** Who changed a memory: you, the agent during a task, the upkeep after a turn, or the import of
