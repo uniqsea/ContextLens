@@ -12,7 +12,7 @@ async function read<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const listProjects = () =>
-	read<Omit<WorkspaceProject, "latest">[]>("lens/projects");
+	read<Omit<WorkspaceProject, "latest" | "mix" | "chats">[]>("lens/projects");
 
 export async function projectName(scope: string) {
 	if (scope === ORDINARY) return null;

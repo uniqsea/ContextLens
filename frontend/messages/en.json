@@ -182,6 +182,7 @@
 		"list": "List view",
 		"noMatch": "No matches",
 		"emptyChats": "No conversations yet",
+		"chatCount": "{count, plural, one {# conversation} other {# conversations}}",
 		"empty": "Create your first project",
 		"back": "Back to workspace",
 		"edit": "Edit",

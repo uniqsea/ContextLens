@@ -3,11 +3,15 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import type { Mix } from "@/lib/projects/types";
+import { MiniField } from "./mini-field";
 
 export function ProjectCard({
 	href,
 	title,
 	preview,
+	mix,
+	chats,
 	updated,
 	project,
 	starred,
@@ -17,6 +21,9 @@ export function ProjectCard({
 	href: string;
 	title: string;
 	preview?: string;
+	/** What its requests were made of; drawn as the cover once there is any. */
+	mix?: Mix | null;
+	chats?: number;
 	updated?: string | null;
 	project?: boolean;
 	starred?: boolean;
@@ -29,22 +36,34 @@ export function ProjectCard({
 		<article className="pr-card">
 			<Link href={href}>
 				<div className="pr-cover">
-					{project ? <Folder strokeWidth={1.15} /> : <p>{preview || title}</p>}
+					{mix ? (
+						<MiniField mix={mix} />
+					) : project ? (
+						<Folder strokeWidth={1.15} />
+					) : (
+						<p>{preview || title}</p>
+					)}
 				</div>
 				<div className="pr-caption">
 					{project ? <Folder /> : <MessageSquare />}
 					<div>
 						<strong>{title}</strong>
-						{project && preview && <span>{preview}</span>}
-						{updated && (
-							<time dateTime={updated}>
-								{format.dateTime(new Date(updated), {
-									year: "numeric",
-									month: "short",
-									day: "numeric",
-								})}
-							</time>
-						)}
+						{/* The cover is a drawing now, so the words that were on it sit here. */}
+						{(project || mix) && preview && <span>{preview}</span>}
+						<p>
+							{chats !== undefined && (
+								<span>{t("chatCount", { count: chats })}</span>
+							)}
+							{updated && (
+								<time dateTime={updated}>
+									{format.dateTime(new Date(updated), {
+										year: "numeric",
+										month: "short",
+										day: "numeric",
+									})}
+								</time>
+							)}
+						</p>
 					</div>
 				</div>
 			</Link>

@@ -42,10 +42,12 @@ export function ProjectSidebar({
 	scope,
 	library = false,
 	projects,
+	unfiled,
 }: {
 	scope?: string;
 	library?: boolean;
 	projects: WorkspaceProject[];
+	unfiled?: number;
 }) {
 	const t = useTranslations("projects");
 	const lib = useTranslations("library");
@@ -63,11 +65,13 @@ export function ProjectSidebar({
 		label: string,
 		Icon: typeof Folder,
 		active: boolean,
+		count?: number,
 	) => (
 		<SidebarMenuItem key={href}>
 			<SidebarMenuButton
 				render={<Link href={href} />}
 				tooltip={label}
+				className="pr-nav"
 				isActive={active}
 				aria-label={label}
 				aria-current={active ? "page" : undefined}
@@ -75,6 +79,7 @@ export function ProjectSidebar({
 			>
 				<Icon />
 				<span>{label}</span>
+				{count ? <small>{count}</small> : null}
 			</SidebarMenuButton>
 		</SidebarMenuItem>
 	);
@@ -110,12 +115,19 @@ export function ProjectSidebar({
 					<nav aria-label={t("all")}>
 						<SidebarGroup>
 							<SidebarMenu>
-								{link("/", t("all"), Folders, !scope && !library)}
+								{link(
+									"/",
+									t("all"),
+									Folders,
+									!scope && !library,
+									projects.length,
+								)}
 								{link(
 									projectPath(ORDINARY),
 									t("ordinary"),
 									MessageSquare,
 									scope === ORDINARY,
+									unfiled,
 								)}
 								{link("/memories", lib("title"), Library, library)}
 							</SidebarMenu>
@@ -134,13 +146,19 @@ export function ProjectSidebar({
 										key={label}
 										className="group-data-[collapsible=icon]:hidden"
 									>
-										<SidebarGroupLabel className="gap-2">
+										<SidebarGroupLabel className="pr-nav-label gap-2">
 											<Icon />
 											{label}
 										</SidebarGroupLabel>
 										<SidebarMenu>
 											{items.map((p) =>
-												link(projectPath(p.id), p.name, Folder, scope === p.id),
+												link(
+													projectPath(p.id),
+													p.name,
+													Folder,
+													scope === p.id,
+													p.chats,
+												),
 											)}
 										</SidebarMenu>
 									</SidebarGroup>

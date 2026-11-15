@@ -165,6 +165,7 @@
 	--type-title: 16px;
 	--type-display-sm: 24px;
 	--type-display: 30px;
+	--type-display-lg: 44px;
 }
 html[data-density="compact"] {
 	--spacing: 0.21875rem;
@@ -182,6 +183,7 @@ html[data-density="compact"] {
 	--type-title: 15px;
 	--type-display-sm: 22px;
 	--type-display: 27px;
+	--type-display-lg: 40px;
 }
 
 @layer base {

@@ -31,6 +31,7 @@ export function useDirectory(scope?: string, view?: "search") {
 	return {
 		data: loaded && loaded.scope === scope ? loaded.data : null,
 		projects: loaded?.data.projects ?? [],
+		unfiled: loaded?.data.unfiled,
 		failed,
 		reload: () => setRevision((v) => v + 1),
 	};

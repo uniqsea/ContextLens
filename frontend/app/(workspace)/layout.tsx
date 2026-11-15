@@ -20,6 +20,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 				scope={scope}
 				library={path === "/memories"}
 				projects={directory.projects}
+				unfiled={directory.unfiled}
 			/>
 			<DirectoryContext.Provider value={directory}>
 				{children}

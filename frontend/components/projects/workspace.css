@@ -16,6 +16,36 @@
 	height: calc(var(--spacing) * 4);
 	flex-shrink: 0;
 }
+/* The sidebar's rows: reading size, quiet until current, with what each holds counted at the right. */
+.pr-nav {
+	height: calc(var(--spacing) * 9);
+	gap: calc(var(--spacing) * 2.5);
+	padding-inline: calc(var(--spacing) * 2.5);
+	font-size: var(--type-ui);
+	color: var(--muted-foreground);
+}
+.pr-nav:hover,
+.pr-nav[data-active] {
+	color: var(--foreground);
+}
+.pr-nav > span {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.pr-nav > small {
+	font-size: var(--type-sm);
+	font-weight: 400;
+	color: var(--muted-foreground);
+	font-variant-numeric: tabular-nums;
+}
+.pr-nav-label {
+	margin-top: calc(var(--spacing) * 2);
+	font-size: var(--type-meta);
+	letter-spacing: 0.04em;
+}
 .pr-layout button[aria-pressed="true"] {
 	background: var(--muted-strong);
 }
@@ -46,11 +76,22 @@
 	flex-wrap: wrap;
 }
 .pr-header h1 {
-	font-size: clamp(24px, 2.3vw, 34px);
-	line-height: 1.2;
+	font-size: clamp(var(--type-display), 3.4vw, var(--type-display-lg));
+	line-height: 1.15;
 	font-weight: 580;
 	letter-spacing: -0.035em;
 	overflow-wrap: anywhere;
+}
+/* How many there are: a small figure raised to the top of the title, as a footnote mark sits. */
+.pr-header h1 small {
+	align-self: flex-start;
+	margin: 0.2em 0 0 calc(var(--spacing) * -1);
+	font-size: var(--type-title);
+	line-height: 1;
+	font-weight: 500;
+	letter-spacing: 0;
+	color: var(--muted-foreground);
+	font-variant-numeric: tabular-nums;
 }
 .pr-header h1 svg {
 	width: calc(var(--spacing) * 7.5) !important;
@@ -83,7 +124,7 @@
 }
 .pr-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 225px), 280px));
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
 	gap: calc(var(--spacing) * 5.5);
 }
 .pr-card {
@@ -102,7 +143,7 @@
 	overflow: hidden;
 }
 .pr-cover {
-	height: calc(var(--spacing) * 35.5);
+	aspect-ratio: 2 / 1;
 	display: grid;
 	place-items: center;
 	padding: calc(var(--spacing) * 4.5);
@@ -115,6 +156,23 @@
 	height: calc(var(--spacing) * 13.5) !important;
 	color: var(--muted-foreground);
 	fill: var(--background);
+}
+/* Outranks the folder icon's size above: the drawing fills the cover. */
+.pr-cover > svg.mini-field {
+	width: 100% !important;
+	height: 100% !important;
+	color: inherit;
+}
+.pr-cover:has(> .mini-field) {
+	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 4);
+}
+.mini-field-card {
+	fill: var(--card);
+}
+.mini-field-more {
+	fill: var(--muted-foreground);
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
 }
 .pr-cover p {
 	overflow: hidden;
@@ -146,10 +204,25 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
+.pr-caption strong {
+	font-size: var(--type-title);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
 .pr-caption span,
 .pr-caption time {
-	font-size: var(--type-sm);
+	font-size: var(--type-control);
 	color: var(--muted-foreground);
+}
+.pr-caption p {
+	display: flex;
+	gap: calc(var(--spacing) * 2);
+	margin-top: calc(var(--spacing) * 1);
+	font-variant-numeric: tabular-nums;
+}
+.pr-caption p > * + *::before {
+	content: "·";
+	margin-right: calc(var(--spacing) * 2);
 }
 .pr-list {
 	display: flex;
@@ -169,6 +242,12 @@
 	padding: clamp(calc(var(--spacing) * 15), 14vh, calc(var(--spacing) * 40))
 		calc(var(--spacing) * 3.5);
 	color: var(--muted-foreground);
+}
+.pr-empty p {
+	font-size: var(--type-display-sm);
+	font-weight: 580;
+	letter-spacing: -0.02em;
+	color: var(--foreground);
 }
 .pr-empty > svg {
 	width: calc(var(--spacing) * 10) !important;

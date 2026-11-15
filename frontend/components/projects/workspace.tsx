@@ -66,6 +66,8 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 					href: `${projectPath(scope)}/chat/${c.id}`,
 					title: c.title || t("lens.newChat"),
 					preview: c.preview,
+					mix: c.mix,
+					chats: undefined as number | undefined,
 					updated: c.updated_at,
 					starred: false,
 				}))
@@ -74,6 +76,8 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 				href: projectPath(p.id),
 				title: p.name,
 				preview: p.latest,
+				mix: p.mix,
+				chats: p.chats,
 				updated: p.updated_at,
 				starred: p.starred,
 			}));
@@ -97,6 +101,9 @@ export function ProjectWorkspace({ scope }: { scope?: string }) {
 							<h1>
 								{scope ? <Folder /> : <Folders />}
 								{title}
+								{data && tab === "chats" && cards.length > 0 && (
+									<small>{cards.length}</small>
+								)}
 							</h1>
 							{project && (
 								<ProjectForm
