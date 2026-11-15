@@ -458,7 +458,13 @@ export class FieldEngine {
 			wire: new Wire(this.svg, {
 				color: layerColor(card.layer),
 				startDot: true,
-				endDot: true,
+				// A dot for a memory, a square for a document, a diamond for a piece of conversation.
+				endMark:
+					card.layer === "retrieval"
+						? "square"
+						: card.layer === "short_term"
+							? "diamond"
+							: "dot",
 				interactive: true,
 			}),
 			x: (this.W || this.stage.clientWidth) - this.CW - 20,

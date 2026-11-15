@@ -9,7 +9,8 @@ function svg<K extends keyof SVGElementTagNameMap>(name: K) {
 interface WireOptions {
 	color: string;
 	startDot?: boolean;
-	endDot?: boolean;
+	/** The mark where the wire meets its card: one outline per kind of source. */
+	endMark?: keyof typeof MARKS;
 	endArrow?: boolean;
 	/** A neutral wire: ink at rest, its colour only when highlighted. */
 	ink?: boolean;
@@ -41,11 +42,18 @@ function arrowMarker(parent: SVGElement) {
 	return marker.id;
 }
 
+/* Drawn about the origin and moved into place, so a mark never has to be redrawn. */
+const MARKS = {
+	dot: "M-4.5 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0-9 0",
+	square: "M-4-4h8v8h-8z",
+	diamond: "M0-5.5 5.5 0 0 5.5-5.5 0z",
+};
+
 export class Wire {
 	private readonly group = svg("g");
 	private readonly stroke = svg("path");
 	private readonly dot: SVGCircleElement | null;
-	private readonly end: SVGCircleElement | null;
+	private readonly end: SVGPathElement | null;
 	readonly hit: SVGPathElement | null;
 
 	constructor(parent: SVGElement, options: WireOptions) {
@@ -57,7 +65,7 @@ export class Wire {
 		this.stroke.setAttribute("class", "wire");
 		this.hit = options.interactive ? svg("path") : null;
 		this.dot = options.startDot ? svg("circle") : null;
-		this.end = options.endDot ? svg("circle") : null;
+		this.end = options.endMark ? svg("path") : null;
 		if (this.hit) {
 			this.hit.setAttribute("class", "hit");
 			this.group.append(this.hit);
@@ -72,7 +80,7 @@ export class Wire {
 		}
 		if (this.end) {
 			this.end.setAttribute("class", "dot end");
-			this.end.setAttribute("r", "4.5");
+			this.end.setAttribute("d", MARKS[options.endMark ?? "dot"]);
 			this.group.append(this.end);
 		}
 		parent.append(this.group);
@@ -118,8 +126,7 @@ export class Wire {
 			// A previewed wire starts on the spine itself, which needs no mark.
 			this.dot.style.display = options?.preview ? "none" : "";
 		}
-		this.end?.setAttribute("cx", String(endX));
-		this.end?.setAttribute("cy", String(endY));
+		this.end?.setAttribute("transform", `translate(${endX} ${endY})`);
 		this.stroke.classList.toggle("preview", !!options?.preview);
 	}
 
