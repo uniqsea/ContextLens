@@ -3,10 +3,14 @@
 A conversation's id is its LangGraph thread id: its content is the thread's checkpoints, and memory
 changes it caused carry the same id. The row holds what the list shows and what it is filed under:
 the project (none for an ordinary conversation), the title, whether it is archived, a preview of the
-last answer, and when it was started and last answered.
+last answer, what its last request was made of, and when it was started and last answered.
+
+Beside it, `source_uses` keeps which sources each answered turn carried, so a memory can say how
+often it has been used and when last.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,7 +30,13 @@ CREATE TABLE IF NOT EXISTS conversations (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS conversations_by_project ON conversations(project_id, updated_at);
 CREATE TABLE IF NOT EXISTS conversation_marks (key TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS source_uses (
+  conversation_id TEXT NOT NULL, turn INTEGER NOT NULL, source_id TEXT NOT NULL, used_at TEXT NOT NULL,
+  PRIMARY KEY (conversation_id, turn, source_id));
+CREATE INDEX IF NOT EXISTS source_uses_by_source ON source_uses(source_id);
 """
+# What a request is made of, in the order it is drawn.
+_LAYERS = ("system", "memory", "retrieval", "short_term", "user")
 
 
 @contextmanager
@@ -37,6 +47,8 @@ def _session() -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     try:
         conn.executescript(_SCHEMA)
+        if "mix" not in {r["name"] for r in conn.execute("PRAGMA table_info(conversations)")}:
+            conn.execute("ALTER TABLE conversations ADD COLUMN mix TEXT NOT NULL DEFAULT ''")
         with conn:
             yield conn
     finally:
@@ -54,6 +66,7 @@ def _project(scope: str | None) -> str | None:
 def _shape(row: sqlite3.Row) -> dict:
     return {"id": row["id"], "scope": row["project_id"] or ORDINARY, "title": row["title"],
             "preview": row["preview"], "archived": bool(row["archived"]),
+            "mix": json.loads(row["mix"]) if row["mix"] else None,
             "created_at": row["created_at"], "updated_at": row["updated_at"]}
 
 
@@ -96,6 +109,47 @@ def set_archived(conversation_id: str, archived: bool) -> dict | None:
 def delete(conversation_id: str) -> None:
     with _session() as conn:
         conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+        conn.execute("DELETE FROM source_uses WHERE conversation_id = ?", (conversation_id,))
+
+
+def request_sources(version: dict, question: str) -> list[dict]:
+    """What one answer's request carried, from its recorded version: the system prompt, each source
+    it assembled, and the question. Sizes are the same token estimates the interface shows."""
+    by_id = {c["id"]: c for c in version.get("candidates", [])}
+    sent = version.get("assembled_ids") or version.get("selected_ids") or []
+    system = next((c for c in by_id.values() if c.get("layer") == "system"), None)
+    picked = [by_id[i] for i in sent if by_id.get(i, {}).get("layer") in ("memory", "retrieval", "short_term")]
+    return ([{"id": system["id"] if system else "sys-001", "layer": "system",
+              "tokens": system.get("tokens", 100) if system else 100}]
+            + [{"id": c["id"], "layer": c["layer"], "tokens": c.get("tokens", 0)} for c in picked]
+            + [{"id": "usr-001", "layer": "user", "tokens": max(12, round(len(question) * 1.3))}])
+
+
+def record_sources(conversation_id: str | None, turn: int, sources: list[dict], at: str | None = None) -> None:
+    """The sources a turn's latest answer carried, replacing what an earlier version of it did; the
+    conversation's mix becomes this request's: tokens and item count per kind."""
+    if not conversation_id:
+        return
+    mix = {layer: [sum(s["tokens"] for s in sources if s["layer"] == layer),
+                   sum(1 for s in sources if s["layer"] == layer)] for layer in _LAYERS}
+    with _session() as conn:
+        conn.execute("DELETE FROM source_uses WHERE conversation_id = ? AND turn = ?", (conversation_id, turn))
+        conn.executemany("INSERT OR IGNORE INTO source_uses VALUES (?, ?, ?, ?)",
+                         [(conversation_id, turn, s["id"], at or _now()) for s in sources
+                          if s["layer"] not in ("system", "user")])
+        conn.execute("UPDATE conversations SET mix = ? WHERE id = ?", (json.dumps(mix), conversation_id))
+
+
+def uses() -> dict[str, tuple[int, str]]:
+    """Per source: in how many answered turns it was carried, and when last."""
+    with _session() as conn:
+        return {r["source_id"]: (r["n"], r["last"]) for r in conn.execute(
+            "SELECT source_id, COUNT(*) AS n, MAX(used_at) AS last FROM source_uses GROUP BY source_id")}
+
+
+def mark(key: str) -> None:
+    with _session() as conn:
+        conn.execute("INSERT OR IGNORE INTO conversation_marks (key) VALUES (?)", (key,))
 
 
 def record_turn(conversation_id: str | None, scope: str | None, question: str, answer: str) -> None:

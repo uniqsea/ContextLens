@@ -44,3 +44,22 @@ class ConversationListTests(StoreTestCase):
         self.assertTrue(conversations.imported("threads"))
         self.assertEqual(conversations.get("t-1")["title"], "Mine")
         self.assertEqual((conversations.get("t-0")["scope"], conversations.get("t-0")["archived"]), ("ordinary", True))
+
+    def test_a_turns_sources_set_the_mix_and_count_as_uses(self):
+        conversations.create("t-1", None)
+        version = {"candidates": [{"id": "sys-001", "layer": "system", "tokens": 100},
+                                  {"id": "mem-a", "layer": "memory", "tokens": 30},
+                                  {"id": "mem-b", "layer": "memory", "tokens": 20},
+                                  {"id": "doc-a", "layer": "retrieval", "tokens": 200}],
+                   "assembled_ids": ["mem-a", "doc-a"]}
+        conversations.record_sources("t-1", 0, conversations.request_sources(version, "Where do we eat?"))
+        conversations.record_sources("t-1", 1, conversations.request_sources(version, "And when?"))
+        mix = conversations.get("t-1")["mix"]
+        self.assertEqual((mix["system"], mix["memory"], mix["retrieval"], mix["short_term"]),
+                         ([100, 1], [30, 1], [200, 1], [0, 0]))
+        self.assertEqual({k: v[0] for k, v in conversations.uses().items()}, {"mem-a": 2, "doc-a": 2})
+        # A rewrite that drops a source replaces what its turn carried.
+        conversations.record_sources("t-1", 1, conversations.request_sources({**version, "assembled_ids": []}, "And when?"))
+        self.assertEqual(conversations.uses()["mem-a"][0], 1)
+        conversations.delete("t-1")
+        self.assertEqual(conversations.uses(), {})

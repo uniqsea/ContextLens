@@ -379,12 +379,36 @@ async def _import_threads() -> None:
     await asyncio.to_thread(conversations.import_rows, rows, _IMPORT_KEY)
 
 
+_USES_KEY = "source-uses"
+
+
+async def _import_uses() -> None:
+    """Once: read what each turn answered before `source_uses` existed had carried, from its thread.
+    Those turns are dated by their conversation's last answer, the nearest time on record."""
+    if await asyncio.to_thread(conversations.imported, _USES_KEY):
+        return
+    for row in await asyncio.to_thread(conversations.listing):
+        try:
+            state = await _threads().get_state(row["id"])
+        except Exception:  # a conversation whose thread is gone has nothing to read
+            continue
+        turns = (state.get("values") or {}).get("turn_records") or {}
+        for key in sorted(turns, key=int):
+            versions = turns[key].get("versions") or []
+            if versions:
+                await asyncio.to_thread(
+                    conversations.record_sources, row["id"], int(key),
+                    conversations.request_sources(versions[-1], turns[key].get("query", "")), row["updated_at"])
+    await asyncio.to_thread(conversations.mark, _USES_KEY)
+
+
 async def conversations_index(request: Request) -> JSONResponse:
     if request.method == "POST":
         scope = (await request.json()).get("scope") or memory.ORDINARY
         thread = await _threads().create(metadata={"project_scope": scope})
         return await _read(conversations.create, thread["thread_id"], scope)
     await _import_threads()
+    await _import_uses()
     return await _read(conversations.listing, request.query_params.get("scope"))
 
 

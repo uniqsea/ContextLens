@@ -9,7 +9,7 @@ import json
 from dataclasses import asdict, replace
 from datetime import date
 
-from contextlens import memory
+from contextlens import conversations, memory
 from contextlens.memory import operations
 from contextlens.projects import directory as project_directory
 
@@ -35,13 +35,13 @@ def library_records(owner: str | None, include_trashed: bool) -> list[dict]:
 def _records_in(scopes: set[str] | None, include_trashed: bool) -> list[dict]:
     states = {"active", "forgotten"} if include_trashed else {"active"}
     found = [m for m in memory.all_of(memory.Memory) if (scopes is None or m.scope in scopes) and m.state in states]
-    activity, names = memory.memory_activity(), _concept_names()
-    return [_record(m, activity, names) for m in sorted(found, key=lambda m: m.created_at, reverse=True)]
+    activity, names, uses = memory.memory_activity(), _concept_names(), conversations.uses()
+    return [_record(m, activity, names, uses) for m in sorted(found, key=lambda m: m.created_at, reverse=True)]
 
 
 def one(memory_id: str) -> dict | None:
     found = memory.get(memory.Memory, memory_id)
-    return _record(found, memory.memory_activity(), _concept_names()) if found else None
+    return _record(found, memory.memory_activity(), _concept_names(), conversations.uses()) if found else None
 
 
 def timeline(memory_id: str) -> list[dict]:
@@ -108,14 +108,15 @@ def changes(raw: list[dict]) -> list[dict]:
     return [_event(e) for e in raw if e["entity"] == "memories"]
 
 
-def _record(m: memory.Memory, activity: dict, names: dict[str, str]) -> dict:
+def _record(m: memory.Memory, activity: dict, names: dict[str, str], uses: dict[str, tuple[int, str]]) -> dict:
     revision, updated_at = activity.get(m.id, (1, m.created_at))
+    used, last_used = uses.get(m.id, (0, None))
     return {"id": m.id, "scope": m.scope, "revision": revision, "title": m.situation or m.learned[:_TITLE_FROM_LEARNED],
             "content": m.learned, "memory_type": "semantic", "confidence": "high" if m.source == "said" else "low",
             "scenes": m.scenes, "concepts": [{"id": c, "name": names[c]} for c in m.concepts if c in names],
             "created_at": m.created_at, "updated_at": updated_at, "source_kind": _SOURCE_LABELS[m.source],
             "lifecycle_state": "active" if m.state == "active" else "trashed", "deleted_at": None,
-            "always_on": m.always_on, "check_at": m.check_at,
+            "always_on": m.always_on, "check_at": m.check_at, "uses": used, "last_used": last_used,
             "due": bool(m.check_at and m.check_at <= date.today().isoformat())}
 
 

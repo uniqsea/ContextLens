@@ -67,6 +67,7 @@ def answer_turn(state: LensState, config: RunnableConfig) -> dict:
     record = {"index": index, "query": snapshot["messages"][1]["content"], "versions": [version],
               "memory_changes": _tool_changes(version)}
     conversations.record_turn(_thread(config), state.get("project_id"), record["query"], version["content"])
+    conversations.record_sources(_thread(config), index, conversations.request_sources(version, record["query"]))
     history.record(_thread(config), index, record["query"], version["content"])
     return {"messages": [AIMessage(content=version["content"])], "history_lineage": {str(index): version["lineage"]},
             "turn_records": {str(index): record}, "context_policies": [], "manual_memory_ids": [], "input_order": None}
@@ -118,6 +119,7 @@ def rewrite_turn(state: LensState, config: RunnableConfig) -> dict:
                                     + _follow_correction(req, record, situation, config, i))
     latest = record["versions"][-1]
     history.record(_thread(config), i, str(human.content), latest["content"])
+    conversations.record_sources(_thread(config), i, conversations.request_sources(latest, str(human.content)))
     return {"messages": [AIMessage(content=latest["content"], id=ai.id)],
             "turn_records": {str(i): record},
             "history_lineage": {str(i): latest["lineage"]},
