@@ -67,6 +67,20 @@
 .world :global(.flow-cell[data-lane="side"] .turn-step) {
 	border-style: dashed;
 }
+.pane {
+	position: absolute;
+	z-index: 3;
+	top: calc(var(--spacing) * 16);
+	right: calc(var(--spacing) * 4);
+	bottom: calc(var(--spacing) * 4);
+	width: min(420px, calc(100% - var(--spacing) * 8));
+	display: flex;
+	pointer-events: none;
+}
+/* Each turn opens its own; the one opened last is the one shown. */
+.pane > :global(.step-pane):not(:last-child) {
+	display: none;
+}
 /* Nothing here rewrites an answer, so the empty editor slot takes no room. */
 .world :global(.step-editor:empty) {
 	display: none;

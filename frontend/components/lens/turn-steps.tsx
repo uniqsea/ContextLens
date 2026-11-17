@@ -1,12 +1,15 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { useLensText } from "@/lib/lens/text";
 import {
 	type AnswerVersion,
+	type Candidate,
+	type Layer,
 	layerColor,
 	type ModelCall,
 	stripMarkers,
@@ -14,50 +17,83 @@ import {
 	type TraceMessage,
 } from "@/lib/lens/types";
 import type { MemoryChange } from "@/lib/memory-types";
-import { ContextStrip, type StripItem, stripItems } from "./context-meter";
+import type { MemoryUndo } from "./memory-changes";
+import {
+	ContextStrip,
+	type StripItem,
+	stripItems,
+	stripTokens,
+} from "./context-meter";
 import { type FlowNode, StepFlow } from "./step-flow";
 
-function Step({
+/** A step's card: its title opens the step's details, the rest says what the step came to. */
+function Card({
 	title,
-	input,
-	output,
-	carried,
+	color,
+	open,
+	onOpen,
 	children,
 }: {
 	title: string;
-	input: string;
-	output: string;
-	/** What the request holds by this step, as the same bar the spine is. */
-	carried?: StripItem[];
-	children: ReactNode;
+	/** A source or a tool result carries its kind's colour. */
+	color?: string;
+	open: boolean;
+	onOpen: () => void;
+	children?: ReactNode;
 }) {
-	const t = useTranslations("turnSteps");
-	const [opened, setOpened] = useState(false);
 	return (
-		<details
-			className="turn-step"
-			onToggle={(e) => {
-				if (e.currentTarget.open) setOpened(true);
-			}}
-		>
-			<summary>
-				<span className="step-title">
-					{title}
-					<ChevronRight aria-hidden="true" />
-				</span>
-				<span className="step-row">
-					<span>{t("input")}</span>
-					<span>{input}</span>
-				</span>
-				<span className="step-row">
-					<span>{t("output")}</span>
-					<span>{output}</span>
-				</span>
-				{carried && <ContextStrip items={carried} mini />}
-			</summary>
-			{opened && <div className="step-detail">{children}</div>}
-		</details>
+		<div className="turn-step" data-open={open || undefined}>
+			<button
+				type="button"
+				className="step-title"
+				aria-expanded={open}
+				onClick={onOpen}
+			>
+				{color && <i style={{ background: color }} />}
+				<span>{title}</span>
+				<ChevronRight aria-hidden="true" />
+			</button>
+			{children}
+		</div>
 	);
+}
+
+type Artifact = NonNullable<ToolStep["artifact"]>;
+/** Older checkpoints stored a tool's artifact as a list; those carry nothing to show. */
+const artifactOf = (step: ToolStep): Artifact =>
+	step.artifact && !Array.isArray(step.artifact) ? step.artifact : {};
+
+/** The memories and files a tool call came back with. */
+const sourceIds = (step: ToolStep) => {
+	const found = artifactOf(step);
+	return [
+		...(found.memories ?? []).map((m) => (typeof m === "string" ? m : m.id)),
+		found.document?.id,
+		...(found.documents ?? []).map((d) => d.id),
+	].filter((value): value is string => !!value);
+};
+
+/** An answer's opening as plain words: the card has no room for its markup. */
+const plain = (value: string) => value.replace(/[*_`#>]+/g, "").trim();
+
+const SUBJECTS = [
+	"query",
+	"what_changed",
+	"name",
+	"learned",
+	"pattern",
+	"file_path",
+	"path",
+];
+/** What a tool was asked about: the argument a person would read, not the whole call. */
+function subject(args: Record<string, unknown>) {
+	const named = SUBJECTS.map((key) => args[key]).find(
+		(value) => typeof value === "string" && value,
+	);
+	const any = Object.values(args).find(
+		(value) => typeof value === "string" && value,
+	);
+	return (named ?? any ?? "") as string;
 }
 
 function Messages({ messages }: { messages: TraceMessage[] }) {
@@ -105,24 +141,7 @@ function Calls({ calls }: { calls: ModelCall[] }) {
 	));
 }
 
-function ToolCard({ step }: { step: ToolStep }) {
-	const t = useTranslations("turnSteps");
-	return (
-		<Step
-			title={t("tool", { name: step.tool })}
-			input={JSON.stringify(step.args)}
-			output={step.result ?? t("missing")}
-		>
-			<h5>{t("arguments")}</h5>
-			<pre>{JSON.stringify(step.args, null, 2)}</pre>
-			{step.artifact?.reading_calls && (
-				<Calls calls={step.artifact.reading_calls} />
-			)}
-			<h5>{t("result")}</h5>
-			<pre>{step.result ?? t("missing")}</pre>
-		</Step>
-	);
-}
+const SOURCES: Layer[] = ["memory", "retrieval", "short_term"];
 
 export function TurnSteps({
 	sourceFocus,
@@ -133,6 +152,10 @@ export function TurnSteps({
 	contextControls,
 	unfolded = false,
 	changes: recorded,
+	sources = false,
+	paneHost,
+	onHover,
+	undoing,
 }: {
 	sourceFocus: string[] | null;
 	version: AnswerVersion;
@@ -144,28 +167,61 @@ export function TurnSteps({
 	unfolded?: boolean;
 	/** Every memory change the turn made, where the map shows them all; the version's own otherwise. */
 	changes?: MemoryChange[];
+	/** Draw each source the request carried as its own node, where no field stands beside the flow. */
+	sources?: boolean;
+	/** Where an opened step's details go, so the flow keeps its shape; below the flow without one. */
+	paneHost?: HTMLElement | null;
+	/** Pointing at a step brings the sources it is about forward, in the field and in the answer. */
+	onHover?: (ids: string[] | null) => void;
+	/** Lets the writing step take its changes back, where the turn's answer can. */
+	undoing?: MemoryUndo;
 }) {
 	const t = useTranslations("turnSteps");
+	const verbs = useTranslations("memory");
 	const text = useLensText();
+	const [open, setOpen] = useState<string | null>(null);
+	// Where the details have been dragged to, kept while other steps are opened.
+	const [moved, setMoved] = useState({ x: 0, y: 0 });
+	const [moving, setMoving] = useState(false);
+	const details = new Map<string, { title: string; body: ReactNode }>();
+	const card = (
+		id: string,
+		title: string,
+		face: ReactNode,
+		body: ReactNode,
+		color?: string,
+	) => {
+		details.set(id, { title, body });
+		return (
+			<Card
+				title={title}
+				color={color}
+				open={open === id}
+				onOpen={() => setOpen((o) => (o === id ? null : id))}
+			>
+				{face}
+			</Card>
+		);
+	};
+	const raw = (children: ReactNode) => (
+		<details className="step-raw">
+			<summary>{t("raw")}</summary>
+			{children}
+		</details>
+	);
+	const toolName = (name: string) =>
+		t.has(`toolName.${name}` as "toolName.recall")
+			? t(`toolName.${name}` as "toolName.recall")
+			: name;
+	const byId = new Map(version.candidates.map((c) => [c.id, c]));
 	// Turns recorded before the assembled request was kept still know what they carried.
-	const selected = (version.assembled_ids ?? (recorded && version.selected_ids))
-		?.map((id) => version.candidates.find((c) => c.id === id))
+	const selected = (version.assembled_ids ?? version.selected_ids)
+		.map((id) => byId.get(id))
 		.filter((c) => c !== undefined);
 	const reading = version.situation;
-	const readingOutput =
-		reading &&
-		[reading.doing, ...reading.scenes, ...reading.concepts]
-			.filter(Boolean)
-			.join(" · ");
-	const assembled =
-		selected?.map((c) => text.title(c)).join(" · ") || t("prepared");
 	const tools = version.steps ?? [];
 	const orderedTools = new Set<string>();
 	const changes = recorded ?? version.written_changes ?? [];
-	const written = changes
-		.map((c) => c.content || c.title)
-		.filter(Boolean)
-		.join(" · ");
 	const columns: FlowNode[][] = [];
 	// The request as it grows: the question alone, then what was assembled, then each tool result
 	// as a call takes it in. A result's size is estimated from its text, like the question's.
@@ -175,20 +231,88 @@ export function TurnSteps({
 		query,
 		text,
 	);
-	const asked = all.filter((i) => i.layer === "user");
-	const resultLayer = (step: ToolStep) =>
-		step.artifact?.document
+	const resultLayer = (step: ToolStep) => {
+		const found = artifactOf(step);
+		return found.document || found.documents?.length
 			? ("retrieval" as const)
-			: step.artifact?.memories?.length
+			: found.memories?.length
 				? ("memory" as const)
 				: null;
+	};
 	const taken: StripItem[] = [];
-	const materials = (selected ?? []).filter(
-		(c) =>
-			c.layer === "memory" ||
-			c.layer === "retrieval" ||
-			c.layer === "short_term",
-	);
+	const materials = selected.filter((c) => SOURCES.includes(c.layer));
+
+	const toolNode = (step: ToolStep, id: string) => {
+		const found = artifactOf(step);
+		const ids = sourceIds(step);
+		const hits = ids
+			.map((value) => byId.get(value))
+			.filter((c): c is Candidate => !!c);
+		const count = ids.length + (found.history?.length ?? 0);
+		const wrote = found.events?.length ?? 0;
+		const searched = !!(
+			found.memories ||
+			found.document ||
+			found.documents ||
+			found.history
+		);
+		const about = subject(step.args);
+		const outcome =
+			step.result === null
+				? t("missing")
+				: wrote
+					? t("wroteCount", { count: wrote })
+					: searched
+						? count
+							? t("hitCount", { count })
+							: t("noHits")
+						: step.result.split("\n")[0];
+		const layer = resultLayer(step);
+		return card(
+			id,
+			toolName(step.tool),
+			<>
+				{about && <p className="step-say">{about}</p>}
+				<p className="step-foot">{outcome}</p>
+				{hits.length > 0 && (
+					<ul className="step-hits">
+						{hits.slice(0, 3).map((c) => (
+							<li key={c.id}>{text.title(c)}</li>
+						))}
+						{hits.length > 3 && (
+							<li>{t("more", { count: hits.length - 3 })}</li>
+						)}
+					</ul>
+				)}
+			</>,
+			<>
+				{about && (
+					<>
+						<h5>{t("asked")}</h5>
+						<p>{about}</p>
+					</>
+				)}
+				<h5>{outcome}</h5>
+				{hits.map((c) => (
+					<div className="step-message" key={c.id}>
+						<b>{text.title(c)}</b>
+						<p>{c.content}</p>
+					</div>
+				))}
+				{raw(
+					<>
+						<h5>{t("arguments")}</h5>
+						<pre>{JSON.stringify(step.args, null, 2)}</pre>
+						{found.reading_calls && <Calls calls={found.reading_calls} />}
+						<h5>{t("result")}</h5>
+						<pre>{step.result ?? t("missing")}</pre>
+					</>,
+				)}
+			</>,
+			layer ? layerColor(layer) : undefined,
+		);
+	};
+
 	const question: FlowNode = {
 		id: "question",
 		from: [],
@@ -196,129 +320,194 @@ export function TurnSteps({
 			<div className="flow-source">
 				<b>{t("question")}</b>
 				<p>{query}</p>
-				<ContextStrip items={asked} mini />
 			</div>
 		),
 		highlight: sourceFocus?.includes("usr-001"),
+		ids: ["usr-001"],
 	};
-	columns.push([question]);
+	const asking: FlowNode[] = [question];
+	columns.push(asking);
 	const preparation: FlowNode[] = [];
-	if (reading)
+	if (reading) {
+		const marks = [...reading.scenes, ...reading.concepts];
 		preparation.push({
 			id: "reading",
 			from: rewrite ? [] : ["question"],
-			body: (
-				<Step
-					title={t(rewrite ? "reuseReading" : "reading")}
-					carried={asked}
-					input={rewrite ? reading.doing : query}
-					output={
-						reading.degraded && !rewrite
-							? t("fallback", { text: readingOutput })
-							: readingOutput || t("none")
-					}
-				>
-					{version.reading_calls?.length ? (
-						<Calls calls={version.reading_calls} />
-					) : (
-						!rewrite && <p>{t(version.reading_calls ? "noCall" : "legacy")}</p>
+			body: card(
+				"reading",
+				t(rewrite ? "reuseReading" : "reading"),
+				<>
+					<p className="step-say">{reading.doing || t("none")}</p>
+					{marks.length > 0 && (
+						<p className="step-chips">
+							{marks.map((mark) => (
+								<span key={mark}>{mark}</span>
+							))}
+						</p>
 					)}
+					{reading.degraded && !rewrite && (
+						<p className="step-foot">{t("degraded")}</p>
+					)}
+				</>,
+				<>
 					{readingControls}
-				</Step>
+					{version.reading_calls?.length
+						? raw(<Calls calls={version.reading_calls} />)
+						: !rewrite && (
+								<p>{t(version.reading_calls ? "noCall" : "legacy")}</p>
+							)}
+				</>,
 			),
 		});
-	for (const source of materials)
-		preparation.push({
-			id: "source-" + source.id,
-			lane: "input",
+	}
+	if (sources)
+		for (const source of materials)
+			preparation.push({
+				id: "source-" + source.id,
+				lane: "input",
+				from: [],
+				color: layerColor(source.layer),
+				ids: [source.id],
+				highlight: sourceFocus?.includes(source.id),
+				body: card(
+					"source-" + source.id,
+					text.title(source),
+					null,
+					<p>{source.content}</p>,
+					layerColor(source.layer),
+				),
+			});
+	const takeBack = (c: MemoryChange) =>
+		undoing &&
+		(undoing.undone.has(c.event_id) ? (
+			<small>{verbs("undone")}</small>
+		) : (
+			<button
+				type="button"
+				className="step-undo"
+				disabled={undoing.busy !== null}
+				onClick={() => void undoing.undo(c)}
+			>
+				{verbs("undo")}
+			</button>
+		));
+	if (version.writing_calls || recorded?.length) {
+		const settled =
+			!version.writing_calls || version.writing_calls.some((c) => c.output);
+		asking.push({
+			id: "writing",
+			lane: "side",
 			from: [],
-			color: layerColor(source.layer),
-			highlight: sourceFocus?.includes(source.id),
-			body: (
-				<details className="turn-step">
-					<summary className="step-title">{text.title(source)}</summary>
-					<div className="step-detail">
-						<pre>{source.content}</pre>
-					</div>
-				</details>
+			body: card(
+				"writing",
+				changes.length ? t("wrote", { count: changes.length }) : t("write"),
+				changes.length ? (
+					<ul className="step-hits">
+						{changes.slice(0, 2).map((c) => (
+							<li
+								key={c.event_id}
+								data-undone={undoing?.undone.has(c.event_id) || undefined}
+							>
+								<span>{c.content || c.title}</span>
+								{takeBack(c)}
+							</li>
+						))}
+						{changes.length > 2 && (
+							<li>{t("more", { count: changes.length - 2 })}</li>
+						)}
+					</ul>
+				) : (
+					<p className="step-foot">
+						{t(settled ? "noWrites" : "noWritesFailed")}
+					</p>
+				),
+				<>
+					{changes.length === 0 && <p>{t("noWrites")}</p>}
+					{changes.map((c) => (
+						<div
+							className="step-message"
+							key={c.event_id}
+							data-undone={undoing?.undone.has(c.event_id) || undefined}
+						>
+							<b>
+								{verbs(`verb.${c.kind}`)} {c.title}
+							</b>
+							{c.content && <p>{c.content}</p>}
+							{c.previous && <del>{c.previous}</del>}
+							{takeBack(c)}
+						</div>
+					))}
+					{undoing?.error && <p role="alert">{undoing.error}</p>}
+					{version.writing_calls &&
+						(version.writing_calls.length ? (
+							raw(<Calls calls={version.writing_calls} />)
+						) : (
+							<p>{t("noCall")}</p>
+						))}
+				</>,
 			),
 		});
-	if (version.writing_calls)
-		preparation.push({
-			id: "writing",
-			lane: "side",
-			from: ["question"],
-			body: (
-				<Step
-					title={t("write")}
-					input={query}
-					output={
-						written ||
-						(version.writing_calls.some((c) => c.output)
-							? t("noWrites")
-							: t("noWritesFailed"))
-					}
-				>
-					{version.writing_calls.length ? (
-						<Calls calls={version.writing_calls} />
-					) : (
-						<p>{t("noCall")}</p>
-					)}
-					<h5>{t("applied")}</h5>
-					<pre>{written || t("noWrites")}</pre>
-				</Step>
-			),
-		});
-	else if (recorded?.length)
-		preparation.push({
-			id: "writing",
-			lane: "side",
-			from: ["question"],
-			body: (
-				<Step title={t("write")} input={query} output={written}>
-					<h5>{t("applied")}</h5>
-					<pre>{written}</pre>
-				</Step>
-			),
-		});
+	}
 	columns.push(preparation);
 	const materialFocus =
 		materials.some((c) => sourceFocus?.includes(c.id)) ||
 		sourceFocus?.includes("sys-001") ||
 		sourceFocus?.includes("sys-project") ||
 		sourceFocus?.includes("usr-001");
-	columns.push([
+	const kinds = SOURCES.map((layer) => ({
+		layer,
+		n: materials.filter((c) => c.layer === layer).length,
+	})).filter((kind) => kind.n);
+	const assembling: FlowNode[] = [
 		{
 			id: "assemble",
 			from: [
 				...(reading ? ["reading"] : ["question"]),
-				...materials.map((c) => "source-" + c.id),
+				...(sources ? materials.map((c) => "source-" + c.id) : []),
 			],
 			highlight: materialFocus,
-			body: (
-				<Step
-					title={t("assemble")}
-					carried={all}
-					input={[query, reading?.doing]
-						.filter(
-							(value, index, items) => value && items.indexOf(value) === index,
-						)
-						.join(" · ")}
-					output={assembled}
-				>
-					<h5>{t("prepared")}</h5>
-					<Messages messages={version.payload} />
-					<div className="step-editor">{contextControls}</div>
-				</Step>
+			ids: materials.map((c) => c.id),
+			body: card(
+				"assemble",
+				t("assemble"),
+				<>
+					<p className="step-figure">
+						<b>{materials.length}</b>
+						<span>{t("sourcesUnit", { count: materials.length })}</span>
+						<small>{t("tokens", { count: stripTokens(all) })}</small>
+					</p>
+					<ContextStrip items={all} mini />
+					<p className="step-foot">
+						{kinds.length
+							? kinds
+									.map((kind) => `${text.layer(kind.layer)} ${kind.n}`)
+									.join(" · ")
+							: t("noSources")}
+					</p>
+				</>,
+				<>
+					{contextControls ? (
+						<div className="step-editor">{contextControls}</div>
+					) : (
+						materials.map((c) => (
+							<div className="step-message" key={c.id}>
+								<b>{text.title(c)}</b>
+								<p>{c.content}</p>
+							</div>
+						))
+					)}
+					{raw(<Messages messages={version.payload} />)}
+				</>,
 			),
 		},
-	]);
+	];
+	columns.push(assembling);
 	const [expanded, setExpanded] = useState(unfolded);
 	const calls = version.agent_calls ?? [];
 	const consumed = new Set<string>();
 	let routeActive = !!materialFocus;
+	let firstCall: FlowNode[] | undefined;
 	calls.forEach((call, i) => {
-		const last = call.messages.at(-1);
 		const requested = call.output?.tool_calls ?? [];
 		const results = requested.flatMap((c) => {
 			const step = tools.find((s) => s.call_id === c.id);
@@ -326,31 +515,19 @@ export function TurnSteps({
 			orderedTools.add(step.call_id);
 			return [step];
 		});
-		const input = [
-			t("messages", { count: call.messages.length }),
-			last?.content,
-		]
-			.filter(Boolean)
-			.join(" · ");
-		const output = [
-			call.output?.content && stripMarkers(call.output.content),
-			...requested.map((c) => c.name),
-		]
-			.filter(Boolean)
-			.join(" · ");
-
-		const from = i === 0 ? ["assemble"] : [];
+		const said = call.output?.content && stripMarkers(call.output.content);
+		// The calls follow one another; what each asked for hangs under it and needs no wire of its own.
+		const from = [i === 0 ? "assemble" : `call-${i - 1}`];
 		for (const msg of call.messages) {
 			const id = msg.tool_call_id;
 			if (id && orderedTools.has(id) && !consumed.has(id)) {
-				from.push("tool-" + id);
 				consumed.add(id);
 				const step = tools.find((s) => s.call_id === id);
 				const layer = step && resultLayer(step);
 				if (step && layer)
 					taken.push({
 						id: "tool-" + id,
-						label: step.tool,
+						label: toolName(step.tool),
 						tokens: Math.max(12, Math.round((step.result ?? "").length * 1.3)),
 						layer,
 					});
@@ -359,44 +536,85 @@ export function TurnSteps({
 		const answerCall = i === calls.length - 1 && !requested.length;
 		// The question stays last, as in the request itself.
 		const carried = [...all.slice(0, -1), ...taken, ...all.slice(-1)];
-		columns.push([
+		const asked = new Map<string, number>();
+		for (const c of requested) asked.set(c.name, (asked.get(c.name) ?? 0) + 1);
+		const column: FlowNode[] = [
 			{
 				id: "call-" + i,
 				from,
 				highlight: routeActive || (sourceFocus !== null && answerCall),
-				body: (
-					<Step
-						title={t(requested.length ? "chooseTools" : "answer")}
-						carried={carried}
-						input={input}
-						output={output || t(call.failed ? "failed" : "missing")}
-					>
-						<Calls calls={[call]} />
-					</Step>
+				body: card(
+					"call-" + i,
+					t("call", { n: i + 1 }),
+					requested.length ? (
+						<>
+							<p className="step-say">
+								{t("decided", { count: requested.length })}
+							</p>
+							<p className="step-chips">
+								{[...asked].map(([name, n]) => (
+									<span key={name}>
+										{toolName(name)}
+										{n > 1 && ` ×${n}`}
+									</span>
+								))}
+							</p>
+						</>
+					) : (
+						<>
+							<p className="step-say">
+								{said ? plain(said) : t(call.failed ? "failed" : "missing")}
+							</p>
+							<ContextStrip items={carried} mini />
+							{consumed.size > 0 && (
+								<p className="step-foot">
+									{t("withResults", { count: consumed.size })}
+								</p>
+							)}
+						</>
+					),
+					<>
+						{said && (
+							<>
+								<h5>{t("returned")}</h5>
+								<p className="step-text">{said}</p>
+							</>
+						)}
+						{requested.length > 0 && (
+							<>
+								<h5>{t("asksFor")}</h5>
+								{requested.map((c, k) => (
+									<div className="step-message" key={c.id ?? `${c.name}-${k}`}>
+										<b>{toolName(c.name)}</b>
+										<p>{subject(c.args)}</p>
+									</div>
+								))}
+							</>
+						)}
+						{!said && !requested.length && (
+							<p>{t(call.failed ? "failed" : "missing")}</p>
+						)}
+						{raw(<Calls calls={[call]} />)}
+					</>,
 				),
 			},
-		]);
-		columns.push(
-			results.map((step) => {
-				const sources = [
-					...(step.artifact?.memories ?? []).map((m) =>
-						typeof m === "string" ? m : m.id,
-					),
-					step.artifact?.document?.id,
-				];
-				const highlight = sources.some((id) => id && sourceFocus?.includes(id));
-				if (highlight) routeActive = true;
-				const layer = resultLayer(step);
-				return {
-					id: "tool-" + step.call_id,
-					lane: "input" as const,
-					color: layer ? layerColor(layer) : undefined,
-					from: ["call-" + i],
-					highlight,
-					body: <ToolCard step={step} />,
-				};
-			}),
-		);
+		];
+		// What a call asked for hangs under it; the next call takes each result in along a wire.
+		for (const step of results) {
+			const ids = sourceIds(step);
+			const highlight = ids.some((id) => sourceFocus?.includes(id));
+			if (highlight) routeActive = true;
+			column.push({
+				id: "tool-" + step.call_id,
+				lane: "result",
+				from: [],
+				ids,
+				highlight,
+				body: toolNode(step, "tool-" + step.call_id),
+			});
+		}
+		firstCall ??= column;
+		columns.push(column);
 	});
 	if (!calls.length)
 		columns.push([
@@ -404,30 +622,98 @@ export function TurnSteps({
 				id: "legacy-answer",
 				from: ["assemble"],
 				highlight: sourceFocus !== null,
-				body: (
-					<Step
-						title={t("answer")}
-						input={t("prepared")}
-						output={version.content}
-					>
+				body: card(
+					"legacy-answer",
+					t("answer"),
+					<p className="step-say">{plain(version.content)}</p>,
+					<>
 						<p>{t("legacy")}</p>
-						<pre>{version.content}</pre>
-					</Step>
+						<p className="step-text">{version.content}</p>
+					</>,
 				),
 			},
 		]);
-	const unmatched = tools.filter(
-		(s) => !s.call_id || !orderedTools.has(s.call_id),
-	);
-	if (unmatched.length)
-		columns.push(
-			unmatched.map((step, i) => ({
+	// Tools from before calls were recorded ran between assembling and answering.
+	tools
+		.filter((s) => !s.call_id || !orderedTools.has(s.call_id))
+		.forEach((step, i) => {
+			(firstCall ?? assembling).push({
 				id: "unlinked-" + i,
-				lane: "input" as const,
+				lane: "result",
 				from: [],
-				body: <ToolCard step={step} />,
-			})),
-		);
+				ids: sourceIds(step),
+				body: toolNode(step, "unlinked-" + i),
+			});
+		});
+	const shown = open ? details.get(open) : undefined;
+	const pane = shown && (
+		<aside
+			className="step-pane"
+			aria-label={shown.title}
+			style={
+				moved.x || moved.y
+					? {
+							transform: `translate(${moved.x}px, ${moved.y}px)`,
+							// Moved down, it gives up height rather than run off the bottom.
+							maxHeight: `calc(100% - ${Math.max(0, moved.y)}px)`,
+						}
+					: undefined
+			}
+		>
+			<header
+				data-moving={moving || undefined}
+				onPointerDown={(e) => {
+					if (e.button !== 0 || (e.target as Element).closest("button")) return;
+					e.preventDefault();
+					e.stopPropagation();
+					const header = e.currentTarget;
+					const box = header.parentElement!.getBoundingClientRect();
+					const from = { x: e.clientX - moved.x, y: e.clientY - moved.y };
+					// The header stays on screen, so the pane can always be taken back.
+					const room = {
+						left: -box.left + moved.x,
+						right: window.innerWidth - box.right + moved.x,
+						top: -box.top + moved.y,
+						bottom: window.innerHeight - box.top - 48 + moved.y,
+					};
+					const clamp = (v: number, lo: number, hi: number) =>
+						Math.min(Math.max(v, lo), hi);
+					header.setPointerCapture(e.pointerId);
+					setMoving(true);
+					const move = (ev: PointerEvent) =>
+						setMoved({
+							x: clamp(ev.clientX - from.x, room.left, room.right),
+							y: clamp(ev.clientY - from.y, room.top, room.bottom),
+						});
+					const end = () => {
+						header.removeEventListener("pointermove", move);
+						header.removeEventListener("pointerup", end);
+						header.removeEventListener("pointercancel", end);
+						setMoving(false);
+					};
+					header.addEventListener("pointermove", move);
+					header.addEventListener("pointerup", end);
+					header.addEventListener("pointercancel", end);
+				}}
+				onDoubleClick={() => setMoved({ x: 0, y: 0 })}
+			>
+				<h3>{shown.title}</h3>
+				<Button
+					type="button"
+					variant="quiet"
+					size="icon-sm"
+					aria-label={t("closeDetail")}
+					onClick={() => setOpen(null)}
+				>
+					<X />
+				</Button>
+			</header>
+			<div className="step-detail">{shown.body}</div>
+		</aside>
+	);
+	const detail =
+		paneHost === undefined ? pane : paneHost && createPortal(pane, paneHost);
+	const rounds = calls.filter((c) => c.output?.tool_calls?.length).length;
 	const grouped = new Set(
 		columns
 			.flat()
@@ -439,7 +725,8 @@ export function TurnSteps({
 			)
 			.map((node) => node.id),
 	);
-	const canFold = grouped.size > 2;
+	// One round and its results read at a glance; more of them fold into a single step.
+	const canFold = rounds > 2;
 	if (canFold && !expanded) {
 		const summary: FlowNode = {
 			id: "tool-rounds",
@@ -455,7 +742,7 @@ export function TurnSteps({
 				>
 					<b>{t("toolCount", { n: tools.length })}</b>
 					<span>
-						{[...new Set(tools.map((step) => step.tool))].join(" · ")}
+						{[...new Set(tools.map((step) => toolName(step.tool)))].join(" · ")}
 					</span>
 					<small>{t("expandTools")} →</small>
 				</button>
@@ -483,7 +770,12 @@ export function TurnSteps({
 				return [summary];
 			}),
 		);
-		return <StepFlow label={t("heading")} columns={compact} />;
+		return (
+			<>
+				<StepFlow label={t("heading")} columns={compact} onHover={onHover} />
+				{detail}
+			</>
+		);
 	}
 	return (
 		<>
@@ -497,7 +789,8 @@ export function TurnSteps({
 					{t("collapseTools")}
 				</Button>
 			)}
-			<StepFlow label={t("heading")} columns={columns} />
+			<StepFlow label={t("heading")} columns={columns} onHover={onHover} />
+			{detail}
 		</>
 	);
 }

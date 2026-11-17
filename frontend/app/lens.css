@@ -1088,50 +1088,265 @@
 	color: var(--secondary-foreground);
 }
 .turn-step {
+	position: relative;
+	display: grid;
+	gap: calc(var(--spacing) * 1.5);
 	min-width: 0;
+	padding: calc(var(--spacing) * 2.75) calc(var(--spacing) * 3.25)
+		calc(var(--spacing) * 3);
 	background: var(--panel);
 	border-radius: 14px;
+	transition:
+		border-color 0.15s,
+		box-shadow 0.15s;
 }
-.turn-step > summary {
-	cursor: pointer;
-	display: grid;
-	gap: 3px;
-	padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3.25);
-	border-radius: inherit;
+.turn-step:hover {
+	border-color: var(--muted-foreground);
 }
-.turn-step > summary::-webkit-details-marker {
-	display: none;
+.turn-step[data-open] {
+	border-color: var(--foreground);
+	box-shadow: 0 0 0 1px var(--foreground);
 }
+.turn-step > * {
+	margin: 0;
+	min-width: 0;
+}
+/* The title is the card's one control; it answers a press anywhere on the card. */
 .step-title {
-	font-size: var(--type-control);
-	font-weight: 600;
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
 	gap: calc(var(--spacing) * 1.5);
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--muted-foreground);
+	font: inherit;
+	font-size: var(--type-sm);
+	font-weight: 500;
+	text-align: start;
+	cursor: pointer;
+	outline: none;
+}
+.step-title::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: 14px;
+}
+.step-title:focus-visible::after {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+.step-title > span {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.step-title > i {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
 }
 .step-title svg {
-	width: calc(var(--spacing) * 3.75);
-	height: calc(var(--spacing) * 3.75);
+	flex: none;
+	width: calc(var(--spacing) * 3.5);
+	height: calc(var(--spacing) * 3.5);
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+.turn-step:hover .step-title svg,
+.turn-step[data-open] .step-title svg,
+.step-title:focus-visible svg {
+	opacity: 1;
+}
+/* What the step came to, in its own words: at most two lines on the card, all of it in the details. */
+.step-say {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	font-size: var(--type-ui);
+	font-weight: 500;
+	line-height: 1.4;
+	letter-spacing: -0.01em;
+	overflow-wrap: anywhere;
+}
+.step-foot {
+	font-size: var(--type-sm);
 	color: var(--muted-foreground);
 }
-.turn-step[open] > summary .step-title svg {
-	transform: rotate(90deg);
+.step-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--spacing) * 1);
 }
-.step-row {
-	display: grid;
-	grid-template-columns: 4.6em minmax(0, 1fr);
-	gap: 3px;
+.step-chips > span {
+	padding: 1px calc(var(--spacing) * 2);
+	border-radius: 999px;
+	background: var(--muted);
 	font-size: var(--type-sm);
 	color: var(--secondary-foreground);
 }
-.step-row > :first-child {
-	color: var(--muted-foreground);
+.step-figure {
+	display: flex;
+	align-items: baseline;
+	gap: calc(var(--spacing) * 1.5);
+	font-size: var(--type-sm);
+	color: var(--secondary-foreground);
 }
-.step-row > :last-child {
+.step-figure b {
+	font-size: var(--type-display);
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	color: var(--foreground);
+	font-variant-numeric: tabular-nums;
+}
+.step-figure small {
+	margin-left: auto;
+	font-size: var(--type-sm);
+	color: var(--muted-foreground);
+	font-variant-numeric: tabular-nums;
+}
+.step-hits {
+	display: grid;
+	gap: 2px;
+	padding: 0;
+	list-style: none;
+	font-size: var(--type-sm);
+	color: var(--secondary-foreground);
+}
+.step-hits li {
+	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+/* A change the turn made can be taken back from its own line. */
+.step-hits li:has(.step-undo, small) {
+	display: flex;
+	align-items: baseline;
+	gap: calc(var(--spacing) * 1.5);
+	overflow: visible;
+}
+.step-hits li > span {
+	flex: 1;
+	min-width: 0;
 	overflow: hidden;
+	text-overflow: ellipsis;
+}
+[data-undone] > :is(span, p, b) {
+	color: var(--muted-foreground);
+	text-decoration: line-through;
+}
+.step-undo {
+	position: relative;
+	z-index: 1;
+	flex: none;
+	justify-self: start;
+	border: 0;
+	border-radius: 999px;
+	background: var(--muted);
+	color: var(--secondary-foreground);
+	padding: 1px calc(var(--spacing) * 2.25);
+	font: inherit;
+	font-size: var(--type-meta);
+	font-weight: 500;
+	cursor: pointer;
+}
+.step-undo:hover:not(:disabled) {
+	background: var(--muted-strong);
+	color: var(--foreground);
+}
+.step-hits li::before {
+	content: "· ";
+	color: var(--muted-foreground);
+}
+/* An opened step's details: what it means first, the recorded messages last. */
+.step-pane {
+	pointer-events: auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	max-height: 100%;
+	width: 100%;
+	align-self: flex-start;
+	background: var(--card);
+	border: 1px solid var(--border);
+	border-radius: 18px;
+	box-shadow: var(--lift);
+	cursor: auto;
+}
+/* The header is the handle: drag to move the details aside, double-click to put them back. */
+.step-pane > header {
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: calc(var(--spacing) * 2);
+	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2)
+		calc(var(--spacing) * 2) calc(var(--spacing) * 4);
+}
+.step-pane > header[data-moving] {
+	cursor: grabbing;
+}
+.step-pane h3 {
+	margin: 0;
+	font-size: var(--type-ui);
+	font-weight: 600;
+}
+.step-pane > .step-detail {
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+.step-detail .step-text {
+	font-size: var(--type-ui);
+	color: var(--foreground);
+	white-space: pre-wrap;
+}
+.step-detail .step-message p {
+	color: var(--foreground);
+	white-space: pre-wrap;
+}
+.step-detail .step-message del {
+	color: var(--muted-foreground);
+}
+.step-raw {
+	display: grid;
+	gap: calc(var(--spacing) * 1.75);
+	padding-top: calc(var(--spacing) * 2);
+	border-top: 1px solid var(--border);
+}
+.step-raw > summary {
+	cursor: pointer;
+	color: var(--muted-foreground);
+}
+.step-raw[open] > summary {
+	margin-bottom: calc(var(--spacing) * 1.75);
+}
+.steps-pane {
+	position: absolute;
+	z-index: 4;
+	/* Placed on the steps' top edge as they move (see lens-app); this is where they rest. */
+	right: calc(var(--field-right, 14px) + var(--spacing) * 2);
+	top: calc(100% - 36dvh - 12px);
+	bottom: 12px;
+	width: min(400px, 60%);
+	display: flex;
+	align-items: flex-start;
+	pointer-events: none;
+}
+@media (max-width: 900px) {
+	.steps-pane {
+		position: fixed;
+		inset: auto 12px 12px;
+		width: auto;
+		height: 60dvh;
+	}
 }
 .step-detail {
 	border-top: 1px solid var(--border);
@@ -2593,9 +2808,6 @@
 	background: var(--card);
 	border: 1px solid var(--border);
 }
-.steps-canvas .turn-step[open] {
-	grid-column: 1 / -1;
-}
 @media (max-width: 900px) {
 	.steps-canvas {
 		position: relative;
@@ -2729,11 +2941,34 @@
 	min-width: 0;
 	gap: calc(var(--spacing) * 2);
 }
-.flow-cell[data-lane="input"] {
-	align-self: end;
+.flow-cell .flow-cell {
+	margin-top: calc(var(--spacing) * 1);
 }
-.flow-cell[data-lane="side"] {
-	margin-top: calc(var(--spacing) * 3);
+/* What a call asked for hangs off it on a rail: an elbow into each result, a run on to the next. */
+.flow-cell[data-lane="result"] {
+	--rail: color-mix(in srgb, var(--foreground) 24%, transparent);
+	--reach: calc(var(--spacing) * 4);
+	margin-left: var(--reach);
+	padding-left: var(--reach);
+}
+.flow-cell[data-lane="result"] > .flow-node::before {
+	content: "";
+	position: absolute;
+	top: calc(var(--spacing) * -3);
+	left: calc(var(--reach) * -1);
+	width: var(--reach);
+	height: calc(20px + var(--spacing) * 3);
+	border: solid var(--rail);
+	border-width: 0 0 1.5px 1.5px;
+	border-bottom-left-radius: 8px;
+}
+.flow-cell[data-lane="result"] > .flow-node:not(:last-child)::after {
+	content: "";
+	position: absolute;
+	top: 12px;
+	bottom: calc(var(--spacing) * -2);
+	left: calc(var(--reach) * -1);
+	border-left: 1.5px solid var(--rail);
 }
 .flow-node pre {
 	white-space: pre-wrap;
@@ -2741,22 +2976,28 @@
 }
 .flow-node {
 	position: relative;
-	width: calc(var(--spacing) * 64);
+	width: calc(var(--spacing) * 60);
 	min-width: 0;
 }
-.flow-node[data-flow-id="question"] {
-	width: calc(var(--spacing) * 44);
-}
-.flow-node:has(> .turn-step[open]) {
-	width: calc(var(--spacing) * 120);
+.flow-cell[data-lane="result"] > .flow-node {
+	width: calc(var(--spacing) * 52);
 }
 /* Writes aside never feed the answer, so their card reads as a branch. */
 .steps-canvas .flow-cell[data-lane="side"] .turn-step {
 	border-style: dashed;
 }
-/* What the request holds by this step, under the step's two lines. */
-.flow-node .lens-strip.mini {
-	margin-top: calc(var(--spacing) * 2);
+/* While something is asked about, the steps that had nothing to do with it recede. */
+.flow-node {
+	transition: opacity 0.18s;
+}
+.lens-root.focusing
+	.steps-canvas
+	.flow-node:not(.hl, :hover, [data-highlight="true"]) {
+	opacity: 0.22;
+}
+.flow-node.hl > :is(.turn-step, .flow-source) {
+	border-color: var(--foreground);
+	box-shadow: 0 0 0 1px var(--foreground);
 }
 .flow-node[data-highlight="true"] {
 	outline: 2px solid var(--mem);
@@ -2769,6 +3010,18 @@
 	border: 1px solid var(--border);
 	font-size: var(--type-control);
 	overflow-wrap: anywhere;
+}
+/* The question reads like the steps after it: a quiet label, then what was said. */
+.flow-source:not(.flow-fold) > b {
+	font-size: var(--type-sm);
+	font-weight: 500;
+	color: var(--muted-foreground);
+}
+.flow-source:not(.flow-fold) > p {
+	margin: calc(var(--spacing) * 1.5) 0 0;
+	font-size: var(--type-ui);
+	font-weight: 500;
+	line-height: 1.4;
 }
 .step-flow-lines {
 	position: absolute;

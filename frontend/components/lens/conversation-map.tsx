@@ -94,6 +94,7 @@ function MapCanvas({
 	const [drawn, setDrawn] = useState<Drawn[]>([]);
 	/** The step under the pointer: its wires stand out and the rest step back. */
 	const [hot, setHot] = useState<string | null>(null);
+	const [pane, setPane] = useState<HTMLDivElement | null>(null);
 	/** Turns run left to right and wrap, in as many columns as show the most at once. */
 	const [columns, setColumns] = useState(1);
 
@@ -291,6 +292,8 @@ function MapCanvas({
 									readingControls={null}
 									contextControls={null}
 									unfolded
+									sources
+									paneHost={pane}
 									changes={
 										record.memory_changes ?? version.written_changes ?? []
 									}
@@ -332,6 +335,8 @@ function MapCanvas({
 					</svg>
 				</div>
 			</div>
+			{/* An opened step's details, over the map rather than inside a turn. */}
+			<div className={styles.pane} ref={setPane} />
 
 			<header className={styles.bar}>
 				<h2>{t("title")}</h2>

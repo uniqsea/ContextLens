@@ -17,7 +17,7 @@ import {
 	stripItems,
 	stripTokens,
 } from "./context-meter";
-import { MemoryChanges } from "./memory-changes";
+import { MemoryChanges, useMemoryUndo } from "./memory-changes";
 import { TurnReading } from "./turn-reading";
 import { TurnSteps } from "./turn-steps";
 
@@ -87,6 +87,7 @@ function InlineText({ text }: { text: string }) {
 export function AnswerCard({
 	sourceFocus,
 	stepsHost,
+	stepsPane,
 	onShowSteps,
 	index,
 	record,
@@ -104,6 +105,7 @@ export function AnswerCard({
 }: {
 	sourceFocus: string[] | null;
 	stepsHost: HTMLElement | null;
+	stepsPane: HTMLElement | null;
 	onShowSteps: () => void;
 	index: number;
 	record: TurnRecord | undefined;
@@ -123,6 +125,11 @@ export function AnswerCard({
 	const { t } = text;
 	const latest = record?.versions[record.versions.length - 1];
 	const count = record?.versions.length ?? 0;
+	const undoing = useMemoryUndo(
+		record?.memory_changes ?? [],
+		threadId,
+		onMemoryChanged,
+	);
 	const [peek, setPeek] = useState<Peek | null>(null);
 	const [pieces, setPieces] = useState<Piece[] | null>(null);
 	const prev = useRef<{ count: number; segments: Segment[] } | null>(null);
@@ -288,6 +295,10 @@ export function AnswerCard({
 								version={latest}
 								query={record?.query ?? ""}
 								rewrite={count > 1}
+								paneHost={stepsPane}
+								onHover={(ids) => onHover(ids, index)}
+								undoing={undoing}
+								changes={record?.memory_changes}
 								readingControls={
 									latest.situation && (
 										<TurnReading
@@ -315,8 +326,7 @@ export function AnswerCard({
 						)}
 					<MemoryChanges
 						changes={record?.memory_changes ?? []}
-						threadId={threadId}
-						onChanged={onMemoryChanged}
+						undoing={undoing}
 					/>
 				</>
 			)}

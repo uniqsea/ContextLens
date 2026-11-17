@@ -125,6 +125,7 @@ export function LensApp({
 	const [locateTurn, setLocateTurn] = useState<number | null>(null);
 	const [mapOpen, setMapOpen] = useState(false);
 	const [stepsHost, setStepsHost] = useState<HTMLDivElement | null>(null);
+	const [stepsPane, setStepsPane] = useState<HTMLDivElement | null>(null);
 	const [inspecting, setInspecting] = useState(true);
 	const [previewError, setPreviewError] = useState(false);
 	const [shelfOpen, setShelfOpen] = useState(false);
@@ -364,6 +365,42 @@ export function LensApp({
 		engineRef.current?.locateSteps(panel);
 		setLocateTurn(null);
 	}, [locateTurn, stepsIndex, stepsHost]);
+
+	// An opened step's details ride along with the steps as the canvas pans and zooms, at reading
+	// size, and never leave the stage entirely.
+	useEffect(() => {
+		const host = stepsPane;
+		const stage = stageRef.current;
+		if (!host || !stage) return;
+		let frame = 0;
+		const follow = () => {
+			const panel = stepsPanelRef.current;
+			// A narrow screen keeps the details as a sheet along its bottom.
+			if (window.innerWidth <= 900) {
+				host.style.top = "";
+				host.style.right = "";
+			} else if (panel) {
+				const s = stage.getBoundingClientRect();
+				const p = panel.getBoundingClientRect();
+				const clamp = (v: number, lo: number, hi: number) =>
+					Math.min(Math.max(v, lo), Math.max(lo, hi));
+				host.style.top = `${clamp(p.top - s.top, 56, s.height - 180)}px`;
+				host.style.right = `${clamp(s.right - p.right + 8, 8, s.width - host.offsetWidth - 8)}px`;
+			}
+			frame = requestAnimationFrame(follow);
+		};
+		const watch = () => {
+			cancelAnimationFrame(frame);
+			if (host.childElementCount) follow();
+		};
+		const observer = new MutationObserver(watch);
+		observer.observe(host, { childList: true });
+		watch();
+		return () => {
+			observer.disconnect();
+			cancelAnimationFrame(frame);
+		};
+	}, [stepsPane]);
 
 	const ctx = useRef({
 		composing,
@@ -616,13 +653,20 @@ export function LensApp({
 		const root = stageRef.current;
 		if (!root) return;
 		root
-			.querySelectorAll(".seg.hl, .sg.hl, .item.hl, [data-field-id].hl")
+			.querySelectorAll(
+				".seg.hl, .sg.hl, .item.hl, [data-field-id].hl, [data-flow-ids].hl",
+			)
 			.forEach((e) => {
 				e.classList.remove("hl");
 			});
 		if (!ids) return;
 		root.querySelectorAll<HTMLElement>("[data-field-id]").forEach((el) => {
 			if (ids.includes(el.dataset.fieldId!)) el.classList.add("hl");
+		});
+		// The steps that read or fetched what is asked about.
+		root.querySelectorAll<HTMLElement>("[data-flow-ids]").forEach((el) => {
+			if (el.dataset.flowIds!.split(" ").some((id) => ids.includes(id)))
+				el.classList.add("hl");
 		});
 		const view = viewRef.current;
 		const t = turn ?? (view.kind === "turn" ? view.turn : null);
@@ -991,6 +1035,8 @@ export function LensApp({
 						</section>
 					)}
 				</div>
+				{/* An opened step's details stay put while the canvas under them pans. */}
+				{stepsRecord && <div className="steps-pane" ref={setStepsPane} />}
 
 				<section
 					className="lens-sheet"
@@ -1114,6 +1160,7 @@ export function LensApp({
 											stepsHost={
 												stepsRecord && stepsIndex === i ? stepsHost : null
 											}
+											stepsPane={stepsPane}
 											onShowSteps={() => {
 												setStepView(i);
 												setLocateTurn(i);

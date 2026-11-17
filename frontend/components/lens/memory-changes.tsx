@@ -8,22 +8,17 @@ import type { MemoryChange } from "@/lib/memory-types";
 
 const FOLDED = 3;
 
-/** "Remembered: …  Undo" under the answer that caused it: every memory change the turn made, by the
- * agent during the task or by the upkeep after it, each one undoable on the spot. */
-export function MemoryChanges({
-	changes,
-	threadId,
-	onChanged,
-}: {
-	changes: MemoryChange[];
-	threadId: string | null;
-	onChanged: () => void;
-}) {
+/** Which of a turn's memory changes have been undone, and the undoing: shared by every place that
+ * lists them, so one undo shows in all. */
+export function useMemoryUndo(
+	changes: MemoryChange[],
+	threadId: string | null,
+	onChanged: () => void,
+) {
 	const t = useTranslations("memory");
 	const [undone, setUndone] = useState<Set<number>>(new Set());
 	const [busy, setBusy] = useState<number | null>(null);
 	const [error, setError] = useState("");
-	const [expanded, setExpanded] = useState(false);
 
 	// Changes undone earlier (here or in the library) stay marked after a reload.
 	useEffect(() => {
@@ -43,8 +38,6 @@ export function MemoryChanges({
 		};
 	}, [threadId, changes.length]);
 
-	if (changes.length === 0) return null;
-
 	const undo = async (c: MemoryChange) => {
 		setBusy(c.event_id);
 		setError("");
@@ -62,6 +55,23 @@ export function MemoryChanges({
 			setBusy(null);
 		}
 	};
+	return { undone, busy, error, undo };
+}
+export type MemoryUndo = ReturnType<typeof useMemoryUndo>;
+
+/** "Remembered: …  Undo" under the answer that caused it: every memory change the turn made, by the
+ * agent during the task or by the upkeep after it, each one undoable on the spot. */
+export function MemoryChanges({
+	changes,
+	undoing: { undone, busy, error, undo },
+}: {
+	changes: MemoryChange[];
+	undoing: MemoryUndo;
+}) {
+	const t = useTranslations("memory");
+	const [expanded, setExpanded] = useState(false);
+
+	if (changes.length === 0) return null;
 
 	return (
 		<section className="lens-mem" aria-label={t("changesLabel")}>

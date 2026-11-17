@@ -91,6 +91,9 @@ export interface ToolStep {
 		reading_calls?: ModelCall[];
 		memories?: (string | { id: string })[];
 		document?: { id: string };
+		documents?: { id: string }[];
+		history?: { id: string }[];
+		events?: unknown[];
 	} | null;
 	call_id?: string;
 	tool: string;
