@@ -549,7 +549,7 @@
 		"actor": {
 			"user": "你",
 			"agent": "Agent",
-			"consolidation": "整理",
+			"consolidation": "回答后自动记",
 			"import": "导入"
 		},
 		"verb": {

@@ -532,19 +532,6 @@
 	font-weight: 500;
 	color: var(--foreground);
 }
-.lens-a .bar button {
-	border: 0;
-	background: var(--muted);
-	border-radius: 999px;
-	padding: 0 calc(var(--spacing) * 2.5);
-	cursor: pointer;
-	font-size: var(--type-sm);
-	font-weight: 500;
-	min-height: calc(var(--spacing) * 6.5);
-}
-.lens-a .bar button:hover {
-	background: var(--muted-strong);
-}
 .lens-a .busy {
 	font-weight: 500;
 	color: var(--foreground);
@@ -940,14 +927,10 @@
 	flex: 0 1 120px;
 	min-width: calc(var(--spacing) * 15);
 }
+/* Stale sources: the outline button in the document colour, so it reads as a warning. */
 .lens-rcpt .warn {
 	color: var(--doc);
-	border: 1px solid currentColor;
-	border-radius: 999px;
-	padding: 0 calc(var(--spacing) * 2.25);
-	background: none;
-	cursor: pointer;
-	font-size: var(--type-sm);
+	border-color: color-mix(in srgb, var(--doc) 50%, transparent);
 }
 
 /* Included and available sources for a rewrite. */
@@ -1004,25 +987,6 @@
 	flex-wrap: wrap;
 	justify-content: flex-end;
 }
-.lens-a .item .acts button {
-	border: 0;
-	background: var(--muted);
-	color: var(--secondary-foreground);
-	border-radius: 999px;
-	padding: 0 calc(var(--spacing) * 2.5);
-	font-size: var(--type-sm);
-	font-weight: 500;
-	cursor: pointer;
-	min-height: calc(var(--spacing) * 6.5);
-	transition: background 0.18s;
-}
-.lens-a .item .acts button:hover {
-	background: var(--muted-strong);
-}
-.lens-a .item .acts button[aria-pressed="true"] {
-	background: var(--foreground);
-	color: var(--card);
-}
 .lens-a .item.off {
 	opacity: 0.62;
 }
@@ -1044,29 +1008,8 @@
 	align-items: center;
 	flex-wrap: wrap;
 }
-.lens-a .step-editor-actions button {
-	border: 1px solid var(--border);
-	background: none;
-	color: var(--secondary-foreground);
-	border-radius: 999px;
-	padding: 0 calc(var(--spacing) * 3.5);
-	cursor: pointer;
-	font-size: var(--type-control);
-	font-weight: 500;
-	min-height: calc(var(--spacing) * 8.5);
-	transition: background 0.18s;
-}
-.lens-a .step-editor-actions button:hover {
-	background: var(--muted);
-}
-.lens-a .step-editor-actions .primary {
+.lens-a .step-editor-actions > :last-child {
 	margin-left: auto;
-	background: var(--foreground);
-	color: var(--card);
-	border-color: transparent;
-}
-.lens-a .step-editor-actions .primary:hover {
-	background: var(--secondary-foreground);
 }
 
 /* Each stage shows its observed input and output before the full exchange is opened. */
@@ -1224,41 +1167,96 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-/* A change the turn made can be taken back from its own line. */
-.step-hits li:has(.step-undo, small) {
-	display: flex;
-	align-items: baseline;
+/* What a turn wrote to memory: one small block per change, its verb, who did it and its undo on a
+   head line, the change itself in full ink beneath, so the text never shares its line with a button.
+   The answer, the writing step's card and its details all list them so. */
+.mem-changes {
+	display: grid;
 	gap: calc(var(--spacing) * 1.5);
-	overflow: visible;
+	padding: 0;
+	margin: 0;
+	list-style: none;
 }
-.step-hits li > span {
-	flex: 1;
+.mem-change {
+	display: grid;
+	gap: 2px;
 	min-width: 0;
+	padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2.5)
+		calc(var(--spacing) * 2);
+	border-radius: 10px;
+	background: var(--muted);
+}
+.mem-change header {
+	display: flex;
+	align-items: center;
+	gap: calc(var(--spacing) * 2);
+	min-height: calc(var(--spacing) * 6);
+	font-size: var(--type-sm);
+}
+.mem-change header b {
+	font-weight: 500;
+	color: var(--mem);
+}
+.mem-change header small {
+	color: var(--muted-foreground);
+}
+.mem-change p {
+	margin: 0;
+	font-size: var(--type-control);
+	line-height: 1.45;
+	color: var(--foreground);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.mem-change[data-clamp] p {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	overflow: hidden;
-	text-overflow: ellipsis;
+	white-space: normal;
+}
+.mem-change[data-clamp] .mem-was {
+	display: none;
+}
+.mem-change .mem-was {
+	font-size: var(--type-sm);
+	color: var(--muted-foreground);
+}
+.mem-change[data-undone] p {
+	color: var(--muted-foreground);
+	text-decoration: line-through;
+}
+.mem-change[data-undone] header b {
+	color: var(--muted-foreground);
 }
 [data-undone] > :is(span, p, b) {
 	color: var(--muted-foreground);
 	text-decoration: line-through;
 }
-.step-undo {
+/* At the end of the head line, above a card's own press area. */
+.mem-undo,
+.mem-done {
+	margin-left: auto;
+}
+.mem-undo {
 	position: relative;
 	z-index: 1;
-	flex: none;
-	justify-self: start;
-	border: 0;
-	border-radius: 999px;
-	background: var(--muted);
+	margin-right: calc(var(--spacing) * -1.5);
+	gap: calc(var(--spacing) * 1);
+	padding-inline: calc(var(--spacing) * 2);
+	font-size: var(--type-sm);
 	color: var(--secondary-foreground);
-	padding: 1px calc(var(--spacing) * 2.25);
-	font: inherit;
-	font-size: var(--type-meta);
-	font-weight: 500;
-	cursor: pointer;
 }
-.step-undo:hover:not(:disabled) {
-	background: var(--muted-strong);
-	color: var(--foreground);
+.mem-undo:hover:not(:disabled) {
+	background: var(--card);
+}
+.mem-undo svg {
+	width: calc(var(--spacing) * 3);
+	height: calc(var(--spacing) * 3);
+}
+.mem-done {
+	font-size: var(--type-meta);
+	color: var(--muted-foreground);
 }
 .step-hits li::before {
 	content: "· ";
@@ -1312,21 +1310,15 @@
 	color: var(--foreground);
 	white-space: pre-wrap;
 }
-.step-detail .step-message del {
-	color: var(--muted-foreground);
-}
 .step-raw {
 	display: grid;
 	gap: calc(var(--spacing) * 1.75);
 	padding-top: calc(var(--spacing) * 2);
 	border-top: 1px solid var(--border);
 }
-.step-raw > summary {
-	cursor: pointer;
-	color: var(--muted-foreground);
-}
-.step-raw[open] > summary {
-	margin-bottom: calc(var(--spacing) * 1.75);
+.step-raw-body {
+	display: grid;
+	gap: calc(var(--spacing) * 1.75);
 }
 .steps-pane {
 	position: absolute;
@@ -1388,10 +1380,6 @@
 }
 .step-editor {
 	margin-top: calc(var(--spacing) * 1.25);
-}
-.lens-a .step-editor-actions button:disabled {
-	opacity: 0.5;
-	cursor: default;
 }
 .lens-a .dirty {
 	font-size: var(--type-control-sm);
@@ -1460,38 +1448,15 @@
 	gap: calc(var(--spacing) * 1);
 	cursor: default;
 }
+/* Send: the composer's one ink control, round. */
 .lens-send {
-	border: 0;
-	border-radius: 50%;
-	background: var(--foreground);
-	color: var(--card);
-	padding: 0;
-	width: calc(var(--spacing) * 8.5);
-	height: calc(var(--spacing) * 8.5);
 	flex: none;
-	display: grid;
-	place-items: center;
-	cursor: pointer;
-	transition:
-		background 0.18s,
-		color 0.18s;
-}
-.lens-send svg {
-	width: calc(var(--spacing) * 4.25);
-	height: calc(var(--spacing) * 4.25);
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 2.2;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-}
-.lens-send:hover:not(:disabled) {
-	background: var(--secondary-foreground);
+	border-radius: 50%;
 }
 .lens-send:disabled {
 	background: var(--muted-strong);
 	color: var(--muted-foreground);
-	cursor: default;
+	opacity: 1;
 }
 
 .lens-toast {
@@ -1578,74 +1543,13 @@
 	color: var(--foreground);
 }
 
-/* Memory changes under an answer: who changed what, each undoable. */
+/* Memory changes under an answer: the same blocks as on the writing step. */
 .lens-mem {
 	display: grid;
 	gap: calc(var(--spacing) * 1);
 	margin-top: calc(var(--spacing) * 1);
-	padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
-	border-radius: 14px;
-	background: var(--panel);
 	font-size: var(--type-control-sm);
 	color: var(--muted-foreground);
-}
-.lens-mem-row {
-	display: flex;
-	align-items: baseline;
-	gap: calc(var(--spacing) * 2);
-}
-.lens-mem-row .who {
-	flex: none;
-	font-size: var(--type-sm);
-	font-weight: 500;
-	color: var(--mem);
-}
-.lens-mem-row .what {
-	flex: 1;
-	min-width: 0;
-	color: var(--foreground);
-}
-.lens-mem-row .what b {
-	font-weight: 500;
-}
-.lens-mem-row .body::before {
-	content: " · ";
-	color: var(--muted-foreground);
-}
-.lens-mem-row .was {
-	margin-left: calc(var(--spacing) * 1);
-	color: var(--muted-foreground);
-	text-decoration: line-through;
-	text-decoration-color: color-mix(
-		in srgb,
-		var(--muted-foreground) 50%,
-		transparent
-	);
-}
-.lens-mem-row button {
-	flex: none;
-	border: 0;
-	border-radius: 999px;
-	background: var(--muted);
-	color: var(--secondary-foreground);
-	padding: 1px calc(var(--spacing) * 2.25);
-	font: inherit;
-	font-size: var(--type-meta);
-	font-weight: 500;
-	cursor: pointer;
-	transition: background 0.18s;
-}
-.lens-mem-row button:hover:not(:disabled) {
-	background: var(--muted-strong);
-	color: var(--foreground);
-}
-.lens-mem-row.undone .what {
-	color: var(--muted-foreground);
-	text-decoration: line-through;
-}
-.lens-mem-row .done {
-	flex: none;
-	font-size: var(--type-meta);
 }
 .lens-mem .err {
 	margin: 0;
@@ -1653,17 +1557,7 @@
 }
 .lens-mem-more {
 	justify-self: start;
-	border: 0;
-	background: none;
-	padding: 0;
-	color: var(--secondary-foreground);
-	font: inherit;
-	font-size: var(--type-sm);
-	font-weight: 500;
-	cursor: pointer;
-}
-.lens-mem-more:hover {
-	text-decoration: underline;
+	margin-left: calc(var(--spacing) * -2.75);
 }
 
 /* ---------- memory timeline ----------
@@ -1940,40 +1834,14 @@
 	content: " ▾";
 }
 
+/* Shown on the change it belongs to, or always where nothing hovers. */
 .tl-undo {
-	display: inline-flex;
-	align-items: center;
-	gap: calc(var(--spacing) * 1);
-	min-height: calc(var(--spacing) * 7);
-	padding: 0 calc(var(--spacing) * 2.5);
-	border: 0;
-	border-radius: 999px;
-	background: var(--muted);
-	color: var(--secondary-foreground);
-	font: inherit;
-	font-size: var(--type-sm);
-	font-weight: 500;
-	cursor: pointer;
 	opacity: 0;
-	transition:
-		opacity 0.18s ease-out,
-		background 0.18s;
-}
-.tl-undo svg {
-	width: calc(var(--spacing) * 3);
-	height: calc(var(--spacing) * 3);
+	transition: opacity 0.15s;
 }
 .tl-change:hover > .tl-undo,
 .tl-change:focus-within > .tl-undo {
 	opacity: 1;
-}
-.tl-undo:hover:not(:disabled) {
-	background: var(--muted-strong);
-	color: var(--foreground);
-}
-.tl-undo:disabled {
-	cursor: default;
-	opacity: 0.4;
 }
 @media (hover: none), (max-width: 640px) {
 	.tl-undo {
@@ -2013,22 +1881,8 @@
 	font-size: var(--type-control);
 }
 .tl-more {
-	display: block;
+	display: flex;
 	margin: calc(var(--spacing) * 2.5) auto 0;
-	border: 0;
-	border-radius: 999px;
-	background: var(--muted);
-	padding: 0 calc(var(--spacing) * 3.5);
-	min-height: calc(var(--spacing) * 8);
-	color: var(--secondary-foreground);
-	font: inherit;
-	font-size: var(--type-control);
-	font-weight: 500;
-	cursor: pointer;
-}
-.tl-more:hover {
-	background: var(--muted-strong);
-	color: var(--foreground);
 }
 .tl-empty {
 	display: grid;
@@ -2541,18 +2395,6 @@
 	font-style: normal;
 	color: var(--mem);
 }
-.lens-reading-line button {
-	border: 0;
-	background: none;
-	padding: 0;
-	font: inherit;
-	font-weight: 500;
-	color: var(--secondary-foreground);
-	cursor: pointer;
-}
-.lens-reading-line button:hover {
-	text-decoration: underline;
-}
 .lens-reading form {
 	display: grid;
 	gap: calc(var(--spacing) * 1.5);
@@ -2584,17 +2426,7 @@
 	color: var(--card);
 }
 .lens-lit button {
-	width: calc(var(--spacing) * 4.5);
-	height: calc(var(--spacing) * 4.5);
-	display: grid;
-	place-items: center;
-	border: 0;
-	border-radius: 50%;
-	background: none;
-	color: inherit;
 	opacity: 0.7;
-	cursor: pointer;
-	padding: 0;
 }
 .lens-lit button:hover,
 .lens-lit button[aria-pressed="true"] {
@@ -2767,13 +2599,13 @@
 	margin: 0;
 	font-size: var(--type-ui);
 }
+/* A date chip in a candidate's line: the shared input, pill-sized. */
 .lib-import-date {
-	border: 0;
+	width: auto;
+	height: calc(var(--spacing) * 6);
 	border-radius: 999px;
-	padding: 1px calc(var(--spacing) * 2);
-	background: var(--muted);
+	padding: 0 calc(var(--spacing) * 2);
 	color: var(--secondary-foreground);
-	font: inherit;
 	font-size: var(--type-sm);
 	font-variant-numeric: tabular-nums;
 }
@@ -2856,28 +2688,6 @@
 	color: var(--foreground);
 	font-size: var(--type-sm);
 	box-shadow: var(--lift);
-}
-.canvas-zoom-controls button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: calc(var(--spacing) * 7);
-	height: calc(var(--spacing) * 7);
-	border-radius: 7px;
-	color: var(--secondary-foreground);
-	cursor: pointer;
-}
-.canvas-zoom-controls button:hover {
-	background: var(--muted);
-	color: var(--foreground);
-}
-.canvas-zoom-controls button:disabled {
-	opacity: 0.4;
-	cursor: default;
-}
-.canvas-zoom-controls svg {
-	width: calc(var(--spacing) * 3.5);
-	height: calc(var(--spacing) * 3.5);
 }
 .canvas-zoom-controls span {
 	min-width: 4.5ch;
@@ -3072,24 +2882,7 @@
 /* One icon at the toolbar's right end: shows or hides the sources at every width. */
 .lens-sources-toggle {
 	margin-left: auto;
-	flex: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: calc(var(--spacing) * 8);
-	height: calc(var(--spacing) * 8);
-	border-radius: 9px;
-	color: var(--secondary-foreground);
-	cursor: pointer;
 	pointer-events: auto;
-}
-.lens-sources-toggle:hover {
-	background: color-mix(in srgb, var(--card), var(--foreground) 6%);
-	color: var(--foreground);
-}
-.lens-sources-toggle svg {
-	width: calc(var(--spacing) * 4.25);
-	height: calc(var(--spacing) * 4.25);
 }
 .lens-root:not([data-tier="medium"])[data-sources="hidden"] .scene-resources {
 	display: none;
@@ -3286,17 +3079,6 @@
 	font-size: var(--type-control);
 	font-weight: 560;
 }
-.session-tab button {
-	display: grid;
-	place-items: center;
-	width: calc(var(--spacing) * 6.25);
-	height: calc(var(--spacing) * 7);
-	border-radius: 8px;
-	cursor: pointer;
-}
-.session-tab button:hover {
-	background: var(--muted-strong);
-}
 .session-tab button svg {
 	opacity: 0;
 }
@@ -3324,15 +3106,6 @@
 }
 .session-mobile {
 	display: none;
-}
-.session-drawer {
-	padding: 0;
-	border: 0;
-	margin: 0;
-	max-height: none;
-}
-.session-drawer::backdrop {
-	background: rgb(18 18 20 / 0.3);
 }
 [data-layout="side"] .session-tabs {
 	position: fixed;
@@ -3377,10 +3150,6 @@
 	.session-mobile {
 		display: flex;
 		justify-content: space-between;
-	}
-	.session-drawer[open] {
-		width: min(calc(var(--spacing) * 70), 86vw);
-		height: 100dvh;
 	}
 	.session-drawer .session-tabs {
 		width: 100%;

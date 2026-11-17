@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Hint } from "@/components/ui/tooltip";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { ImportCandidate, MemoryEvent } from "@/lib/memory-types";
+import { Input } from "@/components/ui/input";
 
 const RELATION = {
 	new: "relationNew",
@@ -183,7 +184,7 @@ export function ImportDialog({
 											/>
 											<p>
 												<Hint label={t("noted")}>
-													<input
+													<Input
 														type="date"
 														className="lib-import-date"
 														value={c.noted ?? ""}

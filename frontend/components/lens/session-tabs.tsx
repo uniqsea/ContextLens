@@ -17,6 +17,7 @@ import { NewChat } from "@/components/projects/new-chat";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/tooltip";
 import { ORDINARY, projectPath } from "@/lib/projects/types";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 type Tab = {
 	href: string;
@@ -116,14 +117,14 @@ function SessionTabs({
 	const path = usePathname();
 	const router = useRouter();
 	const t = useTranslations("sessionTabs");
-	const drawer = useRef<HTMLDialogElement>(null);
+	const [drawerOpen, setDrawerOpen] = useState(false);
 	useEffect(() => {
-		if (path) drawer.current?.close();
+		if (path) setDrawerOpen(false);
 	}, [path, layout]);
 	useEffect(() => {
 		const desktop = window.matchMedia("(min-width: 901px)");
 		function closeOnDesktop() {
-			if (desktop.matches) drawer.current?.close();
+			if (desktop.matches) setDrawerOpen(false);
 		}
 		desktop.addEventListener("change", closeOnDesktop);
 		return () => desktop.removeEventListener("change", closeOnDesktop);
@@ -175,7 +176,7 @@ function SessionTabs({
 						size="icon"
 						className="session-home"
 						nativeButton={false}
-						render={<Link href="/" onClick={() => drawer.current?.close()} />}
+						render={<Link href="/" onClick={() => setDrawerOpen(false)} />}
 						aria-label={labels("projects.all")}
 					>
 						<img src="/icon.svg" width="25" height="25" alt="" />
@@ -196,7 +197,7 @@ function SessionTabs({
 								<Hint label={fullTitle}>
 									<Link
 										href={tab.href}
-										onClick={() => drawer.current?.close()}
+										onClick={() => setDrawerOpen(false)}
 										aria-current={path === tab.href ? "page" : undefined}
 										ref={!inDrawer && path === tab.href ? active : undefined}
 									>
@@ -207,7 +208,9 @@ function SessionTabs({
 										<strong>{tab.title}</strong>
 									</Link>
 								</Hint>
-								<button
+								<Button
+									variant="quiet"
+									size="icon-xs"
 									type="button"
 									aria-label={t("close", { title: fullTitle })}
 									onClick={() => {
@@ -220,7 +223,7 @@ function SessionTabs({
 									}}
 								>
 									<X size={13} />
-								</button>
+								</Button>
 							</div>
 						);
 					})}
@@ -232,7 +235,7 @@ function SessionTabs({
 							variant="quiet"
 							size="icon"
 							aria-label={labels("library.close")}
-							onClick={() => drawer.current?.close()}
+							onClick={() => setDrawerOpen(false)}
 						>
 							<X />
 						</Button>
@@ -249,22 +252,22 @@ function SessionTabs({
 			{layout === "side" && (
 				<>
 					<div className="session-mobile">
-						<Button variant="quiet" onClick={() => drawer.current?.showModal()}>
+						<Button variant="quiet" onClick={() => setDrawerOpen(true)}>
 							<PanelLeft />
 							{t("label")}
 						</Button>
 						{toggle}
 					</div>
-					<dialog
-						className="session-drawer"
-						ref={drawer}
-						aria-label={t("label")}
-						onClick={(event) => {
-							if (event.target === event.currentTarget) drawer.current?.close();
-						}}
-					>
-						{navigation(true)}
-					</dialog>
+					<Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+						<SheetContent
+							side="left"
+							showCloseButton={false}
+							className="session-drawer w-[min(280px,86vw)] gap-0 p-0"
+						>
+							<SheetTitle className="sr-only">{t("label")}</SheetTitle>
+							{navigation(true)}
+						</SheetContent>
+					</Sheet>
 				</>
 			)}
 		</>

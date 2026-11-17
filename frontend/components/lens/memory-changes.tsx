@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Hint } from "@/components/ui/tooltip";
 import { MemoryApiError, memoryApi } from "@/lib/memory-api";
 import type { MemoryChange } from "@/lib/memory-types";
+import { Button } from "@/components/ui/button";
+import { Undo2 } from "lucide-react";
 
 const FOLDED = 3;
 
@@ -59,11 +61,65 @@ export function useMemoryUndo(
 }
 export type MemoryUndo = ReturnType<typeof useMemoryUndo>;
 
-/** "Remembered: …  Undo" under the answer that caused it: every memory change the turn made, by the
- * agent during the task or by the upkeep after it, each one undoable on the spot. */
+/** One memory change as a small block: what was done, and by whom, on its head line beside its undo;
+ * the change itself beneath. The answer, the writing step's card and its details all list them so. */
+export function ChangeItem({
+	change: c,
+	undoing,
+	clamp = false,
+	showActor = true,
+}: {
+	change: MemoryChange;
+	undoing?: MemoryUndo;
+	/** On a card: the change in at most two lines. */
+	clamp?: boolean;
+	/** Off where every change has the same author, as on the writing step. */
+	showActor?: boolean;
+}) {
+	const t = useTranslations("memory");
+	const done = undoing?.undone.has(c.event_id);
+	const body = c.kind === "trashed" ? c.title : c.content || c.title;
+	return (
+		<li
+			className="mem-change"
+			data-undone={done || undefined}
+			data-clamp={clamp || undefined}
+		>
+			<header>
+				<b>{t(`verb.${c.kind}`)}</b>
+				{showActor && <small>{t(`actor.${c.actor}`)}</small>}
+				{undoing &&
+					(done ? (
+						<span className="mem-done">{t("undone")}</span>
+					) : (
+						<Hint label={c.reason ? t("why", { reason: c.reason }) : undefined}>
+							<Button
+								variant="quiet"
+								size="xs"
+								type="button"
+								className="mem-undo"
+								disabled={undoing.busy !== null}
+								onClick={() => void undoing.undo(c)}
+							>
+								<Undo2 />
+								{t("undo")}
+							</Button>
+						</Hint>
+					))}
+			</header>
+			{body && <p>{body}</p>}
+			{c.previous && (
+				<p className="mem-was">{t("replaced", { previous: c.previous })}</p>
+			)}
+		</li>
+	);
+}
+
+/** Under the answer that caused them: every memory change the turn made, by the agent during the
+ * task or by the upkeep after it, each one undoable on the spot. */
 export function MemoryChanges({
 	changes,
-	undoing: { undone, busy, error, undo },
+	undoing,
 }: {
 	changes: MemoryChange[];
 	undoing: MemoryUndo;
@@ -75,40 +131,15 @@ export function MemoryChanges({
 
 	return (
 		<section className="lens-mem" aria-label={t("changesLabel")}>
-			{(expanded ? changes : changes.slice(0, FOLDED)).map((c) => (
-				<div
-					key={c.event_id}
-					className={`lens-mem-row${undone.has(c.event_id) ? " undone" : ""}`}
-				>
-					<span className="who">{t(`actor.${c.actor}`)}</span>
-					<span className="what">
-						<b>{t(`verb.${c.kind}`)}</b> {c.title}
-						{c.content && c.kind !== "trashed" && (
-							<span className="body">{c.content}</span>
-						)}
-						{c.previous && (
-							<span className="was">
-								{t("replaced", { previous: c.previous })}
-							</span>
-						)}
-					</span>
-					{undone.has(c.event_id) ? (
-						<span className="done">{t("undone")}</span>
-					) : (
-						<Hint label={c.reason ? t("why", { reason: c.reason }) : undefined}>
-							<button
-								type="button"
-								disabled={busy !== null}
-								onClick={() => void undo(c)}
-							>
-								{t("undo")}
-							</button>
-						</Hint>
-					)}
-				</div>
-			))}
+			<ul className="mem-changes">
+				{(expanded ? changes : changes.slice(0, FOLDED)).map((c) => (
+					<ChangeItem key={c.event_id} change={c} undoing={undoing} />
+				))}
+			</ul>
 			{changes.length > FOLDED && (
-				<button
+				<Button
+					variant="quiet"
+					size="sm"
 					type="button"
 					className="lens-mem-more"
 					aria-expanded={expanded}
@@ -117,11 +148,11 @@ export function MemoryChanges({
 					{expanded
 						? t("fewer")
 						: t("more", { count: changes.length - FOLDED })}
-				</button>
+				</Button>
 			)}
-			{error && (
+			{undoing.error && (
 				<p role="alert" className="err">
-					{error}
+					{undoing.error}
 				</p>
 			)}
 		</section>

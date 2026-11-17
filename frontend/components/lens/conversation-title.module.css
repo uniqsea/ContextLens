@@ -7,7 +7,7 @@
 }
 
 .title,
-.input {
+.row .input {
 	min-width: 0;
 	color: var(--foreground);
 	font-weight: 600;
@@ -20,15 +20,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.input {
-	flex: 1;
-	height: calc(var(--spacing) * 8);
-	border: 0;
-	border-radius: 999px;
-	padding: 0 calc(var(--spacing) * 3);
-	background: var(--muted);
 }
 
 .row button {

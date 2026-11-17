@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/tooltip";
 import { renameConversation } from "@/lib/projects/conversations";
 import styles from "./conversation-title.module.css";
+import { Input } from "@/components/ui/input";
 
 export function ConversationTitle({
 	threadId,
@@ -82,9 +83,9 @@ export function ConversationTitle({
 	return (
 		<>
 			<form className={styles.row} onSubmit={save}>
-				<input
+				<Input
 					ref={input}
-					className={styles.input}
+					className={`${styles.input} h-8 flex-1 rounded-full`}
 					aria-label={t("conversationTitle.label")}
 					value={draft}
 					disabled={saving}

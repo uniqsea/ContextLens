@@ -2,6 +2,7 @@
 
 import { useStream } from "@langchain/langgraph-sdk/react";
 import {
+	ArrowUp,
 	Library,
 	Map as MapIcon,
 	Maximize,
@@ -61,6 +62,7 @@ import { UnsentQuestion } from "./unsent-question";
 import { useFold } from "./use-fold";
 import { type LayoutTier, useLayoutTier } from "./use-layout-tier";
 import { useOverview } from "./use-overview";
+import { Textarea } from "@/components/ui/textarea";
 
 const EMPTY: Draft = { excluded: [], inputOrder: null };
 type RewriteChoice = Pick<Rewrite, "excluded" | "pinned">;
@@ -1226,8 +1228,9 @@ export function LensApp({
 								if (e.target === e.currentTarget) inputRef.current?.focus();
 							}}
 						>
-							<textarea
+							<Textarea
 								id="lens-q"
+								className="min-h-0 rounded-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
 								ref={inputRef}
 								rows={1}
 								value={input}
@@ -1257,7 +1260,8 @@ export function LensApp({
 									onManage={() => setManagingModels(true)}
 								/>
 								<Hint label={t("lens.send")}>
-									<button
+									<Button
+										size="icon-sm"
 										className="lens-send"
 										type="submit"
 										disabled={
@@ -1268,10 +1272,8 @@ export function LensApp({
 										}
 										aria-label={t("lens.send")}
 									>
-										<svg viewBox="0 0 24 24" aria-hidden="true">
-											<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
-										</svg>
-									</button>
+										<ArrowUp aria-hidden="true" />
+									</Button>
 								</Hint>
 							</div>
 						</div>
@@ -1343,7 +1345,9 @@ export function LensApp({
 					<Hint
 						label={t(sourcesShown ? "field.hideSources" : "field.showSources")}
 					>
-						<button
+						<Button
+							variant="quiet"
+							size="icon-sm"
 							type="button"
 							ref={sourcesToggleRef}
 							className="lens-sources-toggle"
@@ -1359,7 +1363,7 @@ export function LensApp({
 							) : (
 								<PanelRightOpen aria-hidden="true" />
 							)}
-						</button>
+						</Button>
 					</Hint>
 				</div>
 
@@ -1369,35 +1373,43 @@ export function LensApp({
 					aria-label={t("field.zoom")}
 				>
 					<Hint label={t("field.zoomOut")}>
-						<button
+						<Button
+							variant="quiet"
+							size="icon-sm"
+							className="size-7 rounded-[7px]"
 							type="button"
 							aria-label={t("field.zoomOut")}
 							disabled={canvasScale <= 0.25}
 							onClick={() => engineRef.current?.zoomBy(0.8)}
 						>
 							<Minus aria-hidden="true" />
-						</button>
+						</Button>
 					</Hint>
 					<span>{Math.max(1, Math.round(canvasScale * 100))}%</span>
 					<Hint label={t("field.zoomIn")}>
-						<button
+						<Button
+							variant="quiet"
+							size="icon-sm"
+							className="size-7 rounded-[7px]"
 							type="button"
 							aria-label={t("field.zoomIn")}
 							disabled={canvasScale >= 4}
 							onClick={() => engineRef.current?.zoomBy(1.25)}
 						>
 							<Plus aria-hidden="true" />
-						</button>
+						</Button>
 					</Hint>
 					<Hint label={t("field.fitAll")}>
-						<button
+						<Button
+							variant="quiet"
+							size="icon-sm"
 							type="button"
-							className="canvas-fit"
+							className="canvas-fit size-7"
 							aria-label={t("field.fitAll")}
 							onClick={() => engineRef.current?.fitAll()}
 						>
 							<Maximize aria-hidden="true" />
-						</button>
+						</Button>
 					</Hint>
 				</div>
 

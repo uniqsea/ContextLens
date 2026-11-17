@@ -257,9 +257,9 @@ export function ContextField({
 				{error && (
 					<p className={styles.empty}>
 						{t("failed")}{" "}
-						<button type="button" onClick={onRetry}>
+						<Button variant="quiet" size="xs" type="button" onClick={onRetry}>
 							{t("retry")}
-						</button>
+						</Button>
 					</p>
 				)}
 				{!error && !candidates && <InlineLoading label={t("loading")} />}

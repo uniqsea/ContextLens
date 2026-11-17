@@ -549,7 +549,7 @@
 		"actor": {
 			"user": "You",
 			"agent": "Agent",
-			"consolidation": "Upkeep",
+			"consolidation": "Auto, after reply",
 			"import": "Import"
 		},
 		"verb": {

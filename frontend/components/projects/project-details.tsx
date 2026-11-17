@@ -2,6 +2,12 @@ import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export function ProjectInstructions({
 	legacyNotes,
@@ -26,20 +32,33 @@ export function ProjectInstructions({
 				{t("projects.instructionsHint")}
 			</p>
 			{legacyNotes && (
-				<details className="rounded-md bg-muted p-2 text-sm">
-					<summary>{t("projects.legacyNotes")}</summary>
-					<p className="whitespace-pre-wrap">{legacyNotes}</p>
-					{!draft.trim() && (
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							onClick={() => onChange(legacyNotes)}
-						>
-							{t("projects.copyNotes")}
-						</Button>
-					)}
-				</details>
+				<Collapsible className="grid gap-2 rounded-md bg-muted p-2 text-sm">
+					<CollapsibleTrigger
+						render={
+							<Button
+								variant="quiet"
+								size="xs"
+								className="justify-self-start hover:bg-muted-strong"
+							/>
+						}
+					>
+						<CollapsibleChevron />
+						{t("projects.legacyNotes")}
+					</CollapsibleTrigger>
+					<CollapsibleContent className="grid justify-items-start gap-2">
+						<p className="whitespace-pre-wrap">{legacyNotes}</p>
+						{!draft.trim() && (
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								onClick={() => onChange(legacyNotes)}
+							>
+								{t("projects.copyNotes")}
+							</Button>
+						)}
+					</CollapsibleContent>
+				</Collapsible>
 			)}
 
 			<Textarea

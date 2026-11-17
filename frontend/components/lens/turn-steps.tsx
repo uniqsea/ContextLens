@@ -17,7 +17,7 @@ import {
 	type TraceMessage,
 } from "@/lib/lens/types";
 import type { MemoryChange } from "@/lib/memory-types";
-import type { MemoryUndo } from "./memory-changes";
+import { ChangeItem, type MemoryUndo } from "./memory-changes";
 import {
 	ContextStrip,
 	type StripItem,
@@ -25,6 +25,12 @@ import {
 	stripTokens,
 } from "./context-meter";
 import { type FlowNode, StepFlow } from "./step-flow";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 /** A step's card: its title opens the step's details, the rest says what the step came to. */
 function Card({
@@ -126,10 +132,23 @@ function Calls({ calls }: { calls: ModelCall[] }) {
 			<h5>{t("sent")}</h5>
 			<Messages messages={call.messages} />
 			{call.tools && call.tools.length > 0 && (
-				<details>
-					<summary>{t("toolSchemas", { count: call.tools.length })}</summary>
-					<pre>{JSON.stringify(call.tools, null, 2)}</pre>
-				</details>
+				<Collapsible className="grid gap-1.5">
+					<CollapsibleTrigger
+						render={
+							<Button
+								variant="quiet"
+								size="xs"
+								className="-ml-2 justify-self-start"
+							/>
+						}
+					>
+						<CollapsibleChevron />
+						{t("toolSchemas", { count: call.tools.length })}
+					</CollapsibleTrigger>
+					<CollapsibleContent>
+						<pre>{JSON.stringify(call.tools, null, 2)}</pre>
+					</CollapsibleContent>
+				</Collapsible>
 			)}
 			<h5>{t("returned")}</h5>
 			{call.output ? (
@@ -177,7 +196,6 @@ export function TurnSteps({
 	undoing?: MemoryUndo;
 }) {
 	const t = useTranslations("turnSteps");
-	const verbs = useTranslations("memory");
 	const text = useLensText();
 	const [open, setOpen] = useState<string | null>(null);
 	// Where the details have been dragged to, kept while other steps are opened.
@@ -204,10 +222,23 @@ export function TurnSteps({
 		);
 	};
 	const raw = (children: ReactNode) => (
-		<details className="step-raw">
-			<summary>{t("raw")}</summary>
-			{children}
-		</details>
+		<Collapsible className="step-raw">
+			<CollapsibleTrigger
+				render={
+					<Button
+						variant="quiet"
+						size="xs"
+						className="-ml-2 justify-self-start"
+					/>
+				}
+			>
+				<CollapsibleChevron />
+				{t("raw")}
+			</CollapsibleTrigger>
+			<CollapsibleContent className="step-raw-body">
+				{children}
+			</CollapsibleContent>
+		</Collapsible>
 	);
 	const toolName = (name: string) =>
 		t.has(`toolName.${name}` as "toolName.recall")
@@ -222,6 +253,8 @@ export function TurnSteps({
 	const tools = version.steps ?? [];
 	const orderedTools = new Set<string>();
 	const changes = recorded ?? version.written_changes ?? [];
+	// Who made a change is said only when the step holds more than one author's.
+	const mixed = new Set(changes.map((c) => c.actor)).size > 1;
 	const columns: FlowNode[][] = [];
 	// The request as it grows: the question alone, then what was assembled, then each tool result
 	// as a call takes it in. A result's size is estimated from its text, like the question's.
@@ -377,20 +410,6 @@ export function TurnSteps({
 					layerColor(source.layer),
 				),
 			});
-	const takeBack = (c: MemoryChange) =>
-		undoing &&
-		(undoing.undone.has(c.event_id) ? (
-			<small>{verbs("undone")}</small>
-		) : (
-			<button
-				type="button"
-				className="step-undo"
-				disabled={undoing.busy !== null}
-				onClick={() => void undoing.undo(c)}
-			>
-				{verbs("undo")}
-			</button>
-		));
 	if (version.writing_calls || recorded?.length) {
 		const settled =
 			!version.writing_calls || version.writing_calls.some((c) => c.output);
@@ -402,18 +421,20 @@ export function TurnSteps({
 				"writing",
 				changes.length ? t("wrote", { count: changes.length }) : t("write"),
 				changes.length ? (
-					<ul className="step-hits">
-						{changes.slice(0, 2).map((c) => (
-							<li
+					<ul className="mem-changes">
+						{changes.slice(0, 3).map((c) => (
+							<ChangeItem
 								key={c.event_id}
-								data-undone={undoing?.undone.has(c.event_id) || undefined}
-							>
-								<span>{c.content || c.title}</span>
-								{takeBack(c)}
-							</li>
+								change={c}
+								undoing={undoing}
+								clamp
+								showActor={mixed}
+							/>
 						))}
-						{changes.length > 2 && (
-							<li>{t("more", { count: changes.length - 2 })}</li>
+						{changes.length > 3 && (
+							<li className="step-foot">
+								{t("more", { count: changes.length - 3 })}
+							</li>
 						)}
 					</ul>
 				) : (
@@ -423,20 +444,18 @@ export function TurnSteps({
 				),
 				<>
 					{changes.length === 0 && <p>{t("noWrites")}</p>}
-					{changes.map((c) => (
-						<div
-							className="step-message"
-							key={c.event_id}
-							data-undone={undoing?.undone.has(c.event_id) || undefined}
-						>
-							<b>
-								{verbs(`verb.${c.kind}`)} {c.title}
-							</b>
-							{c.content && <p>{c.content}</p>}
-							{c.previous && <del>{c.previous}</del>}
-							{takeBack(c)}
-						</div>
-					))}
+					{changes.length > 0 && (
+						<ul className="mem-changes">
+							{changes.map((c) => (
+								<ChangeItem
+									key={c.event_id}
+									change={c}
+									undoing={undoing}
+									showActor={mixed}
+								/>
+							))}
+						</ul>
+					)}
 					{undoing?.error && <p role="alert">{undoing.error}</p>}
 					{version.writing_calls &&
 						(version.writing_calls.length ? (

@@ -27,6 +27,7 @@ import {
 	type MapEnd,
 } from "./conversation-map-model";
 import { TurnSteps } from "./turn-steps";
+import { Button } from "@/components/ui/button";
 
 const KINDS: LinkKind[] = ["history", "written", "again"];
 /** Where a step's title line sits, as its own flow's wires use it. */
@@ -343,14 +344,17 @@ function MapCanvas({
 				{ordered.length > 1 && (
 					<nav aria-label={t("turns")}>
 						{ordered.map((record) => (
-							<button
+							<Button
+								variant="quiet"
+								size="xs"
+								className="min-w-6.5 rounded-full tabular-nums"
 								key={record.index}
 								type="button"
 								aria-label={t("turn", { n: record.index + 1 })}
 								onClick={() => goTo(record.index)}
 							>
 								{record.index + 1}
-							</button>
+							</Button>
 						))}
 					</nav>
 				)}
@@ -378,7 +382,10 @@ function MapCanvas({
 
 			<div className={`canvas-zoom-controls ${styles.zoom}`}>
 				<Hint label={t("zoomOut")}>
-					<button
+					<Button
+						variant="quiet"
+						size="icon-sm"
+						className="size-7 rounded-[7px]"
 						type="button"
 						aria-label={t("zoomOut")}
 						onClick={() => {
@@ -392,11 +399,14 @@ function MapCanvas({
 						}}
 					>
 						<Minus aria-hidden="true" />
-					</button>
+					</Button>
 				</Hint>
 				<span>{Math.max(1, Math.round(scale * 100))}%</span>
 				<Hint label={t("zoomIn")}>
-					<button
+					<Button
+						variant="quiet"
+						size="icon-sm"
+						className="size-7 rounded-[7px]"
 						type="button"
 						aria-label={t("zoomIn")}
 						disabled={scale >= 4}
@@ -411,17 +421,19 @@ function MapCanvas({
 						}}
 					>
 						<Plus aria-hidden="true" />
-					</button>
+					</Button>
 				</Hint>
 				<Hint label={t("fit")}>
-					<button
+					<Button
+						variant="quiet"
+						size="icon-sm"
 						type="button"
-						className="canvas-fit"
+						className="canvas-fit size-7"
 						aria-label={t("fit")}
 						onClick={fit}
 					>
 						<Maximize aria-hidden="true" />
-					</button>
+					</Button>
 				</Hint>
 			</div>
 		</div>

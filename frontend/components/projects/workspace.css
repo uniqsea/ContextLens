@@ -275,28 +275,13 @@
 	border-top: 1px solid var(--border);
 	padding-top: calc(var(--spacing) * 2.5);
 }
-.pr-open-sessions summary {
-	display: flex;
-	align-items: center;
-	gap: calc(var(--spacing) * 2.25);
-	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
-	cursor: pointer;
-	border-radius: 8px;
-}
-.pr-open-sessions summary::-webkit-details-marker {
-	display: none;
-}
-.pr-open-sessions summary:hover,
 .pr-open-sessions li:hover {
 	background: var(--muted);
 }
-.pr-open-sessions summary small {
+.pr-open-trigger small {
 	margin-left: auto;
 	font-variant-numeric: tabular-nums;
 	color: var(--muted-foreground);
-}
-.pr-open-sessions[open] summary svg:last-child {
-	transform: rotate(90deg);
 }
 .pr-open-sessions ul {
 	list-style: none;

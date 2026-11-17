@@ -26,8 +26,7 @@
 .field:not(:hover, :focus-within) .canvas [data-field-id] {
 	color: var(--secondary-foreground);
 }
-.header button,
-.empty button {
+.header button {
 	display: inline-flex;
 	align-items: center;
 	gap: calc(var(--spacing) * 1);
@@ -37,8 +36,7 @@
 	font-size: var(--type-sm);
 	cursor: pointer;
 }
-.header button:hover,
-.empty button:hover {
+.header button:hover {
 	background: var(--muted);
 	color: var(--foreground);
 }

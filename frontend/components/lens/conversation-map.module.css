@@ -150,22 +150,6 @@
 	overflow-x: auto;
 	scrollbar-width: none;
 }
-.bar nav button {
-	flex: none;
-	min-width: calc(var(--spacing) * 6.5);
-	height: calc(var(--spacing) * 6.5);
-	padding: 0 calc(var(--spacing) * 1.5);
-	border-radius: 999px;
-	font-size: var(--type-sm);
-	font-variant-numeric: tabular-nums;
-	color: var(--secondary-foreground);
-	cursor: pointer;
-}
-.bar nav button:hover,
-.bar nav button:focus-visible {
-	background: var(--muted-strong);
-	color: var(--foreground);
-}
 .bar p,
 .bar ul {
 	font-size: var(--type-meta);

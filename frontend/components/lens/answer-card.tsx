@@ -173,13 +173,15 @@ export function AnswerCard({
 						<>
 							<span className="v">{t("answer.version", { n: count })}</span>
 							<span>{latest && text.note(latest.note, latest.candidates)}</span>
-							<button
+							<Button
+								variant="secondary"
+								size="chip"
 								type="button"
 								onClick={() => onUndo(index)}
 								disabled={busy}
 							>
 								{t("answer.undo")}
-							</button>
+							</Button>
 						</>
 					)}
 					{busy && <span className="busy">{t("answer.rewriting")}</span>}
@@ -266,7 +268,9 @@ export function AnswerCard({
 									})}
 						</span>
 						{stale.length > 0 && (
-							<button
+							<Button
+								variant="outline"
+								size="chip"
 								type="button"
 								className="warn"
 								onClick={(e) => {
@@ -275,7 +279,7 @@ export function AnswerCard({
 								}}
 							>
 								{t("answer.stale", { count: stale.length })}
-							</button>
+							</Button>
 						)}
 					</div>
 					<Button
@@ -432,12 +436,19 @@ function ContextEditor({
 				</div>
 				<div className="acts">
 					{isIn && (
-						<button type="button" onClick={() => exclude(c.id)}>
+						<Button
+							variant="secondary"
+							size="chip"
+							type="button"
+							onClick={() => exclude(c.id)}
+						>
 							{t("back.exclude")}
-						</button>
+						</Button>
 					)}
 					{!isIn && excluded.has(c.id) && (
-						<button
+						<Button
+							variant="secondary"
+							size="chip"
 							type="button"
 							onClick={() =>
 								change({ op: "restore", id: c.id }, () => {
@@ -452,10 +463,12 @@ function ContextEditor({
 							}
 						>
 							{t("back.restore")}
-						</button>
+						</Button>
 					)}
 					{!isIn && !excluded.has(c.id) && (
-						<button
+						<Button
+							variant="secondary"
+							size="chip"
 							type="button"
 							onClick={() =>
 								change({ op: "pin", id: c.id }, () =>
@@ -464,7 +477,7 @@ function ContextEditor({
 							}
 						>
 							{t("back.add")}
-						</button>
+						</Button>
 					)}
 				</div>
 			</div>
@@ -539,7 +552,8 @@ function ContextEditor({
 						{t("back.dirty", { count: notes.length })}
 					</span>
 				)}
-				<button
+				<Button
+					size="sm"
 					type="button"
 					className="primary"
 					disabled={busy || !dirty}
@@ -552,7 +566,7 @@ function ContextEditor({
 					}
 				>
 					{t("lens.rewrite")}
-				</button>
+				</Button>
 			</div>
 		</>
 	);

@@ -23,6 +23,13 @@ import type {
 	MemoryEventKind,
 } from "@/lib/memory-types";
 import { TextDiff } from "./text-diff";
+import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const PAGE = 60;
 
@@ -245,16 +252,27 @@ export function Timeline({
 										<span className="tl-node tl-node-fold" aria-hidden="true">
 											{entry.of === "import" ? <Archive /> : <Undo2 />}
 										</span>
-										<details className="tl-main">
-											<summary>
+										<Collapsible className="tl-main">
+											<CollapsibleTrigger
+												render={
+													<Button
+														variant="quiet"
+														size="sm"
+														className="-ml-3 text-foreground"
+													/>
+												}
+											>
 												{t(entry.of === "import" ? "imported" : "undidMany", {
 													count: entry.events.length,
 												})}
-											</summary>
-											<ol className="tl-changes">
+												<CollapsibleChevron />
+											</CollapsibleTrigger>
+											<CollapsibleContent
+												render={<ol className="tl-changes" />}
+											>
 												{entry.events.map((e) => change(e, true))}
-											</ol>
-										</details>
+											</CollapsibleContent>
+										</Collapsible>
 									</div>
 								</li>
 							);
@@ -263,13 +281,15 @@ export function Timeline({
 				</section>
 			))}
 			{more && (
-				<button
+				<Button
+					variant="secondary"
+					size="sm"
 					type="button"
 					className="tl-more"
 					onClick={() => void loadMore()}
 				>
 					{t("loadMore")}
-				</button>
+				</Button>
 			)}
 		</div>
 	);
@@ -362,15 +382,17 @@ function Change({
 				)}
 			</div>
 			{canUndo && (
-				<button
+				<Button
+					variant="outline"
+					size="chip"
 					type="button"
 					className="tl-undo"
 					disabled={busy !== null}
 					onClick={() => onUndo(e)}
 				>
-					<RotateCcw aria-hidden="true" />
+					<Undo2 aria-hidden="true" />
 					{t("undo")}
-				</button>
+				</Button>
 			)}
 		</Tag>
 	);

@@ -1,5 +1,4 @@
 import {
-	ChevronRight,
 	Clock3,
 	Folder,
 	Folders,
@@ -37,6 +36,12 @@ import {
 } from "@/lib/projects/types";
 import { useRecentProjects } from "./use-recent-projects";
 import { WorkspaceSearch } from "./workspace-search";
+import {
+	Collapsible,
+	CollapsibleChevron,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export function ProjectSidebar({
 	scope,
@@ -166,14 +171,21 @@ export function ProjectSidebar({
 						)}
 					</nav>
 					{tabs.length > 0 && (
-						<details className="pr-open-sessions group-data-[collapsible=icon]:hidden">
-							<summary>
+						<Collapsible className="pr-open-sessions group-data-[collapsible=icon]:hidden">
+							<CollapsibleTrigger
+								render={
+									<Button
+										variant="quiet"
+										className="pr-open-trigger h-auto w-full justify-start rounded-lg px-2.5 py-2 font-normal"
+									/>
+								}
+							>
 								<PanelsTopLeft />
 								<span>{labels("label")}</span>
 								<small>{tabs.length}</small>
-								<ChevronRight />
-							</summary>
-							<ul>
+								<CollapsibleChevron />
+							</CollapsibleTrigger>
+							<CollapsibleContent render={<ul />}>
 								{tabs.map((tab) => {
 									const project = tab.projectName ?? t("ordinary");
 									const label = project + " · " + tab.title;
@@ -199,8 +211,8 @@ export function ProjectSidebar({
 										</li>
 									);
 								})}
-							</ul>
-						</details>
+							</CollapsibleContent>
+						</Collapsible>
 					)}
 				</SidebarContent>
 				<SidebarFooter className="group-data-[collapsible=icon]:hidden">

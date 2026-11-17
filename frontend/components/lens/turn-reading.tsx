@@ -104,9 +104,14 @@ export function TurnReading({
 					{picked.length > 0 && <em>{picked.join(" · ")}</em>}
 					<span>{doing}</span>
 					<Hint label={t("correctTitle")}>
-						<button type="button" onClick={() => setEditing(true)}>
+						<Button
+							variant="quiet"
+							size="xs"
+							type="button"
+							onClick={() => setEditing(true)}
+						>
 							{t("correct")}
-						</button>
+						</Button>
 					</Hint>
 				</div>
 			)}
@@ -121,22 +126,28 @@ export function TurnReading({
 						}
 					>
 						{version.concepts.find((c) => c.id === id)?.name ?? name(id)}
-						<button
+						<Button
+							variant="quiet"
+							size="icon-xs"
+							className="size-[18px] rounded-full text-current hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-current"
 							type="button"
 							aria-label={t("brighten", { name: name(id) })}
 							aria-pressed={bright.includes(id)}
 							onClick={() => adjust("brighten", id)}
 						>
 							<Sun aria-hidden="true" />
-						</button>
-						<button
+						</Button>
+						<Button
+							variant="quiet"
+							size="icon-xs"
+							className="size-[18px] rounded-full text-current hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-current"
 							type="button"
 							aria-label={t("dim", { name: name(id) })}
 							aria-pressed={dim.includes(id)}
 							onClick={() => adjust("dim", id)}
 						>
 							<Moon aria-hidden="true" />
-						</button>
+						</Button>
 					</span>
 				))}
 				{concepts.some((c) => !shown.includes(c.id)) && (
