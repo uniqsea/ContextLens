@@ -1193,9 +1193,34 @@
 	min-height: calc(var(--spacing) * 6);
 	font-size: var(--type-sm);
 }
-.mem-change header b {
+/* Each kind of change wears its own colour, here and on the library's timeline. */
+:is(.mem-change, .tl-change)[data-kind="created"] {
+	--verb: var(--verb-created);
+	--verb-bg: var(--verb-created-bg);
+}
+:is(.mem-change, .tl-change)[data-kind="revised"] {
+	--verb: var(--verb-revised);
+	--verb-bg: var(--verb-revised-bg);
+}
+:is(.mem-change, .tl-change)[data-kind="trashed"] {
+	--verb: var(--verb-trashed);
+	--verb-bg: var(--verb-trashed-bg);
+}
+:is(.mem-change, .tl-change)[data-kind="restored"] {
+	--verb: var(--verb-restored);
+	--verb-bg: var(--verb-restored-bg);
+}
+:is(.mem-change, .tl-change)[data-kind="purged"] {
+	--verb: var(--verb-purged);
+	--verb-bg: var(--verb-purged-bg);
+}
+.mem-change header b,
+.tl-change .tl-verb {
+	padding: 1px calc(var(--spacing) * 1.75);
+	border-radius: 6px;
+	background: var(--verb-bg, var(--muted));
 	font-weight: 500;
-	color: var(--mem);
+	color: var(--verb, var(--foreground));
 }
 .mem-change header small {
 	color: var(--muted-foreground);
@@ -1227,6 +1252,7 @@
 	text-decoration: line-through;
 }
 .mem-change[data-undone] header b {
+	background: var(--muted);
 	color: var(--muted-foreground);
 }
 [data-undone] > :is(span, p, b) {
@@ -1669,19 +1695,12 @@
 	height: calc(var(--spacing) * 3.25);
 	stroke-width: 2.2;
 }
-.tl-change[data-kind="trashed"],
-.tl-change[data-kind="purged"] {
-	--tone: var(--destructive);
-}
-.tl-change[data-kind="restored"] {
-	--tone: var(--hist);
-}
 .tl-change[data-kind="blocked"],
 .tl-change[data-kind="unblocked"] {
-	--tone: var(--doc);
+	--verb: var(--doc);
 }
 .tl-change .tl-node {
-	color: var(--tone, var(--mem));
+	color: var(--verb, var(--mem));
 }
 .tl-node-turn {
 	background: var(--foreground);
@@ -1706,9 +1725,7 @@
 	font-size: var(--type-ui);
 	line-height: 1.5;
 }
-.tl-verb {
-	font-weight: 600;
-}
+
 .tl-title.is-erased {
 	font-style: italic;
 	color: var(--muted-foreground);
@@ -1979,7 +1996,7 @@
 	padding: calc(var(--spacing) * 1.5) 0;
 }
 .tl-change[data-kind="undo"] {
-	--tone: var(--sys);
+	--verb: var(--sys);
 }
 .tl-was {
 	color: var(--muted-foreground);

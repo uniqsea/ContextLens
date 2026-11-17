@@ -114,6 +114,19 @@
 	--kind-hist: #2ccb7e;
 	--kind-sys: #1db4cc;
 	--kind-user: #ec4f8c;
+
+	/* What happened to a memory, from Radix Colors (step 11 ink on step 3 tint): lime, amber, sand,
+	   plum and tomato, hues the token bar and the sources leave free. */
+	--verb-created: #5c7c2f;
+	--verb-created-bg: #eef6d6;
+	--verb-revised: #ab6400;
+	--verb-revised-bg: #fff7c2;
+	--verb-trashed: #63635e;
+	--verb-trashed-bg: #f1f0ef;
+	--verb-restored: #953ea3;
+	--verb-restored-bg: #fbebfb;
+	--verb-purged: #d13415;
+	--verb-purged-bg: #feebe7;
 }
 
 .dark {
@@ -148,6 +161,17 @@
 	--doc: #e2a452;
 	--hist: #4fc9b2;
 	--sys: #8e8d88;
+
+	--verb-created: #bde56c;
+	--verb-created-bg: #1f2917;
+	--verb-revised: #ffca16;
+	--verb-revised-bg: #302008;
+	--verb-trashed: #b5b3ad;
+	--verb-trashed-bg: #222221;
+	--verb-restored: #e796f3;
+	--verb-restored-bg: #351a35;
+	--verb-purged: #ff977d;
+	--verb-purged-bg: #391714;
 }
 
 /* Density. Every length is a multiple of Tailwind's spacing unit (`--spacing`, also used by the

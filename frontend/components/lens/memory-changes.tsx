@@ -82,6 +82,7 @@ export function ChangeItem({
 	return (
 		<li
 			className="mem-change"
+			data-kind={c.kind}
 			data-undone={done || undefined}
 			data-clamp={clamp || undefined}
 		>
