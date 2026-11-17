@@ -34,7 +34,7 @@ from starlette.routing import Route
 from contextlens import conversations, history, memory, models, project_files, projects, records
 from contextlens.context import prepare_snapshot
 from contextlens.memory import search
-from contextlens.models import local_embedding
+from contextlens.models import local_embedding, local_reranker
 
 # The reload supervisor starts a separate worker that imports this ASGI app.
 if process_title := os.environ.get("CONTEXTLENS_AGENT_TITLE"):
@@ -50,7 +50,7 @@ class RefuseBrowsers(BaseHTTPMiddleware):
 
 # No docstrings on handlers: the API server parses route docstrings as OpenAPI YAML.
 # Settings and SQLite touch the disk synchronously; every such call runs off the event loop.
-# The tokenizer and a local embedding model are slow to load and large to keep. They stay loaded
+# The tokenizer and the local embedding and reranking models are slow to load and large to keep. They stay loaded
 # while previews keep coming, and are released once none has come for a while.
 SEARCH_IDLE_SECONDS = 600
 _release_timer = None
@@ -59,6 +59,7 @@ _release_timer = None
 def _release_search():
     search.release_caches()
     local_embedding.release_cache()
+    local_reranker.release_cache()
 
 
 def _search_used():

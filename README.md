@@ -38,7 +38,7 @@ npm install
 npm run setup
 ```
 
-`setup` 安装前后端依赖，并下载约 2.4 GB 的向量模型 `Qwen3-Embedding-0.6B`（运行时常驻约 2 GB 内存，全程在本机计算）。也可以在"添加或管理模型 → 高级"里换成服务商的 embedding 模型，这时被检索的内容会发给该服务商。
+`setup` 安装前后端依赖，并下载约 2.4 GB 的向量模型 `Qwen3-Embedding-0.6B`（运行时常驻约 2 GB 内存）和约 0.57 GB 的重排序模型 `bge-reranker-v2-m3`（int8，检索项目文件时用，峰值约 1.8 GB），全程在本机计算。也可以在"添加或管理模型 → 高级"里换成服务商的 embedding 模型，这时被检索的内容会发给该服务商。
 
 在 `frontend/.env.local` 写入：
 

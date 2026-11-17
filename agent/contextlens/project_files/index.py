@@ -314,7 +314,8 @@ def _dependency(row):
 
 def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
     """The best passage of each file that matches the question, best file first; in field mode every
-    registered file too, unranked ones after. Cards carry no content: `content` reads it when chosen."""
+    registered file too, unranked ones after. With the reranker only files it finds relevant are ranked,
+    each card carrying its score. Cards carry no content: `content` reads it when chosen."""
     if not (question.strip() or inventory):
         return []
     active = [r["id"] for r in readable_folders(scope)]
@@ -333,6 +334,22 @@ def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
                 if _offered(row["path"]):
                     catalog.setdefault(os.path.join(row["root"], row["path"]), dict(row))
     matches = retrieval.find(within, question, limit=None if inventory else 24)
+    # Each file once, with its passages best first, in the order the routes found them.
+    found: dict[str, list[dict]] = {}
+    for passage in matches:
+        if _offered(passage["path"]):
+            found.setdefault(os.path.join(passage["root"], passage["path"]), []).append(passage)
+    ranked = list(found)
+    relevance: dict[str, float] = {}
+    best = {path: passages[0] for path, passages in found.items()}
+    # The reranker reads the first files' best passages; a file below the bar is listed, never sent.
+    judged = ranked[:retrieval.JUDGED // retrieval.PER_FILE]
+    scores = retrieval.judge(question, [p for path in judged for p in found[path][:retrieval.PER_FILE]])
+    if scores is not None:
+        for path in judged:
+            top = max(found[path][:retrieval.PER_FILE], key=lambda p: scores[p["passage"]])
+            best[path], relevance[path] = top, scores[top["passage"]]
+        ranked = sorted((p for p in judged if relevance[p] >= retrieval.RELEVANT), key=lambda p: -relevance[p])
     hits = []
     seen = set()
 
@@ -341,16 +358,17 @@ def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
         page = passage.get("page")
         return {"id": _id(scope, row["root"], row["path"]), "title": label, "content": "",
                 "source_label": f"{label} · p. {page}" if page else label, "rank": rank, "page": page,
-                "excerpt": passage.get("excerpt") or "", "files": [_dependency(row)]}
+                "excerpt": passage.get("excerpt") or "", "relevance": relevance.get(
+                    os.path.join(row["root"], row["path"])), "files": [_dependency(row)]}
 
-    for passage in matches:
-        absolute = os.path.join(passage["root"], passage["path"])
-        if absolute in seen or not _offered(passage["path"]):
-            continue
-        seen.add(absolute)
-        hits.append(card(catalog.get(absolute, passage), passage, len(hits) + 1))
+    for path in ranked:
+        seen.add(path)
+        hits.append(card(catalog.get(path, best[path]), best[path], len(hits) + 1))
         if not inventory and len(hits) == 4:
             break
+    if inventory:  # found, but not by enough to be ranked: listed after the ranked ones
+        hits.extend(card(catalog.get(path, best[path]), best[path]) for path in found if path not in seen)
+        seen.update(found)
     hits.extend(card(row, {}) for path, row in catalog.items() if path not in seen)
     return hits
 

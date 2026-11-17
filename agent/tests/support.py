@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from contextlens import memory, models
+from contextlens.models import local_reranker
 from contextlens import history
 from contextlens.project_files import index, retrieval
 
@@ -62,9 +63,11 @@ class StoreTestCase(unittest.TestCase):
         retrieval.vectors.background = history.vectors.background = False  # a test makes vectors itself, in its own store
         index.queue.background = False  # linked folders are indexed before attach returns
         models.use(_no_model)  # no real settings or embedding model unless a test scripts one
+        local_reranker.use(lambda question, texts: None)  # nor a reranker
 
     def tearDown(self):
         models.use(None)
+        local_reranker.use(None)
         os.environ.pop("CONTEXTLENS_DB_PATH", None)
         os.environ.pop("CONTEXTLENS_HOME", None)
         os.environ.pop("CONTEXTLENS_CONVERSATIONS_PATH", None)

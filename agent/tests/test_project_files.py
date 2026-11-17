@@ -212,6 +212,60 @@ class ProjectFilesTests(StoreTestCase):
         self.assertIsNotNone(excluded.read("/maps/sample.docx").error)
         self.assertEqual(excluded.grep("青铜").matches, [])
 
+    def docx(self, name, *paragraphs):
+        import zipfile
+        from xml.sax.saxutils import escape
+
+        body = "".join(f"<w:p><w:r><w:t>{escape(p)}</w:t></w:r></w:p>" for p in paragraphs)
+        with zipfile.ZipFile(self.first / name, "w") as document:
+            document.writestr("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+                              f'wordprocessingml/2006/main"><w:body>{body}</w:body></w:document>')
+
+    def test_one_long_file_cannot_take_every_place(self):
+        self.docx("almanac.docx", *[f"Chapter {n}. The fictional beacon beacon beacon turns at dusk. " * 40
+                                    for n in range(40)])
+        for name in ("tides", "gulls", "ropes"):
+            self.docx(f"{name}.docx", f"A fictional {name} note mentions the beacon once.")
+        project_files.attach(self.project, [str(self.first)])
+        ranked = [c for c in project_files.search(self.project, "beacon") if c["rank"]]
+        self.assertEqual({c["title"] for c in ranked},
+                         {"maps/almanac.docx", "maps/tides.docx", "maps/gulls.docx", "maps/ropes.docx"})
+
+    def test_reranker_orders_files_and_keeps_unrelated_ones_out(self):
+        from contextlens.models import local_reranker
+
+        self.docx("harbour.docx", "The fictional harbour closes its gate at nine.")
+        self.docx("orchard.docx", "The fictional orchard grows violet pears. Fictional fictional fictional.")
+        project_files.attach(self.project, [str(self.first)])
+        asked = []
+
+        def judge(question, texts):
+            asked.append(question)
+            return [0.92 if "harbour" in t else 0.02 for t in texts]
+
+        local_reranker.use(judge)
+
+        def preview(question):  # the field lists every file, the ones not sent too
+            state = {"project_id": self.project, "messages": [HumanMessage(content=question)], "include_inventory": True}
+            return {c["title"]: c for c in prepare_snapshot(state)["candidates"] if c["layer"] == "retrieval"}
+
+        docs = preview("When does the fictional harbour close?")
+        self.assertEqual(docs["maps/harbour.docx"]["retrieval_rank"], 1)
+        self.assertEqual(docs["maps/harbour.docx"]["status"], "active")
+        # Matched by its words, judged unrelated: listed, not sent.
+        self.assertIsNone(docs["maps/orchard.docx"]["retrieval_rank"])
+        self.assertEqual(docs["maps/orchard.docx"]["status"], "context_blocked")
+        self.assertEqual(asked[-1], "When does the fictional harbour close?")
+        cards = {c["title"]: c for c in project_files.search(self.project, "fictional harbour")}
+        self.assertEqual(cards["maps/harbour.docx"]["relevance"], 0.92)
+
+        def broken(question, texts):
+            raise RuntimeError("fictional model failure")
+
+        local_reranker.use(broken)  # the fused order still stands
+        docs = preview("fictional harbour orchard")
+        self.assertTrue(docs["maps/harbour.docx"]["retrieval_rank"] and docs["maps/orchard.docx"]["retrieval_rank"])
+
     def test_thumbnail_reads_document_start_and_is_project_scoped(self):
         from contextlens.project_files.thumbnails import thumbnail
         from contextlens.memory.types import MemoryError
