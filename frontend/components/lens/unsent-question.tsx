@@ -1,8 +1,14 @@
 "use client";
 import { CircleAlert, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+	Message,
+	MessageContent,
+	MessageFooter,
+} from "@/components/ui/message";
 import { Hint } from "@/components/ui/tooltip";
 import { useLensText } from "@/lib/lens/text";
+import { QuestionBubble } from "./question-bubble";
 
 // A question that got no answer: its run failed, or was cancelled when the page went away. Only the
 // latest can be sent again; after an earlier one the conversation already went on without it.
@@ -28,40 +34,41 @@ export function UnsentQuestion({
 			? t("lens.unreachable")
 			: t("lens.answerFailed");
 	return (
-		<div className="flex max-w-[85%] flex-col items-end gap-1.5 self-end">
-			<div className="flex min-w-0 items-center gap-2">
-				<CircleAlert
-					aria-hidden
-					className={
-						latest
-							? "size-4 shrink-0 text-destructive"
-							: "size-4 shrink-0 text-muted-foreground"
-					}
-				/>
-				<div
-					className="lens-q"
-					style={{ maxWidth: "none", opacity: latest ? 1 : 0.6 }}
-				>
-					{question}
-				</div>
-			</div>
-			<div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-				<Hint label={detail}>
-					<span role={latest ? "status" : undefined}>{reason}</span>
-				</Hint>
-				{latest && (
-					<Button
-						variant="secondary"
-						size="chip"
-						disabled={busy}
-						onClick={onRetry}
+		<Message align="end" className="text-[length:inherit]">
+			<MessageContent className="max-w-[85%] items-end gap-1.5">
+				<div className="flex min-w-0 items-center gap-2">
+					<CircleAlert
+						aria-hidden
+						className={
+							latest
+								? "size-4 shrink-0 text-destructive"
+								: "size-4 shrink-0 text-muted-foreground"
+						}
+					/>
+					<QuestionBubble
+						className={latest ? "max-w-full" : "max-w-full opacity-60"}
 					>
-						<RotateCw />
-						{t("lens.retry")}
-					</Button>
-				)}
-			</div>
-		</div>
+						{question}
+					</QuestionBubble>
+				</div>
+				<MessageFooter className="gap-2 px-0 text-[12.5px] font-normal">
+					<Hint label={detail}>
+						<span role={latest ? "status" : undefined}>{reason}</span>
+					</Hint>
+					{latest && (
+						<Button
+							variant="secondary"
+							size="chip"
+							disabled={busy}
+							onClick={onRetry}
+						>
+							<RotateCw />
+							{t("lens.retry")}
+						</Button>
+					)}
+				</MessageFooter>
+			</MessageContent>
+		</Message>
 	);
 }
 

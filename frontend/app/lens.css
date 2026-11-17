@@ -67,7 +67,7 @@
 	min-height: calc(100dvh - var(--session-bar-height));
 }
 /* Tracking tuned tight for Latin crowds Han, so Chinese sets it back to zero. */
-:lang(zh) :is(.lens-empty b, .lens-card .t, .lib-card h2, .lens-answer) {
+:lang(zh) :is(.lens-empty-title, .lens-card .t, .lib-card h2, .lens-answer) {
 	letter-spacing: 0;
 }
 
@@ -474,52 +474,7 @@
 	scrollbar-width: thin;
 	scrollbar-color: var(--muted-strong) transparent;
 }
-.lens-empty {
-	margin: auto;
-	max-width: 38ch;
-	text-align: center;
-	color: var(--muted-foreground);
-	font-size: var(--type-ui);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: calc(var(--spacing) * 2);
-	text-wrap: balance;
-}
-.lens-empty b {
-	color: var(--foreground);
-	font-size: var(--type-display);
-	font-weight: 500;
-	letter-spacing: -0.03em;
-	line-height: 1.2;
-}
-.lens-empty .lens-chips {
-	justify-content: center;
-	margin-top: calc(var(--spacing) * 3);
-}
-.lens-q {
-	align-self: flex-end;
-	max-width: 85%;
-	overflow-wrap: break-word;
-	background: var(--muted);
-	color: var(--foreground);
-	border-radius: 18px;
-	padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3.5);
-	font-size: var(--type-ui);
-	white-space: pre-wrap;
-}
-.lens-error {
-	color: var(--destructive);
-	font-size: var(--type-control);
-}
 
-.turn-answer {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--spacing) * 2.5);
-	min-width: 0;
-}
 .lens-a .bar {
 	display: flex;
 	align-items: center;
@@ -1336,16 +1291,6 @@
 	color: var(--foreground);
 	white-space: pre-wrap;
 }
-.step-raw {
-	display: grid;
-	gap: calc(var(--spacing) * 1.75);
-	padding-top: calc(var(--spacing) * 2);
-	border-top: 1px solid var(--border);
-}
-.step-raw-body {
-	display: grid;
-	gap: calc(var(--spacing) * 1.75);
-}
 .steps-pane {
 	position: absolute;
 	z-index: 4;
@@ -1382,15 +1327,6 @@
 .step-detail h5 {
 	font-weight: 600;
 }
-.step-detail pre {
-	margin: 0;
-	font-family: var(--mono);
-	font-size: var(--type-meta);
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
-	max-height: 18rem;
-	overflow: auto;
-}
 .step-message {
 	display: grid;
 	gap: 3px;
@@ -1423,66 +1359,6 @@
 .lens-root.over-composer .lens-composer [data-input-zone] {
 	outline: 2px dashed var(--foreground);
 	outline-offset: 2px;
-}
-.lens-chips {
-	display: flex;
-	gap: calc(var(--spacing) * 1.5);
-	flex-wrap: wrap;
-}
-/* The input and what goes with it read as one object. */
-.lens-row {
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--spacing) * 1);
-	padding: calc(var(--spacing) * 3) calc(var(--spacing) * 2)
-		calc(var(--spacing) * 2) calc(var(--spacing) * 3.5);
-	border-radius: 22px;
-	background: var(--muted);
-	cursor: text;
-	transition: box-shadow 0.18s;
-}
-.lens-row:focus-within {
-	box-shadow: inset 0 0 0 1.5px
-		color-mix(in srgb, var(--foreground) 60%, transparent);
-}
-.lens-row textarea {
-	display: block;
-	width: 100%;
-	max-height: calc(var(--spacing) * 45);
-	padding: 0 calc(var(--spacing) * 1.5) 0 0;
-	border: 0;
-	outline: 0;
-	resize: none;
-	background: none;
-	color: var(--foreground);
-	font: inherit;
-	font-size: var(--type-reading);
-	line-height: 1.5;
-	scrollbar-width: thin;
-}
-/* The box around it shows focus. */
-.lens-root .lens-row textarea:focus-visible {
-	outline: 0;
-}
-.lens-row textarea::placeholder {
-	color: var(--muted-foreground);
-}
-.lens-row-tools {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: calc(var(--spacing) * 1);
-	cursor: default;
-}
-/* Send: the composer's one ink control, round. */
-.lens-send {
-	flex: none;
-	border-radius: 50%;
-}
-.lens-send:disabled {
-	background: var(--muted-strong);
-	color: var(--muted-foreground);
-	opacity: 1;
 }
 
 .lens-toast {

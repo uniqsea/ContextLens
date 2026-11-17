@@ -5,6 +5,19 @@ import { useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import {
+	CodeBlock,
+	CodeBlockContent,
+	CodeBlockLine,
+} from "@/components/ui/code-block";
+import {
+	Trace,
+	TraceCollapsible,
+	TraceCollapsibleContent,
+	TraceCollapsibleTrigger,
+	TraceTitle,
+} from "@/components/ui/trace";
+import { useHighlightedCode } from "@/hooks/use-highlighted-code";
 import { useLensText } from "@/lib/lens/text";
 import {
 	type AnswerVersion,
@@ -17,20 +30,53 @@ import {
 	type TraceMessage,
 } from "@/lib/lens/types";
 import type { MemoryChange } from "@/lib/memory-types";
-import { ChangeItem, type MemoryUndo } from "./memory-changes";
 import {
 	ContextStrip,
 	type StripItem,
 	stripItems,
 	stripTokens,
 } from "./context-meter";
+import { ChangeItem, type MemoryUndo } from "./memory-changes";
 import { type FlowNode, StepFlow } from "./step-flow";
-import {
-	Collapsible,
-	CollapsibleChevron,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+
+/** Recorded text as it was sent or returned; JSON is coloured, prose is left as written. */
+function Code({
+	value,
+	language = "json",
+}: {
+	value: string;
+	language?: string;
+}) {
+	const lines = useHighlightedCode(value, language);
+	return (
+		<CodeBlock size="sm">
+			<CodeBlockContent wrap className="max-h-72">
+				{lines.map((line, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: lines of one fixed text, in order
+					<CodeBlockLine key={i}>{line}</CodeBlockLine>
+				))}
+			</CodeBlockContent>
+		</CodeBlock>
+	);
+}
+
+const json = (value: unknown) => JSON.stringify(value, null, 2);
+
+/** What is kept folded under a step: the exchange as recorded, opened on request. */
+function Folded({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<Trace>
+			<TraceCollapsible>
+				<TraceCollapsibleTrigger className="text-(length:--type-sm)">
+					<TraceTitle>{label}</TraceTitle>
+				</TraceCollapsibleTrigger>
+				<TraceCollapsibleContent className="grid gap-1.75 text-secondary-foreground">
+					{children}
+				</TraceCollapsibleContent>
+			</TraceCollapsible>
+		</Trace>
+	);
+}
 
 /** A step's card: its title opens the step's details, the rest says what the step came to. */
 function Card({
@@ -112,13 +158,12 @@ function Messages({ messages }: { messages: TraceMessage[] }) {
 					? t(`role.${m.role}` as "role.user")
 					: m.role}
 			</b>
-			{m.content && <pre>{m.content}</pre>}
+			{m.content && <Code value={m.content} language="text" />}
 			{m.tool_calls?.map((c, i) => (
-				<pre key={c.id ?? `${c.name}-${i}`}>
-					{c.name}
-					{"\n"}
-					{JSON.stringify(c.args, null, 2)}
-				</pre>
+				<Code
+					key={c.id ?? `${c.name}-${i}`}
+					value={json({ [c.name]: c.args })}
+				/>
 			))}
 		</div>
 	));
@@ -132,23 +177,9 @@ function Calls({ calls }: { calls: ModelCall[] }) {
 			<h5>{t("sent")}</h5>
 			<Messages messages={call.messages} />
 			{call.tools && call.tools.length > 0 && (
-				<Collapsible className="grid gap-1.5">
-					<CollapsibleTrigger
-						render={
-							<Button
-								variant="quiet"
-								size="xs"
-								className="-ml-2 justify-self-start"
-							/>
-						}
-					>
-						<CollapsibleChevron />
-						{t("toolSchemas", { count: call.tools.length })}
-					</CollapsibleTrigger>
-					<CollapsibleContent>
-						<pre>{JSON.stringify(call.tools, null, 2)}</pre>
-					</CollapsibleContent>
-				</Collapsible>
+				<Folded label={t("toolSchemas", { count: call.tools.length })}>
+					<Code value={json(call.tools)} />
+				</Folded>
 			)}
 			<h5>{t("returned")}</h5>
 			{call.output ? (
@@ -222,23 +253,9 @@ export function TurnSteps({
 		);
 	};
 	const raw = (children: ReactNode) => (
-		<Collapsible className="step-raw">
-			<CollapsibleTrigger
-				render={
-					<Button
-						variant="quiet"
-						size="xs"
-						className="-ml-2 justify-self-start"
-					/>
-				}
-			>
-				<CollapsibleChevron />
-				{t("raw")}
-			</CollapsibleTrigger>
-			<CollapsibleContent className="step-raw-body">
-				{children}
-			</CollapsibleContent>
-		</Collapsible>
+		<div className="border-t pt-2">
+			<Folded label={t("raw")}>{children}</Folded>
+		</div>
 	);
 	const toolName = (name: string) =>
 		t.has(`toolName.${name}` as "toolName.recall")
@@ -335,10 +352,13 @@ export function TurnSteps({
 				{raw(
 					<>
 						<h5>{t("arguments")}</h5>
-						<pre>{JSON.stringify(step.args, null, 2)}</pre>
+						<Code value={json(step.args)} />
 						{found.reading_calls && <Calls calls={found.reading_calls} />}
 						<h5>{t("result")}</h5>
-						<pre>{step.result ?? t("missing")}</pre>
+						<Code
+							value={step.result ?? t("missing")}
+							language={/^\s*[[{]/.test(step.result ?? "") ? "json" : "text"}
+						/>
 					</>,
 				)}
 			</>,

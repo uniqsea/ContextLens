@@ -194,6 +194,7 @@ export function ModelPicker({
 									key={id}
 									value={id}
 									render={<Button variant="ghost" size="xs" />}
+									nativeButton
 									className="data-checked:bg-accent"
 								>
 									{effortName(id)}

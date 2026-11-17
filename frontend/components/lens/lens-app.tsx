@@ -25,7 +25,22 @@ import { ModelPicker } from "@/components/model-settings/model-picker";
 import { SettingsDialog } from "@/components/model-settings/settings-dialog";
 import { useModelSettings } from "@/components/model-settings/use-model-settings";
 import { PageLoading } from "@/components/page-status";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "@/components/ui/empty";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupButton,
+	InputGroupTextarea,
+} from "@/components/ui/input-group";
+import { Message, MessageContent } from "@/components/ui/message";
 import { Hint } from "@/components/ui/tooltip";
 import {
 	ASSISTANT_ID,
@@ -55,6 +70,7 @@ import {
 	type Rect,
 } from "./field-engine";
 import { Inbox } from "./inbox";
+import { QuestionBubble } from "./question-bubble";
 import { useHistoryLoading, useSessions } from "./session-tabs";
 import { SettingsMenu } from "./settings-menu";
 import { SituationSettings } from "./situation-settings";
@@ -62,7 +78,6 @@ import { UnsentQuestion } from "./unsent-question";
 import { useFold } from "./use-fold";
 import { type LayoutTier, useLayoutTier } from "./use-layout-tier";
 import { useOverview } from "./use-overview";
-import { Textarea } from "@/components/ui/textarea";
 
 const EMPTY: Draft = { excluded: [], inputOrder: null };
 type RewriteChoice = Pick<Rewrite, "excluded" | "pinned">;
@@ -1118,15 +1133,21 @@ export function LensApp({
 					)}
 					<div className="lens-msgs" ref={msgsRef}>
 						{!stream.isThreadLoading && turns.length === 0 && (
-							<div className="lens-empty">
-								<b>{t("lens.emptyTitle")}</b>
-								<span>{t("lens.emptyBody")}</span>
-								<div className="lens-chips">
+							<Empty className="max-w-[38ch] self-center">
+								<EmptyHeader>
+									<EmptyTitle className="lens-empty-title text-(length:--type-display) leading-[1.2] tracking-[-0.03em]">
+										{t("lens.emptyTitle")}
+									</EmptyTitle>
+									<EmptyDescription className="text-(length:--type-ui)">
+										{t("lens.emptyBody")}
+									</EmptyDescription>
+								</EmptyHeader>
+								<EmptyContent className="max-w-none flex-row flex-wrap justify-center gap-1.5">
 									{examples.map((q) => (
 										<Button
 											key={q}
 											type="button"
-											variant="secondary"
+											variant="outline"
 											size="sm"
 											className="h-auto max-w-full rounded-2xl py-1.5 leading-[1.45] text-balance whitespace-normal"
 											onClick={() => {
@@ -1137,8 +1158,8 @@ export function LensApp({
 											{q}
 										</Button>
 									))}
-								</div>
-							</div>
+								</EmptyContent>
+							</Empty>
 						)}
 						{turns.map((t, i) => {
 							const rec = records[String(i)];
@@ -1153,7 +1174,11 @@ export function LensApp({
 								// biome-ignore lint/suspicious/noArrayIndexKey: a turn is identified by its position
 								<div key={i} style={{ display: "contents" }}>
 									{unsentAfter(i)}
-									<div className="lens-q">{t.q}</div>
+									<Message align="end" className="text-[length:inherit]">
+										<MessageContent>
+											<QuestionBubble>{t.q}</QuestionBubble>
+										</MessageContent>
+									</Message>
 									{(rec || streaming !== null) && (
 										<AnswerCard
 											sourceFocus={
@@ -1187,13 +1212,15 @@ export function LensApp({
 						})}
 						{unsentAfter(turns.length)}
 						{stream.error && !lastUnsent ? (
-							<div className="lens-error">
-								{t("lens.error", {
-									message: String(
-										(stream.error as Error)?.message ?? stream.error,
-									),
-								})}
-							</div>
+							<Bubble variant="destructive" className="max-w-full">
+								<BubbleContent role="alert">
+									{t("lens.error", {
+										message: String(
+											(stream.error as Error)?.message ?? stream.error,
+										),
+									})}
+								</BubbleContent>
+							</Bubble>
 						) : null}
 					</div>
 					<form className="lens-composer" ref={formRef} onSubmit={send}>
@@ -1221,16 +1248,11 @@ export function LensApp({
 								onHover={hover}
 							/>
 						)}
-						{/* biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: a larger target for the textarea, which keeps its own keyboard access */}
-						<div
-							className="lens-row"
-							onClick={(e) => {
-								if (e.target === e.currentTarget) inputRef.current?.focus();
-							}}
-						>
-							<Textarea
+						{/* The input and what goes with it read as one object. */}
+						<InputGroup className="rounded-[22px] border-0 bg-muted transition-shadow dark:bg-muted has-[[data-slot=input-group-control]:focus-visible]:ring-[1.5px] has-[[data-slot=input-group-control]:focus-visible]:ring-foreground/60 has-[[data-slot=input-group-control]:focus-visible]:ring-inset">
+							<InputGroupTextarea
 								id="lens-q"
-								className="min-h-0 rounded-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
+								className="max-h-45 min-h-0 px-3.5 pt-3 pb-1 text-(length:--type-reading) leading-normal"
 								ref={inputRef}
 								rows={1}
 								value={input}
@@ -1254,15 +1276,19 @@ export function LensApp({
 								placeholder={t("lens.placeholder")}
 								aria-label={t("lens.inputLabel")}
 							/>
-							<div className="lens-row-tools">
+							<InputGroupAddon
+								align="block-end"
+								className="justify-end gap-1 pr-2"
+							>
 								<ModelPicker
 									settings={modelSettings}
 									onManage={() => setManagingModels(true)}
 								/>
 								<Hint label={t("lens.send")}>
-									<Button
+									<InputGroupButton
 										size="icon-sm"
-										className="lens-send"
+										variant="default"
+										className="rounded-full disabled:bg-muted-strong disabled:text-muted-foreground disabled:opacity-100"
 										type="submit"
 										disabled={
 											!input.trim() ||
@@ -1273,10 +1299,10 @@ export function LensApp({
 										aria-label={t("lens.send")}
 									>
 										<ArrowUp aria-hidden="true" />
-									</Button>
+									</InputGroupButton>
 								</Hint>
-							</div>
-						</div>
+							</InputGroupAddon>
+						</InputGroup>
 					</form>
 				</section>
 

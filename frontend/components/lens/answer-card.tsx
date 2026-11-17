@@ -4,6 +4,7 @@ import { useLocale } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Message, MessageContent } from "@/components/ui/message";
 import { Hint } from "@/components/ui/tooltip";
 import { htmlLang } from "@/i18n/config";
 import { useLensText } from "@/lib/lens/text";
@@ -166,175 +167,179 @@ export function AnswerCard({
 		: [];
 
 	return (
-		<div className="lens-a turn-answer" data-turn={index}>
-			{(count > 1 || busy) && (
-				<div className="bar">
-					{count > 1 && (
-						<>
-							<span className="v">{t("answer.version", { n: count })}</span>
-							<span>{latest && text.note(latest.note, latest.candidates)}</span>
-							<Button
-								variant="secondary"
-								size="chip"
-								type="button"
-								onClick={() => onUndo(index)}
-								disabled={busy}
-							>
-								{t("answer.undo")}
-							</Button>
-						</>
-					)}
-					{busy && <span className="busy">{t("answer.rewriting")}</span>}
-				</div>
-			)}
-			{streamingText !== null ? (
-				<p className="lens-answer streaming">
-					<InlineText text={streamingText} />
-				</p>
-			) : (
-				<p className="lens-answer">
-					{segments.map((p, k) =>
-						p.kind === "gone" ? (
-							<del key={keyOf(`gone:${p.text}`)} className="gone">
-								<InlineText text={p.text} />
-							</del>
-						) : (
-							<Hint
-								key={keyOf(`seg:${p.seg.text}`)}
-								label={
-									p.seg.src.length
-										? t("answer.basis", {
-												titles: p.seg.src
-													.map((id) => {
-														const c = latest?.candidates.find(
-															(x) => x.id === id,
-														);
-														return c ? text.title(c) : id;
-													})
-													.join(" · "),
-											})
-										: t("answer.noBasis")
-								}
-							>
-								<span
-									className={
-										"seg" +
-										(p.seg.src.length ? "" : " nosrc") +
-										(p.kind === "new" ? " ink" : "")
-									}
-									style={
-										{
-											// Underlined in the colour of the first source it rests on.
-											"--c": layerColor(
-												latest?.candidates.find((c) => c.id === p.seg.src[0])
-													?.layer ?? "memory",
-											),
-											animationDelay:
-												p.kind === "new" ? `${k * 90}ms` : undefined,
-										} as React.CSSProperties
-									}
-									data-src={p.seg.src.join(" ")}
-								>
-									<InlineText text={p.seg.text} />
+		<Message className="lens-a text-[length:inherit]" data-turn={index}>
+			<MessageContent className="gap-2.5">
+				{(count > 1 || busy) && (
+					<div className="bar">
+						{count > 1 && (
+							<>
+								<span className="v">{t("answer.version", { n: count })}</span>
+								<span>
+									{latest && text.note(latest.note, latest.candidates)}
 								</span>
-							</Hint>
-						),
-					)}
-				</p>
-			)}
-			{latest && (
-				<>
-					<div className="lens-rcpt">
-						<ContextStrip
-							items={strip}
-							mini
-							onHover={(ids) => onHover(ids, index)}
-							onPeek={setPeek}
-						/>
-						<span>
-							{peek
-								? t("lens.stripSegment", {
-										label: peek.label,
-										tokens: peek.tokens,
-									})
-								: t("answer.receipt", {
-										count: assembled.filter((id) =>
-											FIELD_LAYERS.includes(
-												latest.candidates.find((c) => c.id === id)?.layer ??
-													"system",
-											),
-										).length,
-										tokens: stripTokens(strip),
-									})}
-						</span>
-						{stale.length > 0 && (
-							<Button
-								variant="outline"
-								size="chip"
-								type="button"
-								className="warn"
-								onClick={(e) => {
-									e.stopPropagation();
-									onStale(stale, index);
-								}}
-							>
-								{t("answer.stale", { count: stale.length })}
-							</Button>
+								<Button
+									variant="secondary"
+									size="chip"
+									type="button"
+									onClick={() => onUndo(index)}
+									disabled={busy}
+								>
+									{t("answer.undo")}
+								</Button>
+							</>
 						)}
+						{busy && <span className="busy">{t("answer.rewriting")}</span>}
 					</div>
-					<Button
-						type="button"
-						variant="quiet"
-						size="sm"
-						aria-controls="turn-steps-canvas"
-						onClick={onShowSteps}
-					>
-						{t("turnSteps.showCanvas")} ↗
-					</Button>
-					{stepsHost &&
-						createPortal(
-							<TurnSteps
-								sourceFocus={sourceFocus}
-								key={latest.created_at}
-								version={latest}
-								query={record?.query ?? ""}
-								rewrite={count > 1}
-								paneHost={stepsPane}
+				)}
+				{streamingText !== null ? (
+					<p className="lens-answer streaming">
+						<InlineText text={streamingText} />
+					</p>
+				) : (
+					<p className="lens-answer">
+						{segments.map((p, k) =>
+							p.kind === "gone" ? (
+								<del key={keyOf(`gone:${p.text}`)} className="gone">
+									<InlineText text={p.text} />
+								</del>
+							) : (
+								<Hint
+									key={keyOf(`seg:${p.seg.text}`)}
+									label={
+										p.seg.src.length
+											? t("answer.basis", {
+													titles: p.seg.src
+														.map((id) => {
+															const c = latest?.candidates.find(
+																(x) => x.id === id,
+															);
+															return c ? text.title(c) : id;
+														})
+														.join(" · "),
+												})
+											: t("answer.noBasis")
+									}
+								>
+									<span
+										className={
+											"seg" +
+											(p.seg.src.length ? "" : " nosrc") +
+											(p.kind === "new" ? " ink" : "")
+										}
+										style={
+											{
+												// Underlined in the colour of the first source it rests on.
+												"--c": layerColor(
+													latest?.candidates.find((c) => c.id === p.seg.src[0])
+														?.layer ?? "memory",
+												),
+												animationDelay:
+													p.kind === "new" ? `${k * 90}ms` : undefined,
+											} as React.CSSProperties
+										}
+										data-src={p.seg.src.join(" ")}
+									>
+										<InlineText text={p.seg.text} />
+									</span>
+								</Hint>
+							),
+						)}
+					</p>
+				)}
+				{latest && (
+					<>
+						<div className="lens-rcpt">
+							<ContextStrip
+								items={strip}
+								mini
 								onHover={(ids) => onHover(ids, index)}
-								undoing={undoing}
-								changes={record?.memory_changes}
-								readingControls={
-									latest.situation && (
-										<TurnReading
+								onPeek={setPeek}
+							/>
+							<span>
+								{peek
+									? t("lens.stripSegment", {
+											label: peek.label,
+											tokens: peek.tokens,
+										})
+									: t("answer.receipt", {
+											count: assembled.filter((id) =>
+												FIELD_LAYERS.includes(
+													latest.candidates.find((c) => c.id === id)?.layer ??
+														"system",
+												),
+											).length,
+											tokens: stripTokens(strip),
+										})}
+							</span>
+							{stale.length > 0 && (
+								<Button
+									variant="outline"
+									size="chip"
+									type="button"
+									className="warn"
+									onClick={(e) => {
+										e.stopPropagation();
+										onStale(stale, index);
+									}}
+								>
+									{t("answer.stale", { count: stale.length })}
+								</Button>
+							)}
+						</div>
+						<Button
+							type="button"
+							variant="quiet"
+							size="sm"
+							aria-controls="turn-steps-canvas"
+							onClick={onShowSteps}
+						>
+							{t("turnSteps.showCanvas")} ↗
+						</Button>
+						{stepsHost &&
+							createPortal(
+								<TurnSteps
+									sourceFocus={sourceFocus}
+									key={latest.created_at}
+									version={latest}
+									query={record?.query ?? ""}
+									rewrite={count > 1}
+									paneHost={stepsPane}
+									onHover={(ids) => onHover(ids, index)}
+									undoing={undoing}
+									changes={record?.memory_changes}
+									readingControls={
+										latest.situation && (
+											<TurnReading
+												version={latest}
+												scenes={scenes}
+												concepts={concepts}
+												busy={busy}
+												onRewrite={(change) => onRewrite(index, change)}
+											/>
+										)
+									}
+									contextControls={
+										<ContextEditor
+											index={index}
+											query={record?.query ?? ""}
 											version={latest}
-											scenes={scenes}
-											concepts={concepts}
+											usage={usage}
+											onHover={onHover}
 											busy={busy}
 											onRewrite={(change) => onRewrite(index, change)}
 										/>
-									)
-								}
-								contextControls={
-									<ContextEditor
-										index={index}
-										query={record?.query ?? ""}
-										version={latest}
-										usage={usage}
-										onHover={onHover}
-										busy={busy}
-										onRewrite={(change) => onRewrite(index, change)}
-									/>
-								}
-							/>,
-							stepsHost,
-						)}
-					<MemoryChanges
-						changes={record?.memory_changes ?? []}
-						undoing={undoing}
-					/>
-				</>
-			)}
-		</div>
+									}
+								/>,
+								stepsHost,
+							)}
+						<MemoryChanges
+							changes={record?.memory_changes ?? []}
+							undoing={undoing}
+						/>
+					</>
+				)}
+			</MessageContent>
+		</Message>
 	);
 }
 
