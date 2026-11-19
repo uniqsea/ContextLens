@@ -79,11 +79,17 @@ def prepare_snapshot(state: dict) -> dict:
                 it["status"] = "active" if it["id"] in chosen else "context_blocked"
                 it["selection_reason"] = reason("manual" if it["id"] in chosen else "not_added")
     if scope != memory.ORDINARY:
-        # A file that goes into the request goes in whole, read as it is now.
+        # Files go in whole, read as they are now, first to last while they fit the budget; a file past
+        # it sends the passages that matched, and the agent reads more of it if it needs to.
         cards = {doc["id"]: doc for doc in documents}
-        for it in items:
-            if it["layer"] == "retrieval" and it["status"] == "active" and it["id"] in cards:
-                it["content"] = project_files.content(scope, cards[it["id"]], estimate_tokens)
+        sent = [it for it in items if it["layer"] == "retrieval" and it["status"] == "active" and it["id"] in cards]
+        place = {i: n for n, i in enumerate(order or ())}
+        sent.sort(key=lambda it: place.get(it["id"], it.get("retrieval_rank") or len(place) + 99))
+        room = project_files.FILE_BUDGET
+        for it in sent:
+            it["content"], it["passages"] = project_files.content(scope, cards[it["id"]], estimate_tokens, room)
+            if it["passages"] is None:
+                room -= estimate_tokens(it["content"])
     for it in items:
         it["tokens"] = estimate_tokens(it["title"] + it["content"])
     selected = [it for it in items if it["status"] == "active"]
@@ -148,7 +154,7 @@ def render_prompt(selected: list[dict], labels: Labels, *, ordered=False) -> str
 # ---------- the four kinds of items ----------
 
 _CANDIDATE_KEYS = ("id", "layer", "title", "content", "revision", "status", "selection_reason", "source_label",
-                   "scenes", "memory_type", "stale", "tokens", "relevance", "retrieval_rank", "always_on")
+                   "scenes", "memory_type", "stale", "tokens", "relevance", "retrieval_rank", "always_on", "passages")
 
 
 def _item(id, layer, title, content, source_label, ignored, why="source"):

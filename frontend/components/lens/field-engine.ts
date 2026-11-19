@@ -895,9 +895,9 @@ export class FieldEngine {
 			const wy = (y: number) => (y - this.view.y) / this.view.scale;
 			const seg = m.spine[l.card.id];
 			const o = spread.get(l.card.id) ?? 0;
-			// A previewed wire leaves its segment of the spine. A sent one starts at the sentence,
-			// runs into its segment and comes out the other side; only the part over the field can
-			// be grabbed.
+			// A previewed wire leaves its segment of the spine, dashed. A sent one leaves it solid;
+			// the citation from the sentence into the segment shows only while it is asked about.
+			// Only the part over the field can be grabbed.
 			if (a.kind === "strip")
 				l.wire.move(wx(a.x), wy(a.y), ex, ey, { preview: true });
 			else if (seg)
@@ -905,7 +905,8 @@ export class FieldEngine {
 					lead: { x: wx(a.x), y: wy(a.y + o), toX: wx(seg.x) },
 				});
 			else l.wire.move(wx(a.x), wy(a.y + o), ex, ey);
-			l.wire.dim(l.far, !!a.fade);
+			// Fading follows the sentence, so it matters only to a wire that starts there.
+			l.wire.dim(l.far, !!a.fade && !seg);
 			if (this.handleFor === l && l.wire.hit) {
 				const p = l.wire.hit.getPointAtLength(
 					l.wire.hit.getTotalLength() * 0.5,

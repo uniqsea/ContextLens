@@ -629,6 +629,9 @@ export function LensApp({
 					share: sharesRef.current.get(c.id) ?? "",
 					meta: [
 						c.layer === "short_term" && !earlier(c) ? "" : c.source_label,
+						c.layer === "retrieval" && c.passages != null
+							? tx.t("field.passagesSent", { count: c.passages })
+							: "",
 						c.stale ? tx.t("items.maybeStale") : "",
 					]
 						.filter(Boolean)
@@ -671,7 +674,7 @@ export function LensApp({
 		if (!root) return;
 		root
 			.querySelectorAll(
-				".seg.hl, .sg.hl, .item.hl, [data-field-id].hl, [data-flow-ids].hl",
+				".seg.hl, .cite.hl, .sg.hl, .item.hl, [data-field-id].hl, [data-flow-ids].hl",
 			)
 			.forEach((e) => {
 				e.classList.remove("hl");
@@ -688,7 +691,7 @@ export function LensApp({
 		const view = viewRef.current;
 		const t = turn ?? (view.kind === "turn" ? view.turn : null);
 		const el = t !== null ? root.querySelector(`[data-turn="${t}"]`) : null;
-		el?.querySelectorAll<HTMLElement>(".seg[data-src]").forEach((s) => {
+		el?.querySelectorAll<HTMLElement>(".seg[data-src], .cite").forEach((s) => {
 			if (s.dataset.src!.split(" ").some((id) => ids.includes(id)))
 				s.classList.add("hl");
 		});
@@ -819,8 +822,9 @@ export function LensApp({
 	// ---------- sentence hover and click ----------
 	useEffect(() => {
 		const msgs = msgsRef.current!;
+		// A citation mark asks about its one source; the rest of the sentence about all of them.
 		const segOf = (e: Event) =>
-			(e.target as HTMLElement).closest<HTMLElement>(".seg[data-src]");
+			(e.target as HTMLElement).closest<HTMLElement>(".cite, .seg[data-src]");
 		const turnOf = (el: HTMLElement) =>
 			Number(el.closest<HTMLElement>("[data-turn]")?.dataset.turn);
 		const over = (e: Event) => {

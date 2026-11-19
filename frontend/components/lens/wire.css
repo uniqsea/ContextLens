@@ -31,6 +31,17 @@
 .lens-root.focusing .wire:not(.hl) {
 	opacity: 0.08;
 }
+/* The citation, sentence to spine: only while asked about, dotted so it reads apart from the input. */
+.lens-wire .wire.lead {
+	stroke-dasharray: 2 4;
+	stroke-linecap: round;
+}
+.lens-wire .wire.lead:not(.hl) {
+	opacity: 0;
+}
+.lens-wire .dot.cite:not(.hl) {
+	visibility: hidden;
+}
 .lens-wire .dot {
 	fill: var(--c);
 }

@@ -266,6 +266,20 @@ class ProjectFilesTests(StoreTestCase):
         docs = preview("fictional harbour orchard")
         self.assertTrue(docs["maps/harbour.docx"]["retrieval_rank"] and docs["maps/orchard.docx"]["retrieval_rank"])
 
+    def test_files_go_in_whole_until_the_budget_then_as_passages(self):
+        filler = "Ballast notes in a fictional log. " * 900  # about 7,000 tokens
+        self.docx("first.docx", "The fictional lighthouse keeper logs the lamp hours.", filler)
+        self.docx("second.docx", "The fictional lighthouse lamp burns paraffin.", filler)
+        project_files.attach(self.project, [str(self.first)])
+        docs = {d["title"]: d for d in self.search("fictional lighthouse lamp")}
+        whole, cut = sorted(docs.values(), key=lambda d: d["retrieval_rank"])
+        self.assertIsNone(whole["passages"])
+        self.assertIn("Ballast notes", whole["content"])
+        self.assertIn(cut["passages"], (1, 2, 3))  # its best passages, never more than PASSAGES
+        self.assertIn("Only the passages that matched are included", cut["content"])
+        self.assertIn("/projects/maps/", cut["content"])
+        self.assertLess(cut["tokens"], 1000)
+
     def test_thumbnail_reads_document_start_and_is_project_scoped(self):
         from contextlens.project_files.thumbnails import thumbnail
         from contextlens.memory.types import MemoryError

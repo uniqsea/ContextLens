@@ -133,17 +133,20 @@ class PassageTests(StoreTestCase):
         self.assertEqual(self.counts(), (2, 2))  # no passage of its own, no vector
         [hit] = project_files.search(self.project, "timetable")
         self.assertEqual(hit["title"], "harbour/timetable.md")
-        # Sent, it goes in whole.
-        self.assertTrue(project_files.content(self.project, hit, len).endswith("The pier lamp is violet."))
+        # Sent within the budget, it goes in whole.
+        sent, passages = project_files.content(self.project, hit, len, project_files.FILE_BUDGET)
+        self.assertTrue(sent.endswith("The pier lamp is violet."))
+        self.assertIsNone(passages)
 
-    def test_a_chosen_file_too_large_to_send_is_left_to_the_file_tools(self):
+    def test_a_chosen_file_past_the_budget_sends_its_passages_and_where_to_read_more(self):
         self.pdf("almanac.pdf", "The ferry almanac lists every crossing. " + "Tide tables follow. " * 4000 + "\f")
         self.changed("almanac.pdf")
         hit = next(h for h in project_files.search(self.project, "almanac lists") if h["title"] == "harbour/almanac.pdf")
-        sent = project_files.content(self.project, hit, lambda text: len(text) // 4)
-        self.assertIn("Too large to include in full", sent)
+        sent, passages = project_files.content(self.project, hit, lambda text: len(text) // 4, project_files.FILE_BUDGET)
+        self.assertIn("Only the passages that matched are included", sent)
         self.assertIn("/projects/harbour/almanac.pdf", sent)
         self.assertIn("The ferry almanac lists every crossing.", sent)  # the passage that matched
+        self.assertIn(passages, (1, 2, 3))
         self.assertLess(len(sent), 4000)
 
 

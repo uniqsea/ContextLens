@@ -514,9 +514,10 @@
 	transition: background 0.18s;
 	cursor: pointer;
 }
-/* A sentence that rests on a source is underlined in that source's colour, the same colour its
-   wire carries across the field. */
-.lens-answer .seg[data-src]:not(.nosrc) {
+/* At rest a sentence shows its sources as numbered marks. Asked about (pointing at it, a mark, a
+   card or a segment), the sentences resting on that source are underlined in its colour, the
+   colour its wire carries across the field. */
+.lens-answer .seg[data-src]:not(.nosrc).hl {
 	text-decoration: underline;
 	text-decoration-color: color-mix(in srgb, var(--c) 72%, transparent);
 	text-decoration-thickness: 2px;
@@ -524,6 +525,34 @@
 }
 .lens-answer .seg.hl {
 	background: var(--glow);
+}
+.lens-answer .cites {
+	display: inline-flex;
+	gap: 2px;
+	margin-inline: 3px 1px;
+	vertical-align: 0.35em;
+	text-decoration: none;
+}
+.lens-answer .cite {
+	display: inline-grid;
+	place-items: center;
+	min-width: 1.45em;
+	height: 1.45em;
+	padding-inline: 3px;
+	border-radius: 4px;
+	font-size: 0.62em;
+	font-weight: 500;
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
+	color: color-mix(in srgb, var(--c) 80%, var(--foreground));
+	background: color-mix(in srgb, var(--c) 14%, transparent);
+	transition:
+		background 0.18s,
+		color 0.18s;
+}
+.lens-answer .cite.hl {
+	color: var(--background);
+	background: var(--c);
 }
 .lens-answer .seg.nosrc.hl {
 	background: color-mix(in srgb, var(--destructive) 14%, transparent);
@@ -877,10 +906,6 @@
 	min-height: calc(var(--spacing) * 6.5);
 	font-size: var(--type-sm);
 	color: var(--muted-foreground);
-}
-.lens-rcpt .lens-strip.mini {
-	flex: 0 1 120px;
-	min-width: calc(var(--spacing) * 15);
 }
 /* Stale sources: the outline button in the document colour, so it reads as a warning. */
 .lens-rcpt .warn {

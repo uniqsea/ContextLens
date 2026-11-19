@@ -53,6 +53,8 @@ export interface Candidate {
 	stale?: boolean | null;
 	tokens: number;
 	revision?: number | null;
+	/** A file sent as its matched passages instead of whole: how many (0: only its path). */
+	passages?: number | null;
 }
 
 export interface Snapshot {

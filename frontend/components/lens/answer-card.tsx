@@ -11,13 +11,7 @@ import { useLensText } from "@/lib/lens/text";
 import type { Candidate, Change, Segment, TurnRecord } from "@/lib/lens/types";
 import { FIELD_LAYERS, layerColor } from "@/lib/lens/types";
 import type { Concept, Scene } from "@/lib/memory-types";
-import {
-	ContextMeter,
-	ContextStrip,
-	type Peek,
-	stripItems,
-	stripTokens,
-} from "./context-meter";
+import { ContextMeter, stripItems, stripTokens } from "./context-meter";
 import { MemoryChanges, useMemoryUndo } from "./memory-changes";
 import { TurnReading } from "./turn-reading";
 import { TurnSteps } from "./turn-steps";
@@ -131,7 +125,6 @@ export function AnswerCard({
 		threadId,
 		onMemoryChanged,
 	);
-	const [peek, setPeek] = useState<Peek | null>(null);
 	const [pieces, setPieces] = useState<Piece[] | null>(null);
 	const prev = useRef<{ count: number; segments: Segment[] } | null>(null);
 
@@ -165,6 +158,26 @@ export function AnswerCard({
 	const strip = latest
 		? stripItems(latest.candidates, assembled, record?.query ?? "", text)
 		: [];
+	const picked = latest
+		? assembled.filter((id) =>
+				FIELD_LAYERS.includes(
+					latest.candidates.find((c) => c.id === id)?.layer ?? "system",
+				),
+			)
+		: [];
+	const layerOf = (id: string) =>
+		latest?.candidates.find((c) => c.id === id)?.layer ?? "memory";
+	// Sources are numbered as the answer first cites them. A run of sentences resting on the same
+	// sources carries its marks once, after the last of them.
+	const cited = new Map<string, number>();
+	for (const p of segments)
+		if (p.kind !== "gone")
+			for (const id of p.seg.src)
+				if (!cited.has(id)) cited.set(id, cited.size + 1);
+	const srcAt = (k: number) => {
+		const p = segments[k];
+		return p && p.kind !== "gone" ? p.seg.src.join(" ") : null;
+	};
 
 	return (
 		<Message className="lens-a text-[length:inherit]" data-turn={index}>
@@ -228,11 +241,8 @@ export function AnswerCard({
 										}
 										style={
 											{
-												// Underlined in the colour of the first source it rests on.
-												"--c": layerColor(
-													latest?.candidates.find((c) => c.id === p.seg.src[0])
-														?.layer ?? "memory",
-												),
+												// Underlined, when asked about, in the colour of its first source.
+												"--c": layerColor(layerOf(p.seg.src[0])),
 												animationDelay:
 													p.kind === "new" ? `${k * 90}ms` : undefined,
 											} as React.CSSProperties
@@ -240,6 +250,24 @@ export function AnswerCard({
 										data-src={p.seg.src.join(" ")}
 									>
 										<InlineText text={p.seg.text} />
+										{p.seg.src.length > 0 && srcAt(k + 1) !== srcAt(k) && (
+											<span className="cites">
+												{p.seg.src.map((id) => (
+													<span
+														key={id}
+														className="cite"
+														data-src={id}
+														style={
+															{
+																"--c": layerColor(layerOf(id)),
+															} as React.CSSProperties
+														}
+													>
+														{cited.get(id)}
+													</span>
+												))}
+											</span>
+										)}
 									</span>
 								</Hint>
 							),
@@ -249,27 +277,16 @@ export function AnswerCard({
 				{latest && (
 					<>
 						<div className="lens-rcpt">
-							<ContextStrip
-								items={strip}
-								mini
-								onHover={(ids) => onHover(ids, index)}
-								onPeek={setPeek}
-							/>
-							<span>
-								{peek
-									? t("lens.stripSegment", {
-											label: peek.label,
-											tokens: peek.tokens,
-										})
-									: t("answer.receipt", {
-											count: assembled.filter((id) =>
-												FIELD_LAYERS.includes(
-													latest.candidates.find((c) => c.id === id)?.layer ??
-														"system",
-												),
-											).length,
-											tokens: stripTokens(strip),
-										})}
+							{/* What went in, in words: the bar itself stands by the canvas. */}
+							{/* biome-ignore lint/a11y/noStaticElementInteractions: a pointer-only preview; each source is on the bar by the canvas */}
+							<span
+								onMouseEnter={() => onHover(picked, index)}
+								onMouseLeave={() => onHover(null, index)}
+							>
+								{t("answer.receipt", {
+									count: picked.length,
+									tokens: stripTokens(strip),
+								})}
 							</span>
 							{stale.length > 0 && (
 								<Button

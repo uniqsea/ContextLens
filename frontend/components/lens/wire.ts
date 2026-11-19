@@ -52,6 +52,8 @@ const MARKS = {
 export class Wire {
 	private readonly group = svg("g");
 	private readonly stroke = svg("path");
+	/** Sentence to spine segment: what the answer cites, drawn only while it is asked about. */
+	private readonly lead = svg("path");
 	private readonly dot: SVGCircleElement | null;
 	private readonly end: SVGPathElement | null;
 	readonly hit: SVGPathElement | null;
@@ -63,6 +65,7 @@ export class Wire {
 		);
 		this.group.style.setProperty("--c", options.color);
 		this.stroke.setAttribute("class", "wire");
+		this.lead.setAttribute("class", "wire lead");
 		this.hit = options.interactive ? svg("path") : null;
 		this.dot = options.startDot ? svg("circle") : null;
 		this.end = options.endMark ? svg("path") : null;
@@ -70,7 +73,7 @@ export class Wire {
 			this.hit.setAttribute("class", "hit");
 			this.group.append(this.hit);
 		}
-		this.group.append(this.stroke);
+		this.group.append(this.stroke, this.lead);
 		if (options.endArrow)
 			this.stroke.setAttribute("marker-end", `url(#${arrowMarker(parent)})`);
 		if (this.dot) {
@@ -95,9 +98,10 @@ export class Wire {
 	}
 
 	/**
-	 * From (x, y) to the end. `lead` is where the wire really starts when it first has to reach
-	 * (x, y): a sentence, on its way through its segment of the spine. Only the main run can be
-	 * grabbed. `preview` draws it dashed: nothing has been sent yet.
+	 * From (x, y) to the end. `lead` is the citation before it: from a sentence to (x, y), its
+	 * segment of the spine. It is drawn apart and only shows while highlighted, since at rest a wire
+	 * says what went in, not what the answer used. Only the main run can be grabbed. `preview` draws
+	 * it dashed: nothing has been sent yet.
 	 */
 	move(
 		x: number,
@@ -115,16 +119,16 @@ export class Wire {
 		};
 		const lead = options?.lead;
 		const open = curve(x, y, endX, endY);
-		this.stroke.setAttribute(
-			"d",
-			lead ? `${curve(lead.x, lead.y, lead.toX, y)} ${open}` : open,
-		);
+		this.stroke.setAttribute("d", open);
+		this.lead.setAttribute("d", lead ? curve(lead.x, lead.y, lead.toX, y) : "");
 		this.hit?.setAttribute("d", open);
 		if (this.dot) {
 			this.dot.setAttribute("cx", String(lead?.x ?? x));
 			this.dot.setAttribute("cy", String(lead?.y ?? y));
 			// A previewed wire starts on the spine itself, which needs no mark.
 			this.dot.style.display = options?.preview ? "none" : "";
+			// On a sentence it belongs to the citation and comes and goes with it.
+			this.dot.classList.toggle("cite", !!lead);
 		}
 		this.end?.setAttribute("transform", `translate(${endX} ${endY})`);
 		this.stroke.classList.toggle("preview", !!options?.preview);
@@ -132,6 +136,7 @@ export class Wire {
 
 	highlight(active: boolean) {
 		this.stroke.classList.toggle("hl", active);
+		this.lead.classList.toggle("hl", active);
 		this.dot?.classList.toggle("hl", active);
 		this.end?.classList.toggle("hl", active);
 	}

@@ -12,6 +12,7 @@
 		"zoomIn": "Zoom in",
 		"fitAll": "Fit all",
 		"preview": "Document preview of {title}",
+		"passagesSent": "{count, plural, =0 {Path only} one {# passage only} other {# passages only}}",
 		"related": "Related",
 		"library": "Browse all sources ({count})",
 		"closeLibrary": "Back to relevant sources",

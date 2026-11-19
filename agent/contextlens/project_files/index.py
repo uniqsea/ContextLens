@@ -10,8 +10,9 @@ something in a linked folder changes (watch.py), and when the backend starts, to
 changed while it was off. Searching only reads what is there. Small files go first, so most are
 searchable soon after a folder is linked.
 
-A file chosen for a turn goes into the request whole, read when the request is built (`content`); one
-too large for that is left to the agent's file tools.
+A file chosen for a turn goes into the request whole while the files chosen with it fit in FILE_BUDGET,
+read when the request is built (`content`); past that it sends only its passages that matched and where
+the agent can read the rest with its file tools, the way Claude's projects switch to retrieval.
 """
 from __future__ import annotations
 
@@ -32,7 +33,8 @@ from .documents import BINARY_SUFFIXES, DOCUMENT_SUFFIXES, IMAGE_SUFFIXES, SKIP_
 from .folders import file_stamp, open_root
 
 log = logging.getLogger(__name__)
-INJECT_TOKENS = 20_000  # a chosen file larger than this is read by the agent instead
+FILE_BUDGET = 8_000  # tokens of whole files one request carries; past it a file sends its passages
+PASSAGES = 3  # passages that stand for a file not sent whole
 # Registered (the agent sees them listed) but never offered as context: by their names, nothing to read.
 _UNOFFERED = BINARY_SUFFIXES - IMAGE_SUFFIXES
 _BATCH = 256
@@ -342,13 +344,15 @@ def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
     ranked = list(found)
     relevance: dict[str, float] = {}
     best = {path: passages[0] for path, passages in found.items()}
+    matched = {path: passages[:PASSAGES] for path, passages in found.items()}
     # The reranker reads the first files' best passages; a file below the bar is listed, never sent.
     judged = ranked[:retrieval.JUDGED // retrieval.PER_FILE]
     scores = retrieval.judge(question, [p for path in judged for p in found[path][:retrieval.PER_FILE]])
     if scores is not None:
         for path in judged:
-            top = max(found[path][:retrieval.PER_FILE], key=lambda p: scores[p["passage"]])
-            best[path], relevance[path] = top, scores[top["passage"]]
+            judged_here = sorted(found[path][:retrieval.PER_FILE], key=lambda p: -scores[p["passage"]])
+            best[path], relevance[path] = judged_here[0], scores[judged_here[0]["passage"]]
+            matched[path] = [judged_here[0], *(p for p in judged_here[1:] if scores[p["passage"]] >= retrieval.RELEVANT)]
         ranked = sorted((p for p in judged if relevance[p] >= retrieval.RELEVANT), key=lambda p: -relevance[p])
     hits = []
     seen = set()
@@ -356,10 +360,11 @@ def search(scope: str, question: str, *, inventory: bool = False) -> list[dict]:
     def card(row, passage, rank=None):
         label = f'{Path(row["root"]).name}/{row["path"]}'
         page = passage.get("page")
+        path = os.path.join(row["root"], row["path"])
         return {"id": _id(scope, row["root"], row["path"]), "title": label, "content": "",
                 "source_label": f"{label} · p. {page}" if page else label, "rank": rank, "page": page,
-                "excerpt": passage.get("excerpt") or "", "relevance": relevance.get(
-                    os.path.join(row["root"], row["path"])), "files": [_dependency(row)]}
+                "passages": [{"page": p.get("page"), "text": p["excerpt"]} for p in matched.get(path, []) if p["excerpt"]],
+                "relevance": relevance.get(path), "files": [_dependency(row)]}
 
     for path in ranked:
         seen.add(path)
@@ -404,18 +409,21 @@ def read_text(folder, path: str) -> str | None:
     return text
 
 
-def content(scope: str, card: dict, count_tokens) -> str:
-    """What a chosen file puts in the request: all of it, or, when too large, where the agent can read it."""
+def content(scope: str, card: dict, count_tokens, room: int) -> tuple[str, int | None]:
+    """What a chosen file puts in the request, and how many passages stand for it (None: all of it).
+    Whole when it fits in `room` tokens; otherwise the passages that matched and where to read the rest."""
     dep = card["files"][0]
     folders = readable_folders(scope)
     folder = next((f for f in folders if f["id"] == dep["folder"]), None)
     text = read_text(folder, dep["path"]) if folder is not None else None
     if text is None:
-        return "(No readable text.)"
+        return "(No readable text.)", None
     tokens = count_tokens(text)
-    if tokens <= INJECT_TOKENS:
-        return text
+    if tokens <= room:
+        return text, None
     where = f"/projects/{mount_names(folders)[folder['id']]}/{dep['path']}"
-    note = (f"Too large to include in full (about {tokens} tokens). Read the parts you need with grep and "
-            f"read_file at {where}.")
-    return f"{note}\n\nThe passage that matched:\n{card['excerpt']}" if card.get("excerpt") else note
+    passages = card.get("passages") or []
+    note = (f"Only the passages that matched are included; the whole file is about {tokens} tokens. "
+            f"Read more of it with grep and read_file at {where}.")
+    parts = [f"[p. {p['page']}]\n{p['text']}" if p.get("page") else p["text"] for p in passages]
+    return "\n\n".join([note, *parts]), len(passages)

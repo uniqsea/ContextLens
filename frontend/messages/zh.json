@@ -12,6 +12,7 @@
 		"zoomIn": "放大",
 		"fitAll": "显示全部",
 		"preview": "「{title}」的文件预览",
+		"passagesSent": "{count, plural, =0 {只给了路径} other {只放了 # 段}}",
 		"related": "相关材料",
 		"library": "浏览全部材料（{count}）",
 		"closeLibrary": "返回相关材料",
